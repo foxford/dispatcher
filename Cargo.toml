@@ -1,0 +1,31 @@
+[package]
+name = "dispatcher"
+version = "0.1.0"
+authors = ["Andrei Nesterov <ae.nesterov@gmail.com>"]
+description = "An agent library."
+readme = "README.md"
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+tide = "0.15.0"
+async-std = { version = "1.8.0", features = ["attributes"] }
+chrono = { version = "0.4", features = ["serde"] }
+sqlx = { version = "0.4", features = ["offline", "postgres", "macros", "uuid", "chrono", "json", "bigdecimal", "runtime-async-std-rustls"] }
+serde = "1.0"
+serde_derive = "1.0"
+svc-agent = { version = "0.14" }
+svc-authn = { version = "0.6", features = ["jose"] }
+svc-error = { version = "0.1", features = ["svc-agent", "svc-authn", "sentry-extension"] }
+sentry = "0.18.1"
+config = "0.10"
+lazy_static = "1.4"
+slog = "2.5"
+slog-async = "2.5"
+slog-json = "2.3"
+slog-envlogger = "2.2"
+anyhow = "1.0"
+jsonwebtoken = "7.1"
+futures = "0.3"
+futures-channel = "0.3"

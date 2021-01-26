@@ -1,0 +1,5 @@
+[book]
+authors = ["Timofey Martynov"]
+multilingual = false
+src = "src"
+title = "Dispatcher"
