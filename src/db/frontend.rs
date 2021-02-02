@@ -36,11 +36,12 @@ impl ListQuery {
 #[derive(Debug)]
 pub(crate) struct FrontendByScopeQuery {
     scope: String,
+    app: String,
 }
 
 impl FrontendByScopeQuery {
-    pub fn new(scope: String) -> Self {
-        Self { scope }
+    pub fn new(scope: String, app: String) -> Self {
+        Self { scope, app }
     }
 
     pub async fn execute(self, conn: &mut PgConnection) -> sqlx::Result<Option<Object>> {
@@ -51,9 +52,10 @@ impl FrontendByScopeQuery {
             FROM frontend fe
             INNER JOIN scope s
             ON s.frontend_id = fe.id
-            WHERE s.scope = $1
+            WHERE s.scope = $1 AND s.app = $2
             "#,
-            self.scope
+            self.scope,
+            self.app
         )
         .fetch_optional(conn)
         .await

@@ -63,9 +63,12 @@ async fn redirect_to_frontend(req: Request<TideState>) -> tide::Result {
                             None
                         }
                         Ok(mut conn) => {
-                            let fe = crate::db::frontend::FrontendByScopeQuery::new(query.scope)
-                                .execute(&mut conn)
-                                .await;
+                            let fe = crate::db::frontend::FrontendByScopeQuery::new(
+                                query.scope,
+                                app.to_owned(),
+                            )
+                            .execute(&mut conn)
+                            .await;
                             match fe {
                                 Err(e) => {
                                     error!(crate::LOG, "Failed to find frontend: {}", e);

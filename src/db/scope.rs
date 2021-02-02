@@ -8,6 +8,7 @@ use sqlx::postgres::PgConnection;
 pub(crate) struct Object {
     pub id: i64,
     pub scope: String,
+    pub app: String,
     pub frontend_id: i64,
     #[serde(with = "ts_seconds")]
     pub created_at: DateTime<Utc>,
