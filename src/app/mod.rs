@@ -7,10 +7,12 @@ use svc_agent::mqtt::{
     IntoPublishableMessage, OutgoingEvent, OutgoingEventProperties, ShortTermTimingProperties,
 };
 use tide::http::url::Url;
-use tide::Request;
+use tide::{Request, Response};
 
 use crate::config::{self};
 use tide_state::TideState;
+
+const FEATURE_POLICY: &str = "autoplay *; camera *; microphone *; display-capture *; fullscreen *";
 
 pub async fn run(db: PgPool) -> Result<()> {
     let config = config::load().context("Failed to load config")?;
@@ -89,7 +91,14 @@ async fn redirect_to_frontend(req: Request<TideState>) -> tide::Result {
             });
             url.set_query(req.url().query());
 
-            Ok(tide::Redirect::temporary(url).into())
+            let url = url.to_string();
+
+            let response = Response::builder(307)
+                .header("Location", &url)
+                .header("Feature-Policy", FEATURE_POLICY)
+                .build();
+
+            Ok(response)
         }
     }
 }
