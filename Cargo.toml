@@ -1,6 +1,6 @@
 [package]
 name = "dispatcher"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Andrei Nesterov <ae.nesterov@gmail.com>"]
 description = "An agent library."
 readme = "README.md"
