@@ -932,6 +932,7 @@ dependencies = [
  "futures-channel",
  "jsonwebtoken",
  "lazy_static",
+ "percent-encoding",
  "sentry",
  "serde 1.0.123",
  "serde_derive",

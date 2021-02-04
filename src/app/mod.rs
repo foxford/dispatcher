@@ -1,6 +1,7 @@
 use std::fmt::Write;
 
 use anyhow::{Context, Result};
+use percent_encoding::{percent_encode, NON_ALPHANUMERIC};
 use serde_derive::Deserialize;
 use sqlx::postgres::PgPool;
 use svc_agent::mqtt::{
@@ -86,10 +87,28 @@ async fn redirect_to_frontend(req: Request<TideState>) -> tide::Result {
                     }
                 }
             };
+
             let mut url = base_url.unwrap_or_else(|| {
                 build_default_url(req.state().default_frontend_base(), tenant, app)
             });
+
             url.set_query(req.url().query());
+
+            // Add dispatcher base URL as `backurl` get parameter.
+            let mut back_url = req.url().to_owned();
+            back_url.set_query(None);
+
+            // Ingress terminates https so set it back.
+            back_url
+                .set_scheme("https")
+                .map_err(|()| anyhow!("Failed to set https scheme"))?;
+
+            // Percent-encode it since it's being passed as a get parameter.
+            let urlencoded_back_url =
+                percent_encode(back_url.as_str().as_bytes(), NON_ALPHANUMERIC).to_string();
+
+            url.query_pairs_mut()
+                .append_pair("backurl", &urlencoded_back_url);
 
             let url = url.to_string();
 
