@@ -2,7 +2,7 @@ id = "dispatcher.dev.svc.example.org"
 agent_label = "alpha"
 broker_id = "mqtt-gateway.dev.svc.example.org"
 
-default_frontend_base = "http://yandex.ru"
+default_frontend_base = "http://testing00.foxford.ru"
 
 [id_token]
 algorithm = "ES256"

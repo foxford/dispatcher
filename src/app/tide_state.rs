@@ -1,4 +1,5 @@
 use anyhow::{Context, Result};
+use async_trait::async_trait;
 use futures::StreamExt;
 use jsonwebtoken::{TokenData, Validation};
 use sqlx::pool::PoolConnection;
@@ -15,6 +16,14 @@ use tide::http::url::Url;
 use crate::config::Config;
 
 const API_VERSION: &str = "v1";
+
+#[async_trait]
+pub trait AppContext: Sync + Send {
+    async fn get_conn(&self) -> Result<PoolConnection<Postgres>>;
+    fn default_frontend_base(&self) -> Url;
+    fn validate_token(&self, token: Option<&str>) -> Result<(), Error>;
+    fn agent(&self) -> Option<Agent>;
+}
 
 #[derive(Clone)]
 pub struct TideState {
@@ -86,34 +95,50 @@ impl TideState {
             agent,
         })
     }
+}
 
-    pub async fn get_conn(&self) -> Result<PoolConnection<Postgres>> {
+#[async_trait]
+impl AppContext for TideState {
+    async fn get_conn(&self) -> Result<PoolConnection<Postgres>> {
         self.db_pool
             .acquire()
             .await
             .context("Failed to acquire DB connection")
     }
 
-    pub fn default_frontend_base(&self) -> Url {
+    fn default_frontend_base(&self) -> Url {
         self.config.default_frontend_base.clone()
     }
 
-    pub fn validate_token(&self, token: &str) -> Result<TokenData<Claims<String>>, Error> {
+    fn validate_token(&self, token: Option<&str>) -> Result<(), Error> {
         let verifier = Validation {
             iss: Some(self.config.api_auth.audience.clone()),
             algorithms: vec![self.config.api_auth.algorithm],
             ..Validation::default()
         };
 
-        decode_jws_compact(
-            token,
-            &verifier,
-            &self.config.api_auth.key,
-            self.config.api_auth.algorithm,
-        )
+        let claims = match token {
+            Some(token) if token.starts_with("Bearer ") => {
+                let token = token.replace("Bearer ", "");
+                decode_jws_compact(
+                    &token,
+                    &verifier,
+                    &self.config.api_auth.key,
+                    self.config.api_auth.algorithm,
+                )
+            }
+            _ => decode_jws_compact(
+                "",
+                &verifier,
+                &self.config.api_auth.key,
+                self.config.api_auth.algorithm,
+            ),
+        };
+
+        claims.map(|_: TokenData<Claims<String>>| ())
     }
 
-    pub fn clone_agent(&self) -> Agent {
-        self.agent.clone()
+    fn agent(&self) -> Option<Agent> {
+        Some(self.agent.clone())
     }
 }

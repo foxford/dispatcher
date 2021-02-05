@@ -66,3 +66,5 @@ async fn create_db() -> PgPool {
 mod app;
 mod config;
 mod db;
+#[cfg(test)]
+mod test_helpers;
