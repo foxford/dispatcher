@@ -61,3 +61,33 @@ impl FrontendByScopeQuery {
         .await
     }
 }
+
+#[cfg(test)]
+pub mod tests {
+    use super::*;
+
+    #[derive(Debug)]
+    pub(crate) struct InsertQuery {
+        url: String,
+    }
+
+    impl InsertQuery {
+        pub(crate) fn new(url: String) -> Self {
+            Self { url }
+        }
+
+        pub(crate) async fn execute(self, conn: &mut PgConnection) -> sqlx::Result<Object> {
+            sqlx::query_as!(
+                Object,
+                r#"
+                INSERT INTO frontend (url)
+                VALUES ($1)
+                RETURNING id, url, created_at
+            "#,
+                self.url,
+            )
+            .fetch_one(conn)
+            .await
+        }
+    }
+}

@@ -11,6 +11,7 @@ edition = "2018"
 [dependencies]
 tide = "0.15.0"
 async-std = { version = "1.8.0", features = ["attributes"] }
+async-trait = "0.1"
 chrono = { version = "0.4", features = ["serde"] }
 sqlx = { version = "0.4", features = ["offline", "postgres", "macros", "uuid", "chrono", "json", "bigdecimal", "runtime-async-std-rustls"] }
 serde = "1.0"
@@ -30,3 +31,6 @@ anyhow = "1.0"
 jsonwebtoken = "7.1"
 futures = "0.3"
 futures-channel = "0.3"
+
+[dev-dependencies]
+rand = "0.8"
