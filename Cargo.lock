@@ -934,10 +934,11 @@ dependencies = [
  "jsonwebtoken",
  "lazy_static",
  "percent-encoding",
- "rand 0.8.3",
+ "rand 0.7.3",
  "sentry",
  "serde 1.0.123",
  "serde_derive",
+ "serde_json",
  "slog",
  "slog-async",
  "slog-envlogger",
@@ -947,6 +948,7 @@ dependencies = [
  "svc-authn",
  "svc-error",
  "tide",
+ "uuid",
 ]
 
 [[package]]
@@ -2968,8 +2970,7 @@ checksum = "1e81da0851ada1f3e9d4312c704aa4f8806f0f9d69faaf8df2f3464b4a9437c2"
 [[package]]
 name = "svc-agent"
 version = "0.14.13"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3024adca7585e1fa00b72c8fcc1986afccd0a2a17284ad6d786d7cc7811273ef"
+source = "git+https://github.com/netology-group/svc-agent-rs?branch=multicast_version#9e49c420a6aba4c49c7ab901df796f8c958db429"
 dependencies = [
  "base64 0.10.1",
  "chrono",

@@ -1,12 +1,19 @@
+use std::sync::Arc;
+use std::time::Duration;
+
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use futures::StreamExt;
 use jsonwebtoken::{TokenData, Validation};
+use rand::{distributions::Alphanumeric, thread_rng, Rng};
+use serde_json::Value as JsonValue;
 use sqlx::pool::PoolConnection;
 use sqlx::postgres::{PgPool, Postgres};
 use svc_agent::{
-    mqtt::{Agent, AgentBuilder, AgentNotification, ConnectionMode},
-    AgentId, Authenticable,
+    error::Error as AgentError,
+    mqtt::{Agent, AgentBuilder, AgentNotification, ConnectionMode, IncomingResponse, QoS},
+    request::Dispatcher,
+    AgentId, Authenticable, Subscription,
 };
 use svc_authn::token::jws_compact;
 use svc_authn::token::jws_compact::extract::decode_jws_compact;
@@ -15,7 +22,10 @@ use tide::http::url::Url;
 
 use crate::config::Config;
 
-const API_VERSION: &str = "v1";
+const API_VERSION: &str = "v2";
+
+use conference_client::{ConferenceClient, MqttConferenceClient};
+use event_client::{EventClient, MqttEventClient};
 
 #[async_trait]
 pub trait AppContext: Sync + Send {
@@ -23,6 +33,8 @@ pub trait AppContext: Sync + Send {
     fn default_frontend_base(&self) -> Url;
     fn validate_token(&self, token: Option<&str>) -> Result<(), Error>;
     fn agent(&self) -> Option<Agent>;
+    fn conference_client(&self) -> &dyn ConferenceClient;
+    fn event_client(&self) -> &dyn EventClient;
 }
 
 #[derive(Clone)]
@@ -30,6 +42,9 @@ pub struct TideState {
     db_pool: PgPool,
     config: Config,
     agent: Agent,
+    dispatcher: Arc<Dispatcher>,
+    conference_client: Arc<dyn ConferenceClient>,
+    event_client: Arc<dyn EventClient>,
 }
 
 impl TideState {
@@ -47,7 +62,7 @@ impl TideState {
         let mut agent_config = config.mqtt.clone();
         agent_config.set_password(&token);
 
-        let (agent, rx) = AgentBuilder::new(agent_id, API_VERSION)
+        let (mut agent, rx) = AgentBuilder::new(agent_id.clone(), API_VERSION)
             .connection_mode(ConnectionMode::Service)
             .start(&agent_config)
             .context("Failed to create an agent")?;
@@ -65,11 +80,26 @@ impl TideState {
             })
             .expect("Failed to start dispatcher notifications loop");
 
+        let dispatcher = Arc::new(Dispatcher::new(&agent));
+        let dispatcher_ = dispatcher.clone();
+
         async_std::task::spawn(async move {
             while let Some(message) = mq_rx.next().await {
+                let dispatcher__ = dispatcher_.clone();
                 async_std::task::spawn(async move {
                     match message {
-                        AgentNotification::Message(_, _) => {}
+                        AgentNotification::Message(
+                            Ok(svc_agent::mqtt::IncomingMessage::Response(data)),
+                            _,
+                        ) => {
+                            let message = IncomingResponse::convert::<JsonValue>(data)
+                                .expect("Couldnt convert message");
+
+                            if let Err(e) = dispatcher__.response(message).await {
+                                error!(crate::LOG, "Failed to commit response, reason = {:?}", e);
+                            }
+                        }
+                        AgentNotification::Message(_, _) => (),
                         AgentNotification::Disconnection => {
                             error!(crate::LOG, "Disconnected from broker")
                         }
@@ -89,10 +119,31 @@ impl TideState {
             }
         });
 
+        agent
+            .subscribe(&Subscription::unicast_requests(), QoS::AtMostOnce, None)
+            .context("Error subscribing to unicast requests")?;
+
+        let conference_client = Arc::new(MqttConferenceClient::new(
+            agent_id.clone(),
+            config.conference.clone(),
+            dispatcher.clone(),
+            Some(Duration::from_secs(5)),
+        ));
+
+        let event_client = Arc::new(MqttEventClient::new(
+            agent_id,
+            config.event.clone(),
+            dispatcher.clone(),
+            Some(Duration::from_secs(5)),
+        ));
+
         Ok(Self {
             db_pool,
             config,
             agent,
+            dispatcher,
+            conference_client,
+            event_client,
         })
     }
 }
@@ -141,4 +192,37 @@ impl AppContext for TideState {
     fn agent(&self) -> Option<Agent> {
         Some(self.agent.clone())
     }
+
+    fn conference_client(&self) -> &dyn ConferenceClient {
+        self.conference_client.as_ref()
+    }
+
+    fn event_client(&self) -> &dyn EventClient {
+        self.event_client.as_ref()
+    }
 }
+
+#[derive(Debug)]
+pub enum ClientError {
+    AgentError(AgentError),
+    PayloadError(String),
+    TimeoutError,
+}
+
+impl From<AgentError> for ClientError {
+    fn from(e: AgentError) -> Self {
+        Self::AgentError(e)
+    }
+}
+
+const CORRELATION_DATA_LENGTH: usize = 16;
+
+fn generate_correlation_data() -> String {
+    thread_rng()
+        .sample_iter(&Alphanumeric)
+        .take(CORRELATION_DATA_LENGTH)
+        .collect()
+}
+
+pub mod conference_client;
+pub mod event_client;

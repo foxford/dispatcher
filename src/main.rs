@@ -66,5 +66,7 @@ async fn create_db() -> PgPool {
 mod app;
 mod config;
 mod db;
+#[allow(unused_imports)]
+mod serde;
 #[cfg(test)]
 mod test_helpers;
