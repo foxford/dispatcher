@@ -6,6 +6,7 @@ use sqlx::postgres::PgPool;
 use crate::config::{self};
 use api::{
     redirect_to_frontend, rollback, v1::healthz, v1::redirect_to_frontend as redirect_to_frontend2,
+    v1::webinar::create as create_webinar, v1::webinar::read as read_webinar,
 };
 use info::{list_frontends, list_scopes};
 pub use tide_state::{AppContext, TideState};
@@ -22,10 +23,14 @@ pub async fn run(db: PgPool) -> Result<()> {
     app.at("/info/frontends").get(list_frontends);
     app.at("/redirs/tenants/:tenant/apps/:app")
         .get(redirect_to_frontend);
-    app.at("/api/v1/healthz").get(healthz);
     app.at("/api/scopes/:scope/rollback").post(rollback);
+
+    app.at("/api/v1/healthz").get(healthz);
     app.at("/api/v1/scopes/:scope/rollback").post(rollback);
     app.at("/api/v1/redirs").get(redirect_to_frontend2);
+
+    app.at("/api/v1/webinars/:id").get(read_webinar);
+    app.at("/api/v1/webinars").post(create_webinar);
     app.listen(config.http.listener_address).await?;
     Ok(())
 }

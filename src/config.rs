@@ -14,6 +14,8 @@ pub struct Config {
     pub default_frontend_base: tide::http::url::Url,
     pub sentry: Option<SentryConfig>,
     pub http: HttpConfig,
+    pub conference: AccountId,
+    pub event: AccountId,
 }
 
 #[derive(Clone, Debug, Deserialize)]

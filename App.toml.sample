@@ -4,6 +4,9 @@ broker_id = "mqtt-gateway.dev.svc.example.org"
 
 default_frontend_base = "http://testing00.foxford.ru"
 
+conference = "conference.dev.svc.example.org"
+event = "event.dev.svc.example.org"
+
 [id_token]
 algorithm = "ES256"
 key = "data/keys/svc.private_key.p8.der.sample"
@@ -15,7 +18,7 @@ key = "data/keys/svc.public_key.p8.der.sample"
 
 [mqtt]
 uri = "mqtt://0.0.0.0:1883"
-clean_session = true
+clean_session = false
 incoming_message_queue_size = 10000000
 outgoing_message_queue_size = 10000000
 max_message_size = 100000

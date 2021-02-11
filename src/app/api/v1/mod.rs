@@ -95,3 +95,4 @@ pub async fn redirect_to_frontend(req: Request<Arc<dyn AppContext>>) -> tide::Re
 
 #[cfg(test)]
 mod tests;
+pub mod webinar;
