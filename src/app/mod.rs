@@ -1,23 +1,146 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use anyhow::{Context, Result};
+use futures::StreamExt;
 use sqlx::postgres::PgPool;
+use svc_agent::{
+    mqtt::{AgentBuilder, AgentNotification, ConnectionMode, IncomingMessage, QoS},
+    request::Dispatcher,
+    AgentId, Authenticable, SharedGroup, Subscription,
+};
+use svc_authn::token::jws_compact;
 
-use crate::config::{self};
+use crate::config::{self, Config};
 use api::{
     redirect_to_frontend, rollback, v1::healthz, v1::redirect_to_frontend as redirect_to_frontend2,
     v1::webinar::create as create_webinar, v1::webinar::read as read_webinar,
+    v1::webinar::update as update_webinar,
 };
 use info::{list_frontends, list_scopes};
+use tide_state::conference_client::{ConferenceClient, MqttConferenceClient};
+use tide_state::event_client::{EventClient, MqttEventClient};
+use tide_state::message_handler::MessageHandler;
+use tide_state::tq_client::{HttpTqClient, TqClient};
 pub use tide_state::{AppContext, TideState};
+
+const API_VERSION: &str = "v1";
 
 pub async fn run(db: PgPool) -> Result<()> {
     let config = config::load().context("Failed to load config")?;
     info!(crate::LOG, "App config: {:?}", config);
     tide::log::start();
 
-    let state = TideState::new(db, config.clone())?;
+    let agent_id = AgentId::new(&config.agent_label, config.id.clone());
+    info!(crate::LOG, "Agent id: {:?}", &agent_id);
+
+    let token = jws_compact::TokenBuilder::new()
+        .issuer(&agent_id.as_account_id().audience().to_string())
+        .subject(&agent_id)
+        .key(config.id_token.algorithm, config.id_token.key.as_slice())
+        .build()
+        .context("Error creating an id token")?;
+
+    let mut agent_config = config.mqtt.clone();
+    agent_config.set_password(&token);
+
+    let (mut agent, rx) = AgentBuilder::new(agent_id.clone(), API_VERSION)
+        .connection_mode(ConnectionMode::Service)
+        .start(&agent_config)
+        .context("Failed to create an agent")?;
+
+    let (mq_tx, mut mq_rx) = futures_channel::mpsc::unbounded::<AgentNotification>();
+
+    let dispatcher = Arc::new(Dispatcher::new(&agent));
+    let event_client = build_event_client(&config, dispatcher.clone());
+    let conference_client = build_conference_client(&config, dispatcher.clone());
+    let tq_client = build_tq_client(&config);
+    let state = TideState::new(
+        db,
+        config.clone(),
+        event_client,
+        conference_client,
+        tq_client,
+        agent.clone(),
+    );
     let state = Arc::new(state) as Arc<dyn AppContext>;
+    let state_ = state.clone();
+
+    std::thread::Builder::new()
+        .name("dispatcher-notifications-loop".to_owned())
+        .spawn(move || {
+            for message in rx {
+                if mq_tx.unbounded_send(message).is_err() {
+                    error!(crate::LOG, "Error sending message to the internal channel");
+                }
+            }
+        })
+        .expect("Failed to start dispatcher notifications loop");
+
+    let message_handler = Arc::new(MessageHandler::new(state_, dispatcher));
+    async_std::task::spawn(async move {
+        while let Some(message) = mq_rx.next().await {
+            let message_handler_ = message_handler.clone();
+            async_std::task::spawn(async move {
+                match message {
+                    AgentNotification::Message(Ok(IncomingMessage::Response(data)), _) => {
+                        message_handler_.handle_response(data).await;
+                    }
+                    AgentNotification::Message(Ok(IncomingMessage::Event(data)), _) => {
+                        message_handler_.handle_event(data).await;
+                    }
+                    AgentNotification::Message(_, _) => (),
+                    AgentNotification::Disconnection => {
+                        error!(crate::LOG, "Disconnected from broker")
+                    }
+                    AgentNotification::Reconnection => {
+                        error!(crate::LOG, "Reconnected to broker");
+                    }
+                    AgentNotification::Puback(_) => (),
+                    AgentNotification::Pubrec(_) => (),
+                    AgentNotification::Pubcomp(_) => (),
+                    AgentNotification::Suback(_) => (),
+                    AgentNotification::Unsuback(_) => (),
+                    AgentNotification::Abort(err) => {
+                        error!(crate::LOG, "MQTT client aborted: {:?}", err);
+                    }
+                }
+            });
+        }
+    });
+
+    agent
+        .subscribe(&Subscription::unicast_requests(), QoS::AtMostOnce, None)
+        .context("Error subscribing to unicast requests")?;
+
+    let group = SharedGroup::new("loadbalancer", agent_id.as_account_id().clone());
+    // Audience level events for each tenant
+    for tenant_audience in &config.tenants {
+        agent
+            .subscribe(
+                &Subscription::broadcast_events(
+                    &config.conference_client.account_id,
+                    "v2",
+                    &format!("audiences/{}/events", tenant_audience),
+                ),
+                QoS::AtLeastOnce,
+                Some(&group),
+            )
+            .context("Error subscribing to app's events topic")?;
+
+        agent
+            .subscribe(
+                &Subscription::broadcast_events(
+                    &config.event_client.account_id,
+                    "v1",
+                    &format!("audiences/{}/events", tenant_audience),
+                ),
+                QoS::AtLeastOnce,
+                Some(&group),
+            )
+            .context("Error subscribing to app's events topic")?;
+    }
+
     let mut app = tide::with_state(state);
     app.at("/info/scopes").get(list_scopes);
     app.at("/info/frontends").get(list_frontends);
@@ -31,8 +154,39 @@ pub async fn run(db: PgPool) -> Result<()> {
 
     app.at("/api/v1/webinars/:id").get(read_webinar);
     app.at("/api/v1/webinars").post(create_webinar);
+    app.at("/api/v1/webinars/:id").patch(update_webinar);
+    app.at("/api/v1/webinars/:id").put(update_webinar);
     app.listen(config.http.listener_address).await?;
     Ok(())
+}
+
+fn build_event_client(config: &Config, dispatcher: Arc<Dispatcher>) -> Arc<dyn EventClient> {
+    let agent_id = AgentId::new(&config.agent_label, config.id.clone());
+
+    Arc::new(MqttEventClient::new(
+        agent_id,
+        config.event_client.account_id.clone(),
+        dispatcher,
+        Some(Duration::from_secs(config.event_client.timeout)),
+    ))
+}
+
+fn build_conference_client(
+    config: &Config,
+    dispatcher: Arc<Dispatcher>,
+) -> Arc<dyn ConferenceClient> {
+    let agent_id = AgentId::new(&config.agent_label, config.id.clone());
+
+    Arc::new(MqttConferenceClient::new(
+        agent_id,
+        config.conference_client.account_id.clone(),
+        dispatcher,
+        Some(Duration::from_secs(config.conference_client.timeout)),
+    ))
+}
+
+fn build_tq_client(config: &Config) -> Arc<dyn TqClient> {
+    Arc::new(HttpTqClient::new(config.tq_client.base_url.clone()))
 }
 
 mod api;

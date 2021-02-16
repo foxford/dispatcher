@@ -19,6 +19,7 @@ pub enum ClassType {
 #[derive(Clone, Debug, Serialize)]
 pub struct Object {
     id: Uuid,
+    title: String,
     #[serde(skip)]
     kind: ClassType,
     scope: String,
@@ -33,6 +34,40 @@ pub struct Object {
     original_event_room_id: Option<Uuid>,
     modified_event_room_id: Option<Uuid>,
     preserve_history: bool,
+}
+
+impl Object {
+    pub fn id(&self) -> Uuid {
+        self.id
+    }
+
+    pub fn scope(&self) -> String {
+        self.scope.clone()
+    }
+
+    pub fn event_room_id(&self) -> Uuid {
+        self.event_room_id
+    }
+
+    pub fn conference_room_id(&self) -> Uuid {
+        self.conference_room_id
+    }
+
+    pub fn audience(&self) -> String {
+        self.audience.clone()
+    }
+
+    pub fn tags(&self) -> Option<JsonValue> {
+        self.tags.clone()
+    }
+
+    pub fn original_event_room_id(&self) -> Option<Uuid> {
+        self.original_event_room_id
+    }
+
+    pub fn modified_event_room_id(&self) -> Option<Uuid> {
+        self.modified_event_room_id
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, sqlx::Type)]
@@ -74,6 +109,7 @@ impl WebinarReadQuery {
             r#"
             SELECT
                 id,
+                title,
                 kind AS "kind!: ClassType",
                 audience,
                 scope,
@@ -95,7 +131,45 @@ impl WebinarReadQuery {
     }
 }
 
+pub struct WebinarReadByScopeQuery {
+    scope: String,
+}
+
+impl WebinarReadByScopeQuery {
+    pub fn new(scope: String) -> Self {
+        Self { scope }
+    }
+
+    pub async fn execute(self, conn: &mut PgConnection) -> sqlx::Result<Option<Object>> {
+        sqlx::query_as!(
+            Object,
+            r#"
+            SELECT
+                id,
+                title,
+                kind AS "kind!: ClassType",
+                audience,
+                scope,
+                time AS "time!: Time",
+                tags,
+                conference_room_id,
+                event_room_id,
+                original_event_room_id,
+                modified_event_room_id,
+                created_at,
+                preserve_history
+            FROM class
+            WHERE kind = 'webinar' AND scope = $1
+            "#,
+            self.scope
+        )
+        .fetch_optional(conn)
+        .await
+    }
+}
+
 pub struct WebinarInsertQuery {
+    title: String,
     scope: String,
     audience: String,
     time: Time,
@@ -107,6 +181,7 @@ pub struct WebinarInsertQuery {
 
 impl WebinarInsertQuery {
     pub fn new(
+        title: String,
         scope: String,
         audience: String,
         time: Time,
@@ -114,6 +189,7 @@ impl WebinarInsertQuery {
         event_room_id: Uuid,
     ) -> Self {
         Self {
+            title,
             scope,
             audience,
             time,
@@ -144,10 +220,11 @@ impl WebinarInsertQuery {
         sqlx::query_as!(
             Object,
             r#"
-            INSERT INTO class (scope, audience, time, tags, preserve_history, kind, conference_room_id, event_room_id)
-            VALUES ($1, $2, $3, $4, $5, $6::class_type, $7, $8)
+            INSERT INTO class (title, scope, audience, time, tags, preserve_history, kind, conference_room_id, event_room_id)
+            VALUES ($1, $2, $3, $4, $5, $6, $7::class_type, $8, $9)
             RETURNING
                 id,
+                title,
                 scope,
                 kind AS "kind!: ClassType",
                 audience,
@@ -160,6 +237,7 @@ impl WebinarInsertQuery {
                 original_event_room_id,
                 modified_event_room_id
             "#,
+            self.title,
             self.scope,
             self.audience,
             time,
@@ -168,6 +246,95 @@ impl WebinarInsertQuery {
             ClassType::Webinar as ClassType,
             self.conference_room_id,
             self.event_room_id
+        )
+        .fetch_one(conn)
+        .await
+    }
+}
+
+pub struct WebinarTimeUpdateQuery {
+    id: Uuid,
+    time: Time,
+}
+
+impl WebinarTimeUpdateQuery {
+    pub fn new(id: Uuid, time: Time) -> Self {
+        Self { id, time }
+    }
+
+    pub async fn execute(self, conn: &mut PgConnection) -> sqlx::Result<Object> {
+        let time: PgRange<DateTime<Utc>> = self.time.into();
+
+        sqlx::query_as!(
+            Object,
+            r#"
+            UPDATE class
+            SET time = $2
+            WHERE id = $1
+            RETURNING
+                id,
+                title,
+                scope,
+                kind AS "kind!: ClassType",
+                audience,
+                time AS "time!: Time",
+                tags,
+                preserve_history,
+                created_at,
+                event_room_id,
+                conference_room_id,
+                original_event_room_id,
+                modified_event_room_id
+            "#,
+            self.id,
+            time,
+        )
+        .fetch_one(conn)
+        .await
+    }
+}
+
+pub struct WebinarUpdateQuery {
+    id: Uuid,
+    original_event_room_id: Uuid,
+    modified_event_room_id: Uuid,
+}
+
+impl WebinarUpdateQuery {
+    pub fn new(id: Uuid, original_event_room_id: Uuid, modified_event_room_id: Uuid) -> Self {
+        Self {
+            id,
+            original_event_room_id,
+            modified_event_room_id,
+        }
+    }
+
+    pub async fn execute(self, conn: &mut PgConnection) -> sqlx::Result<Object> {
+        sqlx::query_as!(
+            Object,
+            r#"
+            UPDATE class
+            SET original_event_room_id = $2,
+                modified_event_room_id = $3
+            WHERE id = $1
+            RETURNING
+                id,
+                title,
+                scope,
+                kind AS "kind!: ClassType",
+                audience,
+                time AS "time!: Time",
+                tags,
+                preserve_history,
+                created_at,
+                event_room_id,
+                conference_room_id,
+                original_event_room_id,
+                modified_event_room_id
+            "#,
+            self.id,
+            self.original_event_room_id,
+            self.modified_event_room_id,
         )
         .fetch_one(conn)
         .await
