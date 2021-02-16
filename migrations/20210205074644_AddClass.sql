@@ -4,6 +4,7 @@ CREATE TYPE class_type as ENUM ('webinar');
 
 CREATE TABLE IF NOT EXISTS class (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
+    title text NOT NULL,
     kind class_type NOT NULL,
     audience text NOT NULL,
     scope text NOT NULL,

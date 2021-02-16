@@ -31,6 +31,8 @@ pub trait ConferenceClient: Sync + Send {
         reserve: Option<i32>,
         tags: Option<JsonValue>,
     ) -> Result<Uuid, ClientError>;
+
+    async fn update_room(&self, id: Uuid, time: BoundedDateTimeTuple) -> Result<(), ClientError>;
 }
 
 pub struct MqttConferenceClient {
@@ -64,6 +66,13 @@ struct ConferenceRoomPayload {
     backend: Option<String>,
     reserve: Option<i32>,
     tags: Option<JsonValue>,
+}
+
+#[derive(Serialize)]
+struct ConferenceRoomUpdatePayload {
+    id: Uuid,
+    #[serde(with = "crate::serde::ts_seconds_bound_tuple")]
+    time: BoundedDateTimeTuple,
 }
 
 #[async_trait]
@@ -104,7 +113,7 @@ impl ConferenceClient for MqttConferenceClient {
             tags,
         };
         let msg = if let OutgoingMessage::Request(msg) =
-            OutgoingRequest::multicast(payload, reqp, &conference)
+            OutgoingRequest::multicast(payload, reqp, &conference, "v2")
         {
             msg
         } else {
@@ -115,7 +124,7 @@ impl ConferenceClient for MqttConferenceClient {
         let payload_result = if let Some(dur) = self.timeout {
             async_std::future::timeout(dur, request)
                 .await
-                .map_err(|e| ClientError::TimeoutError)?
+                .map_err(|_e| ClientError::TimeoutError)?
         } else {
             request.await
         };
@@ -131,5 +140,52 @@ impl ConferenceClient for MqttConferenceClient {
         };
 
         uuid_result
+    }
+
+    async fn update_room(&self, id: Uuid, time: BoundedDateTimeTuple) -> Result<(), ClientError> {
+        let me = self.me.clone();
+        let conference = self.conference_account_id.clone();
+        let dispatcher = self.dispatcher.clone();
+
+        let response_topic =
+            match Subscription::unicast_responses_from(&conference).subscription_topic(&me, "v2") {
+                Err(e) => {
+                    let e = AgentError::new(&e.to_string()).into();
+                    return Err(e);
+                }
+                Ok(topic) => topic,
+            };
+
+        let reqp = OutgoingRequestProperties::new(
+            "room.update",
+            &response_topic,
+            &generate_correlation_data(),
+            ShortTermTimingProperties::new(Utc::now()),
+        );
+
+        let payload = ConferenceRoomUpdatePayload { id, time };
+        let msg = if let OutgoingMessage::Request(msg) =
+            OutgoingRequest::multicast(payload, reqp, &conference, "v2")
+        {
+            msg
+        } else {
+            unreachable!()
+        };
+
+        let request = dispatcher.request::<_, JsonValue>(msg);
+        let payload_result = if let Some(dur) = self.timeout {
+            async_std::future::timeout(dur, request)
+                .await
+                .map_err(|_e| ClientError::TimeoutError)?
+        } else {
+            request.await
+        };
+        let payload = payload_result.map_err(|e| ClientError::PayloadError(e.to_string()))?;
+        match payload.properties().status().as_u16() {
+            200 => Ok(()),
+            _ => Err(ClientError::PayloadError(
+                "Conference room update returned non 200 status".into(),
+            )),
+        }
     }
 }

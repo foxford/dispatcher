@@ -1,31 +1,21 @@
 use std::sync::Arc;
-use std::time::Duration;
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
-use futures::StreamExt;
 use jsonwebtoken::{TokenData, Validation};
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
-use serde_json::Value as JsonValue;
 use sqlx::pool::PoolConnection;
 use sqlx::postgres::{PgPool, Postgres};
-use svc_agent::{
-    error::Error as AgentError,
-    mqtt::{Agent, AgentBuilder, AgentNotification, ConnectionMode, IncomingResponse, QoS},
-    request::Dispatcher,
-    AgentId, Authenticable, Subscription,
-};
-use svc_authn::token::jws_compact;
+use svc_agent::{error::Error as AgentError, mqtt::Agent};
 use svc_authn::token::jws_compact::extract::decode_jws_compact;
 use svc_authn::{jose::Claims, Error};
 use tide::http::url::Url;
 
 use crate::config::Config;
 
-const API_VERSION: &str = "v2";
-
-use conference_client::{ConferenceClient, MqttConferenceClient};
-use event_client::{EventClient, MqttEventClient};
+use conference_client::ConferenceClient;
+use event_client::EventClient;
+use tq_client::TqClient;
 
 #[async_trait]
 pub trait AppContext: Sync + Send {
@@ -35,6 +25,7 @@ pub trait AppContext: Sync + Send {
     fn agent(&self) -> Option<Agent>;
     fn conference_client(&self) -> &dyn ConferenceClient;
     fn event_client(&self) -> &dyn EventClient;
+    fn tq_client(&self) -> &dyn TqClient;
 }
 
 #[derive(Clone)]
@@ -42,109 +33,28 @@ pub struct TideState {
     db_pool: PgPool,
     config: Config,
     agent: Agent,
-    dispatcher: Arc<Dispatcher>,
     conference_client: Arc<dyn ConferenceClient>,
     event_client: Arc<dyn EventClient>,
+    tq_client: Arc<dyn TqClient>,
 }
 
 impl TideState {
-    pub fn new(db_pool: PgPool, config: Config) -> Result<Self> {
-        let agent_id = AgentId::new(&config.agent_label, config.id.clone());
-        info!(crate::LOG, "Agent id: {:?}", &agent_id);
-
-        let token = jws_compact::TokenBuilder::new()
-            .issuer(&agent_id.as_account_id().audience().to_string())
-            .subject(&agent_id)
-            .key(config.id_token.algorithm, config.id_token.key.as_slice())
-            .build()
-            .context("Error creating an id token")?;
-
-        let mut agent_config = config.mqtt.clone();
-        agent_config.set_password(&token);
-
-        let (mut agent, rx) = AgentBuilder::new(agent_id.clone(), API_VERSION)
-            .connection_mode(ConnectionMode::Service)
-            .start(&agent_config)
-            .context("Failed to create an agent")?;
-
-        let (mq_tx, mut mq_rx) = futures_channel::mpsc::unbounded::<AgentNotification>();
-
-        std::thread::Builder::new()
-            .name("dispatcher-notifications-loop".to_owned())
-            .spawn(move || {
-                for message in rx {
-                    if mq_tx.unbounded_send(message).is_err() {
-                        error!(crate::LOG, "Error sending message to the internal channel");
-                    }
-                }
-            })
-            .expect("Failed to start dispatcher notifications loop");
-
-        let dispatcher = Arc::new(Dispatcher::new(&agent));
-        let dispatcher_ = dispatcher.clone();
-
-        async_std::task::spawn(async move {
-            while let Some(message) = mq_rx.next().await {
-                let dispatcher__ = dispatcher_.clone();
-                async_std::task::spawn(async move {
-                    match message {
-                        AgentNotification::Message(
-                            Ok(svc_agent::mqtt::IncomingMessage::Response(data)),
-                            _,
-                        ) => {
-                            let message = IncomingResponse::convert::<JsonValue>(data)
-                                .expect("Couldnt convert message");
-
-                            if let Err(e) = dispatcher__.response(message).await {
-                                error!(crate::LOG, "Failed to commit response, reason = {:?}", e);
-                            }
-                        }
-                        AgentNotification::Message(_, _) => (),
-                        AgentNotification::Disconnection => {
-                            error!(crate::LOG, "Disconnected from broker")
-                        }
-                        AgentNotification::Reconnection => {
-                            error!(crate::LOG, "Reconnected to broker");
-                        }
-                        AgentNotification::Puback(_) => (),
-                        AgentNotification::Pubrec(_) => (),
-                        AgentNotification::Pubcomp(_) => (),
-                        AgentNotification::Suback(_) => (),
-                        AgentNotification::Unsuback(_) => (),
-                        AgentNotification::Abort(err) => {
-                            error!(crate::LOG, "MQTT client aborted: {:?}", err);
-                        }
-                    }
-                });
-            }
-        });
-
-        agent
-            .subscribe(&Subscription::unicast_requests(), QoS::AtMostOnce, None)
-            .context("Error subscribing to unicast requests")?;
-
-        let conference_client = Arc::new(MqttConferenceClient::new(
-            agent_id.clone(),
-            config.conference.clone(),
-            dispatcher.clone(),
-            Some(Duration::from_secs(5)),
-        ));
-
-        let event_client = Arc::new(MqttEventClient::new(
-            agent_id,
-            config.event.clone(),
-            dispatcher.clone(),
-            Some(Duration::from_secs(5)),
-        ));
-
-        Ok(Self {
+    pub fn new(
+        db_pool: PgPool,
+        config: Config,
+        event_client: Arc<dyn EventClient>,
+        conference_client: Arc<dyn ConferenceClient>,
+        tq_client: Arc<dyn TqClient>,
+        agent: Agent,
+    ) -> Self {
+        Self {
             db_pool,
             config,
-            agent,
-            dispatcher,
             conference_client,
             event_client,
-        })
+            tq_client,
+            agent,
+        }
     }
 }
 
@@ -200,6 +110,10 @@ impl AppContext for TideState {
     fn event_client(&self) -> &dyn EventClient {
         self.event_client.as_ref()
     }
+
+    fn tq_client(&self) -> &dyn TqClient {
+        self.tq_client.as_ref()
+    }
 }
 
 #[derive(Debug)]
@@ -207,6 +121,7 @@ pub enum ClientError {
     AgentError(AgentError),
     PayloadError(String),
     TimeoutError,
+    HttpError(String),
 }
 
 impl From<AgentError> for ClientError {
@@ -226,3 +141,5 @@ fn generate_correlation_data() -> String {
 
 pub mod conference_client;
 pub mod event_client;
+pub mod message_handler;
+pub mod tq_client;

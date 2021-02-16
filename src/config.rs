@@ -14,8 +14,10 @@ pub struct Config {
     pub default_frontend_base: tide::http::url::Url,
     pub sentry: Option<SentryConfig>,
     pub http: HttpConfig,
-    pub conference: AccountId,
-    pub event: AccountId,
+    pub conference_client: MqttServiceConfig,
+    pub event_client: MqttServiceConfig,
+    pub tq_client: TqClientConfig,
+    pub tenants: Vec<String>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -44,4 +46,15 @@ pub fn load() -> Result<Config, config::ConfigError> {
 #[derive(Clone, Debug, Deserialize)]
 pub struct HttpConfig {
     pub listener_address: String,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct TqClientConfig {
+    pub base_url: surf::Url,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct MqttServiceConfig {
+    pub account_id: AccountId,
+    pub timeout: u64,
 }
