@@ -1,0 +1,48 @@
+language: rust
+os: linux
+dist: xenial
+
+cache: cargo
+
+services:
+  - docker
+
+git:
+  depth: 1
+
+jobs:
+  include:
+    - stage: check
+      name: Format
+      before_install:
+        - rustup component add rustfmt
+      script: cargo fmt -- --check
+
+    - stage: check
+      name: Lint
+      before_install:
+        - rustup component add clippy
+      script: cargo clippy
+
+    # Note: there isn't any doc yet.
+    # - stage: build
+    #   name: Docs
+    #   install: cargo install mdbook --vers ^0.4
+    #   script:
+    #     - ./deploy.init.sh
+    #     - mdbook build docs
+    #     - ./deploy/ci-mdbook.sh
+    - stage: build
+      name: Build
+      script:
+        - ./deploy.init.sh
+        - ./deploy/ci-install-tools.sh
+        - ./deploy/ci-build.sh
+
+stages:
+  - name: check
+  - name: build
+    if: branch = master AND type = push
+
+notifications:
+  email: false
