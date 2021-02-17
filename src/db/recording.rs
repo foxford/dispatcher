@@ -35,6 +35,14 @@ impl Object {
     pub fn rtc_id(&self) -> Uuid {
         self.rtc_id
     }
+
+    pub fn adjusted_at(&self) -> Option<DateTime<Utc>> {
+        self.adjusted_at
+    }
+
+    pub fn transcoded_at(&self) -> Option<DateTime<Utc>> {
+        self.transcoded_at
+    }
 }
 
 type BoundedOffsetTuples = Vec<(Bound<i64>, Bound<i64>)>;

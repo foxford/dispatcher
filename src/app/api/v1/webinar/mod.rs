@@ -17,11 +17,17 @@ struct WebinarObject {
     id: String,
     real_time: RealTimeObject,
     on_demand: Vec<WebinarVersion>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    status: Option<String>
 }
 
 impl WebinarObject {
     pub fn add_version(&mut self, version: WebinarVersion) {
         self.on_demand.push(version);
+    }
+
+    pub fn set_status(&mut self, status: &str) {
+        self.status = Some(status.to_owned());
     }
 }
 
@@ -50,6 +56,7 @@ impl From<Class> for WebinarObject {
                 event_room_id: obj.event_room_id(),
             },
             on_demand: vec![],
+            status: None,
         }
     }
 }
@@ -90,6 +97,15 @@ pub async fn read(req: Request<Arc<dyn AppContext>>) -> tide::Result {
                 tags: webinar.tags(),
             });
         }
+        if recording.transcoded_at().is_some() {
+            webinar_obj.set_status("transcoded");
+        } else if recording.adjusted_at().is_some() {
+            webinar_obj.set_status("adjusted");
+        } else {
+            webinar_obj.set_status("finished");
+        }
+    } else {
+        webinar_obj.set_status("real-time");
     }
 
     let body = serde_json::to_string(&webinar_obj).map_err(|e| HttpError::new(500, e))?;
