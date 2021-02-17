@@ -59,23 +59,6 @@ impl TqClient for HttpTqClient {
         event_room_id: Uuid,
         segments: Segments,
     ) -> Result<(), ClientError> {
-        /*
-                {
-            "template"=>"transcode-stream-to-hls",
-            "priority"=>"normal",
-            "bindings"=>{
-                "stream_id"=>"14fc6419-0b3e-4c34-b8de-66c6bb424c50",
-                "stream_uri"=>"s3://origin.webinar.foxford.ru/14fc6419-0b3e-4c34-b8de-66c6bb424c50.source.webm",
-                "event_room_id"=>"379dc6eb-e6ac-4e61-8e01-4041be6fc8df",
-                "segments"=>[[0, 9242256]]
-            },
-            "tags"=>{
-                "webinar_id"=>121796,
-                "scope"=>"Z2lkOi8vc3RvZWdlL1VsbXM6OlJvb21zOjpXZWJpbmFyLzEzMTY4MA"
-            },
-            "audience"=>"foxford.ru",
-            "id"=>"Z2lkOi8vc3RvZWdlL1VsbXM6OlJvb21zOjpXZWJpbmFyLzEzMTY4MA",
-        }*/
         let bindings = TaskBinding {
             stream_id,
             stream_uri,

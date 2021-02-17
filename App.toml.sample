@@ -4,8 +4,18 @@ broker_id = "mqtt-gateway.dev.svc.example.org"
 
 default_frontend_base = "http://testing00.foxford.ru"
 
-conference = "conference.dev.svc.example.org"
-event = "event.dev.svc.example.org"
+tenants = ["beta.foxford.ru"]
+
+[conference_client]
+account_id = "conference.dev.svc.example.org"
+timeout = "5"
+
+[event_client]
+account_id = "event.dev.svc.example.org"
+timeout = "5"
+
+[tq_client]
+base_url = "http://localhost:3000/"
 
 [id_token]
 algorithm = "ES256"
@@ -13,7 +23,7 @@ key = "data/keys/svc.private_key.p8.der.sample"
 
 [api_auth]
 algorithm = "ES256"
-audience = "svc.netology-group.services"
+audience = "testing.svc.netology-group.services"
 key = "data/keys/svc.public_key.p8.der.sample"
 
 [mqtt]
