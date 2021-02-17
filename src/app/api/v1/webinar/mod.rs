@@ -126,16 +126,20 @@ struct Webinar {
     backend: Option<String>,
 }
 
+lazy_static! {
+    static ref CONFERENCE_PRESTART_SIGNALING_WINDOW: chrono::Duration = chrono::Duration::minutes(10);
+}
+
 pub async fn create(mut req: Request<Arc<dyn AppContext>>) -> tide::Result {
     let body: Webinar = req.body_json().await?;
 
     let conference_time = match body.time.0 {
         Bound::Included(t) => (
-            Bound::Included(t - chrono::Duration::minutes(10)),
+            Bound::Included(t - *CONFERENCE_PRESTART_SIGNALING_WINDOW),
             body.time.1,
         ),
         Bound::Excluded(t) => (
-            Bound::Included(t - chrono::Duration::minutes(10)),
+            Bound::Included(t - *CONFERENCE_PRESTART_SIGNALING_WINDOW),
             body.time.1,
         ),
         Bound::Unbounded => (Bound::Unbounded, Bound::Unbounded),

@@ -21,6 +21,7 @@ lazy_static! {
         slog::Logger::root(drain, o!("version" => APP_VERSION))
     };
 }
+
 #[async_std::main]
 async fn main() -> Result<()> {
     warn!(crate::LOG, "Launching event, version: {}", APP_VERSION);
