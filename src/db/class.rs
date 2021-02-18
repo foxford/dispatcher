@@ -354,6 +354,7 @@ pub(crate) mod serde {
             ts_seconds_bound_tuple::serialize(&value.to_owned().into(), serializer)
         }
 
+        #[allow(dead_code)]
         pub(crate) fn deserialize<'de, D>(d: D) -> Result<Time, D::Error>
         where
             D: de::Deserializer<'de>,

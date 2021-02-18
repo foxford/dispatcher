@@ -37,6 +37,8 @@ pub trait EventClient: Sync + Send {
     async fn update_room(&self, id: Uuid, time: BoundedDateTimeTuple) -> Result<(), ClientError>;
 
     async fn adjust_room(&self, recording: &Recording, offset: i64) -> Result<(), ClientError>;
+
+    async fn lock_chat(&self, room_id: Uuid) -> Result<(), ClientError>;
 }
 
 pub struct MqttEventClient {
@@ -59,6 +61,26 @@ impl MqttEventClient {
             dispatcher,
             timeout,
         }
+    }
+
+    fn response_topic(&self) -> Result<String, ClientError> {
+        let me = self.me.clone();
+        let event = self.event_account_id.clone();
+
+        Subscription::unicast_responses_from(&event)
+            .subscription_topic(&me, EVENT_API_VERSION)
+            .map_err(|e| AgentError::new(&e.to_string()).into())
+    }
+
+    fn build_reqp(&self, method: &str) -> Result<OutgoingRequestProperties, ClientError> {
+        let reqp = OutgoingRequestProperties::new(
+            method,
+            &self.response_topic()?,
+            &generate_correlation_data(),
+            ShortTermTimingProperties::new(Utc::now()),
+        );
+
+        Ok(reqp)
     }
 }
 
@@ -88,6 +110,15 @@ struct EventAdjustPayload {
     offset: i64,
 }
 
+#[derive(Serialize)]
+struct ChatLockPayload {
+    room_id: Uuid,
+    #[serde(rename(serialize = "type"))]
+    kind: &'static str,
+    set: &'static str,
+    data: JsonValue,
+}
+
 #[async_trait]
 impl EventClient for MqttEventClient {
     async fn create_room(
@@ -97,25 +128,10 @@ impl EventClient for MqttEventClient {
         preserve_history: Option<bool>,
         tags: Option<JsonValue>,
     ) -> Result<Uuid, ClientError> {
-        let me = self.me.clone();
         let event = self.event_account_id.clone();
         let dispatcher = self.dispatcher.clone();
 
-        let response_topic =
-            match Subscription::unicast_responses_from(&event).subscription_topic(&me, "v2") {
-                Err(e) => {
-                    let e = AgentError::new(&e.to_string()).into();
-                    return Err(e);
-                }
-                Ok(topic) => topic,
-            };
-
-        let reqp = OutgoingRequestProperties::new(
-            "room.create",
-            &response_topic,
-            &generate_correlation_data(),
-            ShortTermTimingProperties::new(Utc::now()),
-        );
+        let reqp = self.build_reqp("room.create")?;
 
         let payload = EventRoomPayload {
             time,
@@ -154,27 +170,12 @@ impl EventClient for MqttEventClient {
     }
 
     async fn update_room(&self, id: Uuid, time: BoundedDateTimeTuple) -> Result<(), ClientError> {
-        let me = self.me.clone();
         let event = self.event_account_id.clone();
         let dispatcher = self.dispatcher.clone();
 
-        let response_topic =
-            match Subscription::unicast_responses_from(&event).subscription_topic(&me, "v2") {
-                Err(e) => {
-                    let e = AgentError::new(&e.to_string()).into();
-                    return Err(e);
-                }
-                Ok(topic) => topic,
-            };
-
-        let reqp = OutgoingRequestProperties::new(
-            "room.create",
-            &response_topic,
-            &generate_correlation_data(),
-            ShortTermTimingProperties::new(Utc::now()),
-        );
-
+        let reqp = self.build_reqp("room.create")?;
         let payload = EventRoomUpdatePayload { id, time };
+
         let msg = if let OutgoingMessage::Request(msg) =
             OutgoingRequest::multicast(payload, reqp, &event, EVENT_API_VERSION)
         {
@@ -201,25 +202,10 @@ impl EventClient for MqttEventClient {
     }
 
     async fn adjust_room(&self, recording: &Recording, offset: i64) -> Result<(), ClientError> {
-        let me = self.me.clone();
         let event = self.event_account_id.clone();
         let dispatcher = self.dispatcher.clone();
 
-        let response_topic =
-            match Subscription::unicast_responses_from(&event).subscription_topic(&me, "v2") {
-                Err(e) => {
-                    let e = AgentError::new(&e.to_string()).into();
-                    return Err(e);
-                }
-                Ok(topic) => topic,
-            };
-
-        let reqp = OutgoingRequestProperties::new(
-            "room.adjust",
-            &response_topic,
-            &generate_correlation_data(),
-            ShortTermTimingProperties::new(Utc::now()),
-        );
+        let reqp = self.build_reqp("room.adjust")?;
 
         let payload = EventAdjustPayload {
             id: recording.class_id(),
@@ -250,6 +236,46 @@ impl EventClient for MqttEventClient {
             202 => Ok(()),
             status => {
                 let e = format!("Wrong status, expected 202, got {:?}", status);
+                Err(ClientError::PayloadError(e))
+            }
+        }
+    }
+
+    async fn lock_chat(&self, room_id: Uuid) -> Result<(), ClientError> {
+        let event = self.event_account_id.clone();
+        let dispatcher = self.dispatcher.clone();
+
+        let reqp = self.build_reqp("event.create")?;
+
+        let payload = ChatLockPayload {
+            room_id,
+            kind: "chat_disabled",
+            set: "chat_disabled",
+            data: serde_json::json!({"value": "true"}),
+        };
+        let msg = if let OutgoingMessage::Request(msg) =
+            OutgoingRequest::multicast(payload, reqp, &event, EVENT_API_VERSION)
+        {
+            msg
+        } else {
+            unreachable!()
+        };
+
+        let request = dispatcher.request::<_, JsonValue>(msg);
+        let payload_result = if let Some(dur) = self.timeout {
+            async_std::future::timeout(dur, request)
+                .await
+                .map_err(|_e| ClientError::TimeoutError)?
+        } else {
+            request.await
+        };
+
+        let payload = payload_result.map_err(|e| ClientError::PayloadError(e.to_string()))?;
+
+        match payload.properties().status().as_u16() {
+            201 => Ok(()),
+            status => {
+                let e = format!("Wrong status, expected 201, got {:?}", status);
                 Err(ClientError::PayloadError(e))
             }
         }

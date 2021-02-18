@@ -18,7 +18,7 @@ struct WebinarObject {
     real_time: RealTimeObject,
     on_demand: Vec<WebinarVersion>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    status: Option<String>
+    status: Option<String>,
 }
 
 impl WebinarObject {
@@ -124,10 +124,13 @@ struct Webinar {
     preserve_history: Option<bool>,
     reserve: Option<i32>,
     backend: Option<String>,
+    #[serde(default)]
+    locked_chat: bool,
 }
 
 lazy_static! {
-    static ref CONFERENCE_PRESTART_SIGNALING_WINDOW: chrono::Duration = chrono::Duration::minutes(10);
+    static ref CONFERENCE_PRESTART_SIGNALING_WINDOW: chrono::Duration =
+        chrono::Duration::minutes(10);
 }
 
 pub async fn create(mut req: Request<Arc<dyn AppContext>>) -> tide::Result {
@@ -188,6 +191,16 @@ pub async fn create(mut req: Request<Arc<dyn AppContext>>) -> tide::Result {
 
     let mut conn = req.state().get_conn().await?;
     let webinar = query.execute(&mut conn).await?;
+
+    if body.locked_chat {
+        if let Err(e) = req.state().event_client().lock_chat(event_room_id).await {
+            error!(
+                crate::LOG,
+                "Failed to lock chat in event room, id = {:?}, err = {:?}", event_room_id, e
+            );
+        }
+    }
+
     let body = serde_json::to_string_pretty(&webinar)?;
 
     let response = Response::builder(201).body(body).build();

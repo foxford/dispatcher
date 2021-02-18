@@ -68,6 +68,7 @@ mod app;
 mod config;
 mod db;
 #[allow(unused_imports)]
+#[allow(dead_code)]
 mod serde;
 #[cfg(test)]
 mod test_helpers;
