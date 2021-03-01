@@ -8,7 +8,7 @@ Route                                 | Method | Short description
 /api/v1/webinars/:webinar_id          | GET    | [Reads](#read-webinar) webinar.
 /api/v1/webinars                      | POST   | [Creates](#create-webinar) webinar and required rooms in other services.
 /api/v1/webinars/:webinar_id          | PUT    | [Updates](#update-webinar) webinar.
-
+/api/v1/webinars/convert              | POST   | [Creates](#convert-webinar) webinar with already existing event and conference rooms.
 
 ### Create webinar
 
@@ -57,3 +57,32 @@ Parameters:
 webinar_id             | uuid        |          | Webinar id
 
 Response: status 200 and webinar object as payload.
+
+### Convert webinar
+
+A tenant may wish to create a webinar with event and conference rooms already created earlier. It can use this method.
+
+Parameters:
+
+Attribute              | Type        | Optional | Description
+---------------------- | ----------- | -------- | -------------------------------------------------
+title                  | string      |          | Webinar title
+scope                  | string      |          | Scope
+audience               | string      |          | Audience
+time                   | [int, int]  | +        | Start and end
+tags                   | json object | +        | Arbitrary tags
+conference_room_id     | uuid        |          | Conference room uuid
+event_room_id          | uuid        |          | Event room uuid
+original_event_room_id | uuid        | +        | Original event room id
+modified_event_room_id | uuid        | +        | Modified event room id
+recording              | recording   | +        | Recording object if recording exists
+
+Recording:
+
+Attribute              | Type         | Optional | Description
+---------------------- | ------------ | -------- | -------------------------------------------------
+stream_id              | uuid         |          | Stream id
+segments               | [[int, int]] |          | Segments
+modified_segments      | [[int, int]] |          | Modified segments
+
+Response: status 201 and webinar object as payload.

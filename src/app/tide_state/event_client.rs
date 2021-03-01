@@ -211,7 +211,7 @@ impl EventClient for MqttEventClient {
         let payload = EventAdjustPayload {
             id: recording.class_id(),
             started_at: recording.started_at(),
-            segments: recording.segments(),
+            segments: recording.segments().clone(),
             offset,
         };
         let msg = if let OutgoingMessage::Request(msg) =

@@ -17,8 +17,8 @@ use crate::app::authz::db_ban_callback;
 use crate::config::{self, Config};
 use api::{
     redirect_to_frontend, rollback, v1::healthz, v1::redirect_to_frontend as redirect_to_frontend2,
-    v1::webinar::create as create_webinar, v1::webinar::read as read_webinar,
-    v1::webinar::update as update_webinar,
+    v1::webinar::convert as convert_webinar, v1::webinar::create as create_webinar,
+    v1::webinar::read as read_webinar, v1::webinar::update as update_webinar,
 };
 use info::{list_frontends, list_scopes};
 use tide_state::conference_client::{ConferenceClient, MqttConferenceClient};
@@ -98,8 +98,9 @@ pub async fn run(db: PgPool, authz_cache: Option<Box<dyn AuthzCache>>) -> Result
                     AgentNotification::Message(Ok(IncomingMessage::Response(data)), _) => {
                         message_handler_.handle_response(data).await;
                     }
-                    AgentNotification::Message(Ok(IncomingMessage::Event(data)), _) => {
-                        message_handler_.handle_event(data).await;
+                    AgentNotification::Message(Ok(IncomingMessage::Event(data)), message_data) => {
+                        let topic = message_data.topic;
+                        message_handler_.handle_event(data, topic).await;
                     }
                     AgentNotification::Message(_, _) => (),
                     AgentNotification::Disconnection => {
@@ -167,6 +168,9 @@ pub async fn run(db: PgPool, authz_cache: Option<Box<dyn AuthzCache>>) -> Result
     app.at("/api/v1/webinars/:id").get(read_webinar);
     app.at("/api/v1/webinars").post(create_webinar);
     app.at("/api/v1/webinars/:id").put(update_webinar);
+
+    app.at("/api/v1/webinars/convert").post(convert_webinar);
+
     app.listen(config.http.listener_address).await?;
     Ok(())
 }

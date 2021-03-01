@@ -6,12 +6,14 @@ use async_std::prelude::FutureExt;
 use chrono::Utc;
 use serde_derive::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
+use sqlx::Acquire;
 use tide::{http::Error as HttpError, Request, Response};
 use uuid::Uuid;
 
 use crate::app::authz::AuthzObject;
 use crate::app::AppContext;
 use crate::db::class::Object as Class;
+use crate::db::recording::Segments;
 
 #[derive(Serialize)]
 struct WebinarObject {
@@ -80,7 +82,7 @@ pub async fn read(req: Request<Arc<dyn AppContext>>) -> tide::Result {
 
     let webinar = find_webinar(&req).await?;
 
-    let object = AuthzObject::new(&["rooms", &webinar.id().to_string()]).into();
+    let object = AuthzObject::new(&["webinars", &webinar.id().to_string()]).into();
 
     if let Err(err) = state
         .authz()
@@ -176,7 +178,7 @@ pub async fn create(mut req: Request<Arc<dyn AppContext>>) -> tide::Result {
         }
     };
 
-    let object = AuthzObject::new(&["rooms"]).into();
+    let object = AuthzObject::new(&["webinars"]).into();
 
     if let Err(err) = state
         .authz()
@@ -283,7 +285,7 @@ pub async fn update(mut req: Request<Arc<dyn AppContext>>) -> tide::Result {
 
     let webinar = find_webinar(&req).await?;
 
-    let object = AuthzObject::new(&["rooms", &webinar.id().to_string()]).into();
+    let object = AuthzObject::new(&["webinars", &webinar.id().to_string()]).into();
 
     if let Err(err) = state
         .authz()
@@ -326,6 +328,113 @@ pub async fn update(mut req: Request<Arc<dyn AppContext>>) -> tide::Result {
     let body = serde_json::to_string_pretty(&webinar)?;
 
     let response = Response::builder(200).body(body).build();
+
+    Ok(response)
+}
+
+#[derive(Deserialize)]
+struct WebinarConvertObject {
+    title: String,
+    scope: String,
+    audience: String,
+    event_room_id: Uuid,
+    conference_room_id: Uuid,
+    #[serde(with = "crate::serde::ts_seconds_bound_tuple")]
+    time: crate::db::class::BoundedDateTimeTuple,
+    tags: Option<serde_json::Value>,
+    original_event_room_id: Option<Uuid>,
+    modified_event_room_id: Option<Uuid>,
+    recording: RecordingConvertObject,
+}
+
+#[derive(Deserialize)]
+struct RecordingConvertObject {
+    stream_id: Uuid,
+    segments: Segments,
+    modified_segments: Segments,
+    uri: String,
+}
+
+pub async fn convert(mut req: Request<Arc<dyn AppContext>>) -> tide::Result {
+    let body: WebinarConvertObject = req.body_json().await?;
+
+    let maybe_token = fetch_token(&req);
+    let state = req.state();
+    let account_id = match state.validate_token(maybe_token.as_deref()) {
+        Ok(id) => id,
+        Err(e) => {
+            error!(
+                crate::LOG,
+                "Failed to process Authorization header, header = {:?}, err = {:?}",
+                req.header("Authorization"),
+                e
+            );
+            return Ok(access_denied_response());
+        }
+    };
+
+    let object = AuthzObject::new(&["webinars"]).into();
+
+    if let Err(err) = state
+        .authz()
+        .authorize(
+            body.audience.clone(),
+            account_id.clone(),
+            object,
+            "convert".into(),
+        )
+        .await
+    {
+        error!(crate::LOG, "Failed to authorize action, reason = {:?}", err);
+        return Ok(access_denied_response());
+    }
+
+    let query = crate::db::class::WebinarInsertQuery::new(
+        body.title,
+        body.scope,
+        body.audience,
+        body.time.into(),
+        body.conference_room_id,
+        body.event_room_id,
+    );
+
+    let query = if let Some(tags) = body.tags {
+        query.tags(tags)
+    } else {
+        query
+    };
+
+    let query = if let Some(id) = body.original_event_room_id {
+        query.original_event_room_id(id)
+    } else {
+        query
+    };
+
+    let query = if let Some(id) = body.modified_event_room_id {
+        query.modified_event_room_id(id)
+    } else {
+        query
+    };
+
+    let webinar = {
+        let mut conn = req.state().get_conn().await?;
+        let mut txn = conn.begin().await?;
+        let webinar = query.execute(&mut txn).await?;
+        crate::db::recording::RecordingConvertInsertQuery::new(
+            webinar.id(),
+            body.recording.stream_id,
+            body.recording.segments,
+            body.recording.modified_segments,
+            body.recording.uri,
+        )
+        .execute(&mut txn)
+        .await?;
+        webinar
+    };
+
+    let body = serde_json::to_string_pretty(&webinar)?;
+
+    let response = Response::builder(201).body(body).build();
 
     Ok(response)
 }

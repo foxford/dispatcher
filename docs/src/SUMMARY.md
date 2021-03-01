@@ -5,3 +5,4 @@
     - [Webinars integration](webinars/overview.md)
         - [API](webinars/api.md)
         - [Events](webinars/events.md)
+        - [Authz](webinars/authz.md)
