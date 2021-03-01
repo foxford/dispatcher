@@ -11,6 +11,7 @@ pub struct Object {
     id: Uuid,
     class_id: Uuid,
     rtc_id: Uuid,
+    stream_uri: String,
     segments: Segments,
     modified_segments: Option<Segments>,
     started_at: DateTime<Utc>,
@@ -24,8 +25,12 @@ impl Object {
         self.class_id
     }
 
-    pub fn segments(&self) -> Segments {
-        self.segments.clone()
+    pub fn stream_uri(&self) -> &str {
+        &self.stream_uri
+    }
+
+    pub fn segments(&self) -> &Segments {
+        &self.segments
     }
 
     pub fn started_at(&self) -> DateTime<Utc> {
@@ -88,6 +93,7 @@ impl RecordingReadQuery {
                 id,
                 class_id,
                 rtc_id,
+                stream_uri,
                 segments AS "segments!: Segments",
                 modified_segments AS "modified_segments!: Option<Segments>",
                 started_at,
@@ -109,6 +115,7 @@ pub struct RecordingInsertQuery {
     rtc_id: Uuid,
     segments: Segments,
     started_at: DateTime<Utc>,
+    stream_uri: String,
 }
 
 impl RecordingInsertQuery {
@@ -117,12 +124,14 @@ impl RecordingInsertQuery {
         rtc_id: Uuid,
         segments: Segments,
         started_at: DateTime<Utc>,
+        stream_uri: String,
     ) -> Self {
         Self {
             class_id,
             rtc_id,
             segments,
             started_at,
+            stream_uri,
         }
     }
 
@@ -130,12 +139,13 @@ impl RecordingInsertQuery {
         sqlx::query_as!(
             Object,
             r#"
-            INSERT INTO recording (class_id, rtc_id, segments, started_at)
-            VALUES ($1, $2, $3, $4)
+            INSERT INTO recording (class_id, rtc_id, segments, started_at, stream_uri)
+            VALUES ($1, $2, $3, $4, $5)
             RETURNING
                 id,
                 class_id,
                 rtc_id,
+                stream_uri,
                 segments AS "segments!: Segments",
                 started_at,
                 modified_segments AS "modified_segments!: Option<Segments>",
@@ -146,7 +156,8 @@ impl RecordingInsertQuery {
             self.class_id,
             self.rtc_id,
             self.segments as Segments,
-            self.started_at
+            self.started_at,
+            self.stream_uri,
         )
         .fetch_one(conn)
         .await
@@ -178,6 +189,7 @@ impl AdjustUpdateQuery {
                 id,
                 class_id,
                 rtc_id,
+                stream_uri,
                 segments AS "segments!: Segments",
                 started_at,
                 modified_segments AS "modified_segments!: Option<Segments>",
@@ -213,6 +225,7 @@ impl TranscodingUpdateQuery {
                 id,
                 class_id,
                 rtc_id,
+                stream_uri,
                 segments AS "segments!: Segments",
                 started_at,
                 modified_segments AS "modified_segments!: Option<Segments>",
@@ -221,6 +234,60 @@ impl TranscodingUpdateQuery {
                 transcoded_at
             "#,
             self.class_id,
+        )
+        .fetch_one(conn)
+        .await
+    }
+}
+
+pub struct RecordingConvertInsertQuery {
+    class_id: Uuid,
+    rtc_id: Uuid,
+    segments: Segments,
+    modified_segments: Segments,
+    stream_uri: String,
+}
+
+impl RecordingConvertInsertQuery {
+    pub fn new(
+        class_id: Uuid,
+        rtc_id: Uuid,
+        segments: Segments,
+        modified_segments: Segments,
+        stream_uri: String,
+    ) -> Self {
+        Self {
+            class_id,
+            rtc_id,
+            segments,
+            modified_segments,
+            stream_uri,
+        }
+    }
+
+    pub async fn execute(self, conn: &mut PgConnection) -> sqlx::Result<Object> {
+        sqlx::query_as!(
+            Object,
+            r#"
+            INSERT INTO recording (class_id, rtc_id, segments, modified_segments, stream_uri, started_at, adjusted_at, transcoded_at)
+            VALUES ($1, $2, $3, $4, $5, NOW(), NOW(), NOW())
+            RETURNING
+                id,
+                class_id,
+                rtc_id,
+                stream_uri,
+                segments AS "segments!: Segments",
+                started_at,
+                modified_segments AS "modified_segments!: Option<Segments>",
+                created_at,
+                adjusted_at,
+                transcoded_at
+            "#,
+            self.class_id,
+            self.rtc_id,
+            self.segments as Segments,
+            self.modified_segments as Segments,
+            self.stream_uri,
         )
         .fetch_one(conn)
         .await

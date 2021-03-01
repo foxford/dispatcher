@@ -132,12 +132,13 @@ impl WebinarReadQuery {
 }
 
 pub struct WebinarReadByScopeQuery {
+    audience: String,
     scope: String,
 }
 
 impl WebinarReadByScopeQuery {
-    pub fn new(scope: String) -> Self {
-        Self { scope }
+    pub fn new(audience: String, scope: String) -> Self {
+        Self { audience, scope }
     }
 
     pub async fn execute(self, conn: &mut PgConnection) -> sqlx::Result<Option<Object>> {
@@ -159,8 +160,9 @@ impl WebinarReadByScopeQuery {
                 created_at,
                 preserve_history
             FROM class
-            WHERE kind = 'webinar' AND scope = $1
+            WHERE kind = 'webinar' AND audience = $1 AND scope = $2
             "#,
+            self.audience,
             self.scope
         )
         .fetch_optional(conn)
@@ -177,6 +179,8 @@ pub struct WebinarInsertQuery {
     preserve_history: bool,
     conference_room_id: Uuid,
     event_room_id: Uuid,
+    original_event_room_id: Option<Uuid>,
+    modified_event_room_id: Option<Uuid>,
 }
 
 impl WebinarInsertQuery {
@@ -197,19 +201,35 @@ impl WebinarInsertQuery {
             preserve_history: true,
             conference_room_id,
             event_room_id,
+            original_event_room_id: None,
+            modified_event_room_id: None,
         }
     }
 
-    pub(crate) fn tags(self, tags: JsonValue) -> Self {
+    pub fn tags(self, tags: JsonValue) -> Self {
         Self {
             tags: Some(tags),
             ..self
         }
     }
 
-    pub(crate) fn preserve_history(self, preserve_history: bool) -> Self {
+    pub fn preserve_history(self, preserve_history: bool) -> Self {
         Self {
             preserve_history,
+            ..self
+        }
+    }
+
+    pub fn original_event_room_id(self, id: Uuid) -> Self {
+        Self {
+            original_event_room_id: Some(id),
+            ..self
+        }
+    }
+
+    pub fn modified_event_room_id(self, id: Uuid) -> Self {
+        Self {
+            modified_event_room_id: Some(id),
             ..self
         }
     }
@@ -220,8 +240,12 @@ impl WebinarInsertQuery {
         sqlx::query_as!(
             Object,
             r#"
-            INSERT INTO class (title, scope, audience, time, tags, preserve_history, kind, conference_room_id, event_room_id)
-            VALUES ($1, $2, $3, $4, $5, $6, $7::class_type, $8, $9)
+            INSERT INTO class (
+                title, scope, audience, time, tags, preserve_history, kind,
+                conference_room_id, event_room_id,
+                original_event_room_id, modified_event_room_id
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7::class_type, $8, $9, $10, $11)
             RETURNING
                 id,
                 title,
@@ -245,7 +269,9 @@ impl WebinarInsertQuery {
             self.preserve_history,
             ClassType::Webinar as ClassType,
             self.conference_room_id,
-            self.event_room_id
+            self.event_room_id,
+            self.original_event_room_id,
+            self.modified_event_room_id,
         )
         .fetch_one(conn)
         .await
