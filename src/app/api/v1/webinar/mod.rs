@@ -137,14 +137,7 @@ pub async fn create(mut req: Request<Arc<dyn AppContext>>) -> tide::Result {
     let body: Webinar = req.body_json().await?;
 
     let conference_time = match body.time.0 {
-        Bound::Included(t) => (
-            Bound::Included(t - *CONFERENCE_PRESTART_SIGNALING_WINDOW),
-            body.time.1,
-        ),
-        Bound::Excluded(t) => (
-            Bound::Included(t - *CONFERENCE_PRESTART_SIGNALING_WINDOW),
-            body.time.1,
-        ),
+        Bound::Included(t) | Bound::Excluded(t) => (Bound::Included(t), Bound::Unbounded),
         Bound::Unbounded => (Bound::Unbounded, Bound::Unbounded),
     };
     let conference_fut = req.state().conference_client().create_room(
@@ -228,14 +221,7 @@ pub async fn update(mut req: Request<Arc<dyn AppContext>>) -> tide::Result {
     };
 
     let conference_time = match body.time.0 {
-        Bound::Included(t) => (
-            Bound::Included(t - chrono::Duration::minutes(10)),
-            body.time.1,
-        ),
-        Bound::Excluded(t) => (
-            Bound::Included(t - chrono::Duration::minutes(10)),
-            body.time.1,
-        ),
+        Bound::Included(t) | Bound::Excluded(t) => (Bound::Included(t), body.time.1),
         Bound::Unbounded => (Bound::Unbounded, Bound::Unbounded),
     };
     let conference_fut = req

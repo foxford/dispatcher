@@ -6,13 +6,20 @@ default_frontend_base = "http://testing00.foxford.ru"
 
 tenants = ["beta.foxford.ru"]
 
+[authn."testing.svc.netology-group.services"]
+audience = ["testing.svc.netology-group.services"]
+algorithm = "ES256"
+key = "data/keys/svc.public_key.p8.der.sample"
+
 [conference_client]
 account_id = "conference.dev.svc.example.org"
 timeout = "5"
+api_version = "v1"
 
 [event_client]
 account_id = "event.dev.svc.example.org"
 timeout = "5"
+api_version = "v1"
 
 [tq_client]
 base_url = "http://localhost:3000/"
@@ -20,11 +27,6 @@ base_url = "http://localhost:3000/"
 [id_token]
 algorithm = "ES256"
 key = "data/keys/svc.private_key.p8.der.sample"
-
-[api_auth]
-algorithm = "ES256"
-audience = "testing.svc.netology-group.services"
-key = "data/keys/svc.public_key.p8.der.sample"
 
 [mqtt]
 uri = "mqtt://0.0.0.0:1883"

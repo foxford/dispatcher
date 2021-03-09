@@ -1,59 +1,59 @@
 # API
 
-Все роуты ожидают json на входе
+All routes expect json payloads.
 
 ### Routes
-Путь                                  | Метод      | Краткое описание
-------------------------------------- | ---------- | ----------
-/api/v1/webinars/:webinar_id          | GET        | [Отображает](#Чтение-вебинара) объект вебинара.
-/api/v1/webinars                      | POST       | [Создаёт](#Создание-вебинара) вебинар и необходимые комнаты в ивенте и конференс.
-/api/v1/webinars/:webinar_id          | PUT, PATCH | [Обновляет](#Обновление-вебинара) время вебинара.
+Route                                 | Method | Short description
+------------------------------------- | ------ | ----------
+/api/v1/webinars/:webinar_id          | GET    | [Reads](#read-webinar) webinar.
+/api/v1/webinars                      | POST   | [Creates](#create-webinar) webinar and required rooms in other services.
+/api/v1/webinars/:webinar_id          | PUT    | [Updates](#update-webinar) webinar.
 
 
-### Создание вебинара
+### Create webinar
 
-Параметры:
+Request parameters:
 
-Свойство               | Тип         | Опц. | Описание
----------------------- | ----------- | ---- | -------------------------------------------------
-title                  | string      |      | Название вебинара
-scope                  | string      |      | Идентификатор вебинара у тенанта
-audience               | string      |      | Audience тенанта
-time                   | [int, int]  | +    | Начало и конец
-tags                   | json object | +    | Произвольные теги для тенанта
-preserve_history       | bool        | +    | Сохранять ли историю в комнате ивента
-reserve                | i32         | +    | Количество резервируемых слотов на джанусе
-backend                | string      | +    | Бэкенд комнаты, возможные значения: janus, none
-locked_chat            | bool        | +    | Позволяет закрыть чат при создании комнаты
+Attribute              | Type        | Optional | Description
+---------------------- | ----------- | -------- | -------------------------------------------------
+title                  | string      |          | Webinar title
+scope                  | string      |          | Scope
+audience               | string      |          | Audience
+time                   | [int, int]  | +        | Start and end
+tags                   | json object | +        | Arbitrary tags.
+preserve_history       | bool        | +        | History preservation enabled or not.
+reserve                | i32         | +        | Slots to reserve on janus backend.
+backend                | string      | +        | Room backend, possible values: `janus`, `none`
+locked_chat            | bool        | +        | Lock chat in created event room
 
-В ответе статус 201 и объект вебинара.
+Response: status 201 and webinar object as payload.
 
-### Чтение вебинара
+### Read webinar
 
-Параметры:
+Parameters:
 
-Свойство               | Тип         | Опц. | Описание
----------------------- | ----------- | ---- | -------------------------------------------------
-webinar_id             | uuid        |      | Идентификатор вебинара
-time                   | [int, int]  | +    | Новые начало и конец
+Attribute              | Type        | Optional | Description
+---------------------- | ----------- | -------- | -------------------------------------------------
+webinar_id             | uuid        |          | Webinar id
+time                   | [int, int]  | +        | New time
 
-Ответ:
+Response:
 
-Свойство               | Тип         | Опц. | Описание
----------------------- | ----------- | ---- | ---------------------------------------------------------
-id                     | string      |      | Скоуп вебинара
-title                  | string      |      | Название вебинара
-real_time              | json object |      | Поля event_room_id и conference_room_id
-on_demand              | json array  | +    | Массив с оригинальной и модифицированной версиями стримов
-status                 | string      | +    | Состояние вебинара, возможные значения: transcoded, adjusted, finished, realtime
+Attribute              | Type        | Optional | Description
+---------------------- | ----------- | -------- | ---------------------------------------------------------
+id                     | string      |          | Webinar scope
+title                  | string      |          | Title
+real_time              | json object |          | `event_room_id` and `conference_room_id` fields
+on_demand              | json array  | +        | Array with original and modified stream versions.
+status                 | string      | +        | Webinar state, possible values: `transcoded`, `adjusted`, `finished`, `realtime`
 
 
-### Обновление вебинара
+### Update webinar
 
-Параметры:
+Parameters:
 
-Свойство               | Тип         | Опц. | Описание
----------------------- | ----------- | ---- | -------------------------------------------------
-webinar_id             | uuid        |      | Идентификатор вебинара
+Свойство               | Тип         | Optional | Description
+---------------------- | ----------- | -------- | -------------------------------------------------
+webinar_id             | uuid        |          | Webinar id
 
-В ответе статус 200 и объект вебинара.
+Response: status 200 and webinar object as payload.
