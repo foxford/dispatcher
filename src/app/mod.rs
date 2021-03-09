@@ -154,7 +154,6 @@ pub async fn run(db: PgPool) -> Result<()> {
 
     app.at("/api/v1/webinars/:id").get(read_webinar);
     app.at("/api/v1/webinars").post(create_webinar);
-    app.at("/api/v1/webinars/:id").patch(update_webinar);
     app.at("/api/v1/webinars/:id").put(update_webinar);
     app.listen(config.http.listener_address).await?;
     Ok(())
@@ -168,6 +167,7 @@ fn build_event_client(config: &Config, dispatcher: Arc<Dispatcher>) -> Arc<dyn E
         config.event_client.account_id.clone(),
         dispatcher,
         Some(Duration::from_secs(config.event_client.timeout)),
+        &config.event_client.api_version,
     ))
 }
 
@@ -182,6 +182,7 @@ fn build_conference_client(
         config.conference_client.account_id.clone(),
         dispatcher,
         Some(Duration::from_secs(config.conference_client.timeout)),
+        &config.conference_client.api_version,
     ))
 }
 

@@ -17,7 +17,7 @@ sqlx = { version = "0.4", features = ["offline", "postgres", "macros", "uuid", "
 serde = "1.0"
 serde_derive = "1.0"
 serde_json = "1.0"
-svc-agent = { version = "0.14" }
+svc-agent = { version = "0.15" }
 svc-authn = { version = "0.6", features = ["jose"] }
 svc-error = { version = "0.1", features = ["svc-agent", "svc-authn", "sentry-extension"] }
 sentry = "0.18.1"
@@ -29,12 +29,8 @@ slog-async = "2.5"
 slog-json = "2.3"
 slog-envlogger = "2.2"
 anyhow = "1.0"
-jsonwebtoken = "7.1"
 futures = "0.3"
 futures-channel = "0.3"
 uuid = { version = "0.8", features = ["v4", "serde"] }
 rand = "0.7"
 surf = "2.1.0"
-
-[patch.crates-io]
-svc-agent = { git = "https://github.com/netology-group/svc-agent-rs", branch = "multicast_version"}

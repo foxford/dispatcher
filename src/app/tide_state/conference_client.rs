@@ -40,6 +40,7 @@ pub struct MqttConferenceClient {
     conference_account_id: AccountId,
     dispatcher: Arc<Dispatcher>,
     timeout: Option<Duration>,
+    api_version: String,
 }
 
 impl MqttConferenceClient {
@@ -48,12 +49,14 @@ impl MqttConferenceClient {
         conference_account_id: AccountId,
         dispatcher: Arc<Dispatcher>,
         timeout: Option<Duration>,
+        api_version: &str,
     ) -> Self {
         Self {
             me,
             conference_account_id,
             dispatcher,
             timeout,
+            api_version: api_version.to_string(),
         }
     }
 }
@@ -113,11 +116,13 @@ impl ConferenceClient for MqttConferenceClient {
             tags,
         };
         let msg = if let OutgoingMessage::Request(msg) =
-            OutgoingRequest::multicast(payload, reqp, &conference, "v2")
+            OutgoingRequest::multicast(payload, reqp, &conference, &self.api_version)
         {
             msg
         } else {
-            unreachable!()
+            return Err(ClientError::AgentError(AgentError::new(
+                "this is actually unreachable",
+            )));
         };
 
         let request = dispatcher.request::<_, JsonValue>(msg);

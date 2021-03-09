@@ -962,7 +962,6 @@ dependencies = [
  "config",
  "futures",
  "futures-channel",
- "jsonwebtoken",
  "lazy_static",
  "percent-encoding",
  "rand 0.7.3",
@@ -3101,8 +3100,9 @@ dependencies = [
 
 [[package]]
 name = "svc-agent"
-version = "0.14.13"
-source = "git+https://github.com/netology-group/svc-agent-rs?branch=multicast_version#9e49c420a6aba4c49c7ab901df796f8c958db429"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ad8761eb8c0c5e716ca7700d5c3402903007924b5af752e9ddb549e82466ff02"
 dependencies = [
  "base64 0.10.1",
  "chrono",

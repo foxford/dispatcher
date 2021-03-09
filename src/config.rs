@@ -7,7 +7,6 @@ use svc_error::extension::sentry::Config as SentryConfig;
 pub struct Config {
     pub id: AccountId,
     pub id_token: JwtConfig,
-    pub api_auth: ApiAuth,
     pub agent_label: String,
     pub broker_id: AccountId,
     pub mqtt: AgentConfig,
@@ -18,6 +17,7 @@ pub struct Config {
     pub event_client: MqttServiceConfig,
     pub tq_client: TqClientConfig,
     pub tenants: Vec<String>,
+    pub authn: svc_authn::jose::ConfigMap,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -26,15 +26,6 @@ pub struct JwtConfig {
     pub algorithm: Algorithm,
     #[serde(deserialize_with = "svc_authn::serde::file")]
     pub key: Vec<u8>,
-}
-
-#[derive(Clone, Debug, Deserialize)]
-pub struct ApiAuth {
-    #[serde(deserialize_with = "svc_authn::serde::algorithm")]
-    pub algorithm: Algorithm,
-    #[serde(deserialize_with = "svc_authn::serde::file")]
-    pub key: Vec<u8>,
-    pub audience: String,
 }
 
 pub fn load() -> Result<Config, config::ConfigError> {
@@ -57,4 +48,5 @@ pub struct TqClientConfig {
 pub struct MqttServiceConfig {
     pub account_id: AccountId,
     pub timeout: u64,
+    pub api_version: String,
 }

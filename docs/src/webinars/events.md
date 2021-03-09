@@ -1,15 +1,15 @@
-### Событие webinar.ready
+### webinar.ready
 
-Означает, что обработка записи вебинара завершена.
+Arrives when stream postprocessing finishes.
 
-Топик: `audience/:audience/events`
+Topic: `audience/:audience/events`
 
-Свойство               | Тип         | Опц. | Описание                                          |
----------------------- | ----------- | ---- | ------------------------------------------------- |
-scope                  | string      |      | Идентификатор вебинара у тенанта                  |
-tags                   | json object | +    | Произвольные теги тенанта                         |
-status                 | string      |      | "success"                                         |
-id                     | uuid        |      | Идентификатор вебинара                            |
-stream_uri             | string      |      | Урл стрима в с3                                   |
-stream_id              | uuid        |      | Идентификатор стрима                              |
-stream_duration        | u64         |      | Длина записи                                      |
+Attribute              | Type        | Optional | Описание
+---------------------- | ----------- | -------- | -------------------------------------------------
+scope                  | string      |          | Scope
+tags                   | json object | +        | Arbitrary tags
+status                 | string      |          | "success"
+id                     | uuid        |          | Webinar id
+stream_uri             | string      |          | S3 stream url
+stream_id              | uuid        |          | Stream id
+stream_duration        | u64         |          | Stream duration in seconds

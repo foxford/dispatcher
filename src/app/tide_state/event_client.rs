@@ -22,8 +22,6 @@ use super::{generate_correlation_data, ClientError};
 use crate::db::class::BoundedDateTimeTuple;
 use crate::db::recording::Object as Recording;
 
-const EVENT_API_VERSION: &str = "v1";
-
 #[async_trait]
 pub trait EventClient: Sync + Send {
     async fn create_room(
@@ -46,6 +44,7 @@ pub struct MqttEventClient {
     event_account_id: AccountId,
     dispatcher: Arc<Dispatcher>,
     timeout: Option<Duration>,
+    api_version: String,
 }
 
 impl MqttEventClient {
@@ -54,12 +53,14 @@ impl MqttEventClient {
         event_account_id: AccountId,
         dispatcher: Arc<Dispatcher>,
         timeout: Option<Duration>,
+        api_version: &str,
     ) -> Self {
         Self {
             me,
             event_account_id,
             dispatcher,
             timeout,
+            api_version: api_version.to_string(),
         }
     }
 
@@ -68,7 +69,7 @@ impl MqttEventClient {
         let event = self.event_account_id.clone();
 
         Subscription::unicast_responses_from(&event)
-            .subscription_topic(&me, EVENT_API_VERSION)
+            .subscription_topic(&me, &self.api_version)
             .map_err(|e| AgentError::new(&e.to_string()).into())
     }
 
@@ -140,7 +141,7 @@ impl EventClient for MqttEventClient {
             preserve_history,
         };
         let msg = if let OutgoingMessage::Request(msg) =
-            OutgoingRequest::multicast(payload, reqp, &event, EVENT_API_VERSION)
+            OutgoingRequest::multicast(payload, reqp, &event, &self.api_version)
         {
             msg
         } else {
@@ -177,7 +178,7 @@ impl EventClient for MqttEventClient {
         let payload = EventRoomUpdatePayload { id, time };
 
         let msg = if let OutgoingMessage::Request(msg) =
-            OutgoingRequest::multicast(payload, reqp, &event, EVENT_API_VERSION)
+            OutgoingRequest::multicast(payload, reqp, &event, &self.api_version)
         {
             msg
         } else {
@@ -214,7 +215,7 @@ impl EventClient for MqttEventClient {
             offset,
         };
         let msg = if let OutgoingMessage::Request(msg) =
-            OutgoingRequest::multicast(payload, reqp, &event, EVENT_API_VERSION)
+            OutgoingRequest::multicast(payload, reqp, &event, &self.api_version)
         {
             msg
         } else {
@@ -254,7 +255,7 @@ impl EventClient for MqttEventClient {
             data: serde_json::json!({"value": "true"}),
         };
         let msg = if let OutgoingMessage::Request(msg) =
-            OutgoingRequest::multicast(payload, reqp, &event, EVENT_API_VERSION)
+            OutgoingRequest::multicast(payload, reqp, &event, &self.api_version)
         {
             msg
         } else {

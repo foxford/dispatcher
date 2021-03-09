@@ -2,13 +2,12 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
-use jsonwebtoken::{TokenData, Validation};
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
 use sqlx::pool::PoolConnection;
 use sqlx::postgres::{PgPool, Postgres};
 use svc_agent::{error::Error as AgentError, mqtt::Agent};
-use svc_authn::token::jws_compact::extract::decode_jws_compact;
-use svc_authn::{jose::Claims, Error};
+use svc_authn::token::jws_compact::extract::decode_jws_compact_with_config;
+use svc_authn::Error;
 use tide::http::url::Url;
 
 use crate::config::Config;
@@ -72,31 +71,13 @@ impl AppContext for TideState {
     }
 
     fn validate_token(&self, token: Option<&str>) -> Result<(), Error> {
-        let verifier = Validation {
-            iss: Some(self.config.api_auth.audience.clone()),
-            algorithms: vec![self.config.api_auth.algorithm],
-            ..Validation::default()
-        };
+        let token = token
+            .map(|s| s.replace("Bearer ", ""))
+            .unwrap_or_else(|| "".to_string());
 
-        let claims = match token {
-            Some(token) if token.starts_with("Bearer ") => {
-                let token = token.replace("Bearer ", "");
-                decode_jws_compact(
-                    &token,
-                    &verifier,
-                    &self.config.api_auth.key,
-                    self.config.api_auth.algorithm,
-                )
-            }
-            _ => decode_jws_compact(
-                "",
-                &verifier,
-                &self.config.api_auth.key,
-                self.config.api_auth.algorithm,
-            ),
-        };
+        decode_jws_compact_with_config::<String>(&token, &self.config.authn)?;
 
-        claims.map(|_: TokenData<Claims<String>>| ())
+        Ok(())
     }
 
     fn agent(&self) -> Option<Agent> {
