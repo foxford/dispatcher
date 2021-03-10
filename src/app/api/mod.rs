@@ -5,9 +5,11 @@ use serde_derive::Deserialize;
 use svc_agent::mqtt::{
     IntoPublishableMessage, OutgoingEvent, OutgoingEventProperties, ShortTermTimingProperties,
 };
+use svc_agent::Authenticable;
 use tide::http::url::Url;
 use tide::{Request, Response};
 
+use crate::app::authz::AuthzObject;
 use crate::app::AppContext;
 
 const FEATURE_POLICY: &str = "autoplay *; camera *; microphone *; display-capture *; fullscreen *";
@@ -107,50 +109,66 @@ pub async fn rollback(req: Request<Arc<dyn AppContext>>) -> tide::Result {
         .and_then(|h| h.get(0))
         .map(|header| header.to_string());
 
-    match req.state().validate_token(maybe_token.as_deref()) {
-        Ok(()) => match req.state().get_conn().await {
-            Err(err) => {
-                error!(crate::LOG, "Failed to get db conn, reason = {:?}", err);
+    let state = req.state();
+    match state.validate_token(maybe_token.as_deref()) {
+        Ok(account_id) => {
+            let object = AuthzObject::new(&["scopes"]).into();
 
-                return Ok(tide::Response::builder(500)
-                    .body(format!("Failed to acquire conn: {}", err))
-                    .build());
+            if let Err(err) = state
+                .authz()
+                .authorize(
+                    state.agent().id().as_account_id().audience().to_string(),
+                    account_id.clone(),
+                    object,
+                    "rollback".into(),
+                )
+                .await
+            {
+                error!(crate::LOG, "Failed to authorize action, reason = {:?}", err);
+                return Ok(tide::Response::builder(403).body("Access denied").build());
             }
-            Ok(mut conn) => {
-                let r = crate::db::scope::DeleteQuery::new(scope.clone())
-                    .execute(&mut conn)
-                    .await;
 
-                if let Err(err) = r {
-                    error!(
-                        crate::LOG,
-                        "Failed to delete scope from db, reason = {:?}", err
-                    );
+            match state.get_conn().await {
+                Err(err) => {
+                    error!(crate::LOG, "Failed to get db conn, reason = {:?}", err);
 
                     return Ok(tide::Response::builder(500)
-                        .body(format!("Failed to delete scope: {}", err))
+                        .body(format!("Failed to acquire conn: {}", err))
                         .build());
                 }
+                Ok(mut conn) => {
+                    let r = crate::db::scope::DeleteQuery::new(scope.clone())
+                        .execute(&mut conn)
+                        .await;
 
-                let timing = ShortTermTimingProperties::new(chrono::Utc::now());
-                let props = OutgoingEventProperties::new("scope.frontend.rollback", timing);
-                let path = format!("scopes/{}/events", scope);
-                let event = OutgoingEvent::broadcast("", props, &path);
+                    if let Err(err) = r {
+                        error!(
+                            crate::LOG,
+                            "Failed to delete scope from db, reason = {:?}", err
+                        );
 
-                let e = Box::new(event) as Box<dyn IntoPublishableMessage + Send>;
+                        return Ok(tide::Response::builder(500)
+                            .body(format!("Failed to delete scope: {}", err))
+                            .build());
+                    }
 
-                if let Some(Err(err)) = req
-                    .state()
-                    .agent()
-                    .map(|mut agent| agent.publish_publishable(e))
-                {
-                    error!(
-                        crate::LOG,
-                        "Failed to publish rollback event, reason = {:?}", err
-                    );
+                    let timing = ShortTermTimingProperties::new(chrono::Utc::now());
+                    let props = OutgoingEventProperties::new("scope.frontend.rollback", timing);
+                    let path = format!("scopes/{}/events", scope);
+                    let event = OutgoingEvent::broadcast("", props, &path);
+
+                    let e = Box::new(event) as Box<dyn IntoPublishableMessage + Send>;
+
+                    let mut agent = state.agent();
+                    if let Err(err) = agent.publish_publishable(e) {
+                        error!(
+                            crate::LOG,
+                            "Failed to publish rollback event, reason = {:?}", err
+                        );
+                    }
                 }
             }
-        },
+        }
         Err(e) => {
             error!(
                 crate::LOG,
@@ -161,6 +179,7 @@ pub async fn rollback(req: Request<Arc<dyn AppContext>>) -> tide::Result {
             return Ok(tide::Response::builder(403).body("Access denied").build());
         }
     }
+
     Ok("Ok".into())
 }
 

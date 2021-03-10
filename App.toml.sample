@@ -2,14 +2,21 @@ id = "dispatcher.dev.svc.example.org"
 agent_label = "alpha"
 broker_id = "mqtt-gateway.dev.svc.example.org"
 
-default_frontend_base = "http://testing00.foxford.ru"
+default_frontend_base = "http://test.example.org"
 
-tenants = ["beta.foxford.ru"]
+tenants = ["test.example.org"]
 
-[authn."testing.svc.netology-group.services"]
-audience = ["testing.svc.netology-group.services"]
+[authn."dev.svc.example.org"]
+audience = ["dev.svc.example.org"]
 algorithm = "ES256"
 key = "data/keys/svc.public_key.p8.der.sample"
+
+[authz."dev.svc.example.org"]
+type = "localwhitelist"
+[[authz."dev.svc.example.org".records]]
+subject_account_id = "devops.dev.svc.example.org"
+object = ["scopes"]
+action = "rollback"
 
 [conference_client]
 account_id = "conference.dev.svc.example.org"

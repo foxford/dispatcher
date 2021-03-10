@@ -9,6 +9,7 @@ use serde_json::Value as JsonValue;
 use tide::{http::Error as HttpError, Request, Response};
 use uuid::Uuid;
 
+use crate::app::authz::AuthzObject;
 use crate::app::AppContext;
 use crate::db::class::Object as Class;
 
@@ -62,16 +63,40 @@ impl From<Class> for WebinarObject {
 }
 
 pub async fn read(req: Request<Arc<dyn AppContext>>) -> tide::Result {
-    let id = req.param("id")?;
-    let id = Uuid::from_str(id).map_err(|e| HttpError::new(404, e))?;
+    let maybe_token = fetch_token(&req);
+    let state = req.state();
+    let account_id = match state.validate_token(maybe_token.as_deref()) {
+        Ok(id) => id,
+        Err(e) => {
+            error!(
+                crate::LOG,
+                "Failed to process Authorization header, header = {:?}, err = {:?}",
+                req.header("Authorization"),
+                e
+            );
+            return Ok(access_denied_response());
+        }
+    };
+
+    let webinar = find_webinar(&req).await?;
+
+    let object = AuthzObject::new(&["rooms", &webinar.id().to_string()]).into();
+
+    if let Err(err) = state
+        .authz()
+        .authorize(
+            webinar.audience(),
+            account_id.clone(),
+            object,
+            "read".into(),
+        )
+        .await
+    {
+        error!(crate::LOG, "Failed to authorize action, reason = {:?}", err);
+        return Ok(access_denied_response());
+    }
 
     let mut conn = req.state().get_conn().await?;
-    let webinar = crate::db::class::WebinarReadQuery::new(id)
-        .execute(&mut conn)
-        .await
-        .map_err(|e| HttpError::new(500, e))?
-        .ok_or_else(|| HttpError::new(404, anyhow!("Room not found, id = {:?}", id)))?;
-
     let recording = crate::db::recording::RecordingReadQuery::new(webinar.id())
         .execute(&mut conn)
         .await
@@ -135,6 +160,37 @@ lazy_static! {
 
 pub async fn create(mut req: Request<Arc<dyn AppContext>>) -> tide::Result {
     let body: Webinar = req.body_json().await?;
+
+    let maybe_token = fetch_token(&req);
+    let state = req.state();
+    let account_id = match state.validate_token(maybe_token.as_deref()) {
+        Ok(id) => id,
+        Err(e) => {
+            error!(
+                crate::LOG,
+                "Failed to process Authorization header, header = {:?}, err = {:?}",
+                req.header("Authorization"),
+                e
+            );
+            return Ok(access_denied_response());
+        }
+    };
+
+    let object = AuthzObject::new(&["rooms"]).into();
+
+    if let Err(err) = state
+        .authz()
+        .authorize(
+            body.audience.clone(),
+            account_id.clone(),
+            object,
+            "create".into(),
+        )
+        .await
+    {
+        error!(crate::LOG, "Failed to authorize action, reason = {:?}", err);
+        return Ok(access_denied_response());
+    }
 
     let conference_time = match body.time.0 {
         Bound::Included(t) | Bound::Excluded(t) => (Bound::Included(t), Bound::Unbounded),
@@ -208,17 +264,40 @@ struct WebinarUpdate {
 }
 
 pub async fn update(mut req: Request<Arc<dyn AppContext>>) -> tide::Result {
-    let id = req.param("id")?;
-    let id = Uuid::from_str(id).map_err(|e| HttpError::new(404, e))?;
     let body: WebinarUpdate = req.body_json().await?;
 
-    let webinar = {
-        let mut conn = req.state().get_conn().await?;
-        crate::db::class::WebinarReadQuery::new(id)
-            .execute(&mut conn)
-            .await?
-            .ok_or_else(|| HttpError::new(404, anyhow!("Room not found, id = {:?}", id)))?
+    let maybe_token = fetch_token(&req);
+    let state = req.state();
+    let account_id = match state.validate_token(maybe_token.as_deref()) {
+        Ok(id) => id,
+        Err(e) => {
+            error!(
+                crate::LOG,
+                "Failed to process Authorization header, header = {:?}, err = {:?}",
+                req.header("Authorization"),
+                e
+            );
+            return Ok(access_denied_response());
+        }
     };
+
+    let webinar = find_webinar(&req).await?;
+
+    let object = AuthzObject::new(&["rooms", &webinar.id().to_string()]).into();
+
+    if let Err(err) = state
+        .authz()
+        .authorize(
+            webinar.audience(),
+            account_id.clone(),
+            object,
+            "update".into(),
+        )
+        .await
+    {
+        error!(crate::LOG, "Failed to authorize action, reason = {:?}", err);
+        return Ok(access_denied_response());
+    }
 
     let conference_time = match body.time.0 {
         Bound::Included(t) | Bound::Excluded(t) => (Bound::Included(t), body.time.1),
@@ -240,7 +319,7 @@ pub async fn update(mut req: Request<Arc<dyn AppContext>>) -> tide::Result {
         .await
         .map_err(|e| HttpError::new(500, anyhow!("{:?}", e)))?;
 
-    let query = crate::db::class::WebinarTimeUpdateQuery::new(id, body.time.into());
+    let query = crate::db::class::WebinarTimeUpdateQuery::new(webinar.id(), body.time.into());
 
     let mut conn = req.state().get_conn().await?;
     let webinar = query.execute(&mut conn).await?;
@@ -249,4 +328,30 @@ pub async fn update(mut req: Request<Arc<dyn AppContext>>) -> tide::Result {
     let response = Response::builder(200).body(body).build();
 
     Ok(response)
+}
+
+fn fetch_token<T>(req: &Request<T>) -> Option<String> {
+    req.header("Authorization")
+        .and_then(|h| h.get(0))
+        .map(|header| header.to_string())
+}
+
+async fn find_webinar(
+    req: &Request<Arc<dyn AppContext>>,
+) -> Result<crate::db::class::Object, HttpError> {
+    let id = req.param("id")?;
+    let id = Uuid::from_str(id).map_err(|e| HttpError::new(404, e))?;
+
+    let webinar = {
+        let mut conn = req.state().get_conn().await?;
+        crate::db::class::WebinarReadQuery::new(id)
+            .execute(&mut conn)
+            .await?
+            .ok_or_else(|| HttpError::new(404, anyhow!("Room not found, id = {:?}", id)))?
+    };
+    Ok(webinar)
+}
+
+fn access_denied_response() -> Response {
+    tide::Response::builder(403).body("Access denied").build()
 }

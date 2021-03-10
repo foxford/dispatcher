@@ -144,29 +144,28 @@ impl MessageHandler {
                         .execute(&mut conn)
                         .await?;
 
-                    if let Some(mut agent) = self.ctx.agent() {
-                        let timing = ShortTermTimingProperties::new(chrono::Utc::now());
-                        let props = OutgoingEventProperties::new("webinar.ready", timing);
-                        let path = format!("audiences/{}/events", webinar.audience());
-                        let payload = WebinarReady {
-                            tags: webinar.tags(),
-                            stream_duration,
-                            stream_uri,
-                            stream_id,
-                            status: "success",
-                            scope: webinar.scope(),
-                            id: webinar.id(),
-                        };
-                        let event = OutgoingEvent::broadcast(payload, props, &path);
+                    let mut agent = self.ctx.agent();
+                    let timing = ShortTermTimingProperties::new(chrono::Utc::now());
+                    let props = OutgoingEventProperties::new("webinar.ready", timing);
+                    let path = format!("audiences/{}/events", webinar.audience());
+                    let payload = WebinarReady {
+                        tags: webinar.tags(),
+                        stream_duration,
+                        stream_uri,
+                        stream_id,
+                        status: "success",
+                        scope: webinar.scope(),
+                        id: webinar.id(),
+                    };
+                    let event = OutgoingEvent::broadcast(payload, props, &path);
 
-                        let e = Box::new(event) as Box<dyn IntoPublishableMessage + Send>;
+                    let e = Box::new(event) as Box<dyn IntoPublishableMessage + Send>;
 
-                        if let Err(err) = agent.publish_publishable(e) {
-                            error!(
-                                crate::LOG,
-                                "Failed to publish rollback event, reason = {:?}", err
-                            );
-                        }
+                    if let Err(err) = agent.publish_publishable(e) {
+                        error!(
+                            crate::LOG,
+                            "Failed to publish rollback event, reason = {:?}", err
+                        );
                     }
                 } else {
                     bail!("No scope specified in tags, payload = {:?}", payload);

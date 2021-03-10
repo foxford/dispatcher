@@ -1,6 +1,7 @@
 use serde_derive::Deserialize;
 use svc_agent::{mqtt::AgentConfig, AccountId};
-use svc_authn::jose::Algorithm;
+use svc_authn::jose::{Algorithm, ConfigMap as Authn};
+use svc_authz::ConfigMap as Authz;
 use svc_error::extension::sentry::Config as SentryConfig;
 
 #[derive(Clone, Debug, Deserialize)]
@@ -17,7 +18,8 @@ pub struct Config {
     pub event_client: MqttServiceConfig,
     pub tq_client: TqClientConfig,
     pub tenants: Vec<String>,
-    pub authn: svc_authn::jose::ConfigMap,
+    pub authn: Authn,
+    pub authz: Authz,
 }
 
 #[derive(Clone, Debug, Deserialize)]

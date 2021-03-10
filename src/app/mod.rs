@@ -10,7 +10,10 @@ use svc_agent::{
     AgentId, Authenticable, SharedGroup, Subscription,
 };
 use svc_authn::token::jws_compact;
+use svc_authz::cache::AuthzCache;
+use svc_authz::ClientMap as Authz;
 
+use crate::app::authz::db_ban_callback;
 use crate::config::{self, Config};
 use api::{
     redirect_to_frontend, rollback, v1::healthz, v1::redirect_to_frontend as redirect_to_frontend2,
@@ -26,7 +29,7 @@ pub use tide_state::{AppContext, TideState};
 
 const API_VERSION: &str = "v1";
 
-pub async fn run(db: PgPool) -> Result<()> {
+pub async fn run(db: PgPool, authz_cache: Option<Box<dyn AuthzCache>>) -> Result<()> {
     let config = config::load().context("Failed to load config")?;
     info!(crate::LOG, "App config: {:?}", config);
     tide::log::start();
@@ -55,6 +58,14 @@ pub async fn run(db: PgPool) -> Result<()> {
     let event_client = build_event_client(&config, dispatcher.clone());
     let conference_client = build_conference_client(&config, dispatcher.clone());
     let tq_client = build_tq_client(&config);
+    let authz = Authz::new(
+        &config.id,
+        authz_cache,
+        config.authz.clone(),
+        db_ban_callback(),
+    )
+    .context("Error converting authz config to clients")?;
+
     let state = TideState::new(
         db,
         config.clone(),
@@ -62,6 +73,7 @@ pub async fn run(db: PgPool) -> Result<()> {
         conference_client,
         tq_client,
         agent.clone(),
+        authz,
     );
     let state = Arc::new(state) as Arc<dyn AppContext>;
     let state_ = state.clone();
@@ -191,5 +203,6 @@ fn build_tq_client(config: &Config) -> Arc<dyn TqClient> {
 }
 
 mod api;
+mod authz;
 mod info;
 mod tide_state;
