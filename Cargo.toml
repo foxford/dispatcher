@@ -20,6 +20,7 @@ serde_json = "1.0"
 svc-agent = { version = "0.15" }
 svc-authn = { version = "0.6", features = ["jose"] }
 svc-error = { version = "0.1", features = ["svc-agent", "svc-authn", "sentry-extension"] }
+svc-authz = "0.10"
 sentry = "0.18.1"
 config = "0.10"
 lazy_static = "1.4"
@@ -34,3 +35,6 @@ futures-channel = "0.3"
 uuid = { version = "0.8", features = ["v4", "serde"] }
 rand = "0.7"
 surf = "2.1.0"
+
+[patch.crates-io]
+svc-authz = { git = "https://github.com/netology-group/svc-authz-rs", branch = "isahc" }

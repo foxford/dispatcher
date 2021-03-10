@@ -7,7 +7,8 @@ use sqlx::pool::PoolConnection;
 use sqlx::postgres::{PgPool, Postgres};
 use svc_agent::{error::Error as AgentError, mqtt::Agent};
 use svc_authn::token::jws_compact::extract::decode_jws_compact_with_config;
-use svc_authn::Error;
+use svc_authn::{AccountId, Error};
+use svc_authz::ClientMap as Authz;
 use tide::http::url::Url;
 
 use crate::config::Config;
@@ -20,11 +21,12 @@ use tq_client::TqClient;
 pub trait AppContext: Sync + Send {
     async fn get_conn(&self) -> Result<PoolConnection<Postgres>>;
     fn default_frontend_base(&self) -> Url;
-    fn validate_token(&self, token: Option<&str>) -> Result<(), Error>;
-    fn agent(&self) -> Option<Agent>;
+    fn validate_token(&self, token: Option<&str>) -> Result<AccountId, Error>;
+    fn agent(&self) -> Agent;
     fn conference_client(&self) -> &dyn ConferenceClient;
     fn event_client(&self) -> &dyn EventClient;
     fn tq_client(&self) -> &dyn TqClient;
+    fn authz(&self) -> &Authz;
 }
 
 #[derive(Clone)]
@@ -35,6 +37,7 @@ pub struct TideState {
     conference_client: Arc<dyn ConferenceClient>,
     event_client: Arc<dyn EventClient>,
     tq_client: Arc<dyn TqClient>,
+    authz: Authz,
 }
 
 impl TideState {
@@ -45,6 +48,7 @@ impl TideState {
         conference_client: Arc<dyn ConferenceClient>,
         tq_client: Arc<dyn TqClient>,
         agent: Agent,
+        authz: Authz,
     ) -> Self {
         Self {
             db_pool,
@@ -53,6 +57,7 @@ impl TideState {
             event_client,
             tq_client,
             agent,
+            authz,
         }
     }
 }
@@ -70,18 +75,19 @@ impl AppContext for TideState {
         self.config.default_frontend_base.clone()
     }
 
-    fn validate_token(&self, token: Option<&str>) -> Result<(), Error> {
+    fn validate_token(&self, token: Option<&str>) -> Result<AccountId, Error> {
         let token = token
             .map(|s| s.replace("Bearer ", ""))
             .unwrap_or_else(|| "".to_string());
 
-        decode_jws_compact_with_config::<String>(&token, &self.config.authn)?;
+        let claims = decode_jws_compact_with_config::<String>(&token, &self.config.authn)?.claims;
+        let account = AccountId::new(claims.subject(), claims.audience());
 
-        Ok(())
+        Ok(account)
     }
 
-    fn agent(&self) -> Option<Agent> {
-        Some(self.agent.clone())
+    fn agent(&self) -> Agent {
+        self.agent.clone()
     }
 
     fn conference_client(&self) -> &dyn ConferenceClient {
@@ -94,6 +100,10 @@ impl AppContext for TideState {
 
     fn tq_client(&self) -> &dyn TqClient {
         self.tq_client.as_ref()
+    }
+
+    fn authz(&self) -> &Authz {
+        &self.authz
     }
 }
 
