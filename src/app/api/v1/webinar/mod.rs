@@ -19,6 +19,7 @@ use crate::db::recording::Segments;
 struct WebinarObject {
     id: String,
     real_time: RealTimeObject,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     on_demand: Vec<WebinarVersion>,
     #[serde(skip_serializing_if = "Option::is_none")]
     status: Option<String>,
@@ -156,7 +157,13 @@ pub async fn read_by_scope(req: Request<Arc<dyn AppContext>>) -> tide::Result {
         }
     };
 
-    let webinar = find_webinar_by_scope(&req).await?;
+    let webinar = match find_webinar_by_scope(&req).await {
+        Ok(webinar) => webinar,
+        Err(e) => {
+            error!(crate::LOG, "Failed to find a webinar, err = {:?}", e);
+            return Ok(tide::Response::builder(404).body("Not found").build());
+        }
+    };
 
     let object = AuthzObject::new(&["webinars", &webinar.id().to_string()]).into();
 
@@ -214,6 +221,10 @@ pub async fn read_by_scope(req: Request<Arc<dyn AppContext>>) -> tide::Result {
     let body = serde_json::to_string(&webinar_obj).map_err(|e| HttpError::new(500, e))?;
     let response = Response::builder(200).body(body).build();
     Ok(response)
+}
+
+pub async fn options(_req: Request<Arc<dyn AppContext>>) -> tide::Result {
+    Ok(Response::builder(200).build())
 }
 
 #[derive(Deserialize)]
@@ -420,7 +431,7 @@ struct WebinarConvertObject {
     tags: Option<serde_json::Value>,
     original_event_room_id: Option<Uuid>,
     modified_event_room_id: Option<Uuid>,
-    recording: RecordingConvertObject,
+    recording: Option<RecordingConvertObject>,
 }
 
 #[derive(Deserialize)]
@@ -496,15 +507,17 @@ pub async fn convert(mut req: Request<Arc<dyn AppContext>>) -> tide::Result {
         let mut conn = req.state().get_conn().await?;
         let mut txn = conn.begin().await?;
         let webinar = query.execute(&mut txn).await?;
-        crate::db::recording::RecordingConvertInsertQuery::new(
-            webinar.id(),
-            body.recording.stream_id,
-            body.recording.segments,
-            body.recording.modified_segments,
-            body.recording.uri,
-        )
-        .execute(&mut txn)
-        .await?;
+        if let Some(recording) = body.recording {
+            crate::db::recording::RecordingConvertInsertQuery::new(
+                webinar.id(),
+                recording.stream_id,
+                recording.segments,
+                recording.modified_segments,
+                recording.uri,
+            )
+            .execute(&mut txn)
+            .await?;
+        }
         webinar
     };
 

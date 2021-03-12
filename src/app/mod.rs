@@ -12,14 +12,16 @@ use svc_agent::{
 use svc_authn::token::jws_compact;
 use svc_authz::cache::AuthzCache;
 use svc_authz::ClientMap as Authz;
+use tide::http::headers::HeaderValue;
+use tide::security::{CorsMiddleware, Origin};
 
 use crate::app::authz::db_ban_callback;
 use crate::config::{self, Config};
 use api::{
     redirect_to_frontend, rollback, v1::healthz, v1::redirect_to_frontend as redirect_to_frontend2,
     v1::webinar::convert as convert_webinar, v1::webinar::create as create_webinar,
-    v1::webinar::read as read_webinar, v1::webinar::read_by_scope as read_webinar_by_scope,
-    v1::webinar::update as update_webinar,
+    v1::webinar::options as read_options, v1::webinar::read as read_webinar,
+    v1::webinar::read_by_scope as read_webinar_by_scope, v1::webinar::update as update_webinar,
 };
 use info::{list_frontends, list_scopes};
 use tide_state::conference_client::{ConferenceClient, MqttConferenceClient};
@@ -166,8 +168,17 @@ pub async fn run(db: PgPool, authz_cache: Option<Box<dyn AuthzCache>>) -> Result
     app.at("/api/v1/scopes/:scope/rollback").post(rollback);
     app.at("/api/v1/redirs").get(redirect_to_frontend2);
 
-    app.at("/api/v1/webinars/:id").get(read_webinar);
+    app.at("/api/v1/webinars/:id")
+        .with(cors())
+        .options(read_options);
     app.at("/api/v1/audiences/:audience/webinars/:scope")
+        .with(cors())
+        .options(read_options);
+    app.at("/api/v1/webinars/:id")
+        .with(cors())
+        .get(read_webinar);
+    app.at("/api/v1/audiences/:audience/webinars/:scope")
+        .with(cors())
         .get(read_webinar_by_scope);
 
     app.at("/api/v1/webinars").post(create_webinar);
@@ -208,6 +219,13 @@ fn build_conference_client(
 
 fn build_tq_client(config: &Config) -> Arc<dyn TqClient> {
     Arc::new(HttpTqClient::new(config.tq_client.base_url.clone()))
+}
+
+fn cors() -> CorsMiddleware {
+    CorsMiddleware::new()
+        .allow_methods("GET, OPTIONS".parse::<HeaderValue>().unwrap())
+        .allow_origin(Origin::from("*"))
+        .allow_headers("*".parse::<HeaderValue>().unwrap())
 }
 
 mod api;
