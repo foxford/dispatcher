@@ -140,6 +140,82 @@ pub async fn read(req: Request<Arc<dyn AppContext>>) -> tide::Result {
     Ok(response)
 }
 
+pub async fn read_by_scope(req: Request<Arc<dyn AppContext>>) -> tide::Result {
+    let maybe_token = fetch_token(&req);
+    let state = req.state();
+    let account_id = match state.validate_token(maybe_token.as_deref()) {
+        Ok(id) => id,
+        Err(e) => {
+            error!(
+                crate::LOG,
+                "Failed to process Authorization header, header = {:?}, err = {:?}",
+                req.header("Authorization"),
+                e
+            );
+            return Ok(access_denied_response());
+        }
+    };
+
+    let webinar = find_webinar_by_scope(&req).await?;
+
+    let object = AuthzObject::new(&["webinars", &webinar.id().to_string()]).into();
+
+    if let Err(err) = state
+        .authz()
+        .authorize(
+            webinar.audience(),
+            account_id.clone(),
+            object,
+            "read".into(),
+        )
+        .await
+    {
+        error!(crate::LOG, "Failed to authorize action, reason = {:?}", err);
+        return Ok(access_denied_response());
+    }
+
+    let mut conn = req.state().get_conn().await?;
+    let recording = crate::db::recording::RecordingReadQuery::new(webinar.id())
+        .execute(&mut conn)
+        .await
+        .map_err(|e| HttpError::new(500, e))?;
+
+    let mut webinar_obj: WebinarObject = webinar.clone().into();
+
+    if let Some(recording) = recording {
+        if let Some(og_event_id) = webinar.original_event_room_id() {
+            webinar_obj.add_version(WebinarVersion {
+                version: "original",
+                stream_id: recording.rtc_id(),
+                event_room_id: og_event_id,
+                tags: webinar.tags(),
+            });
+        }
+
+        if let Some(md_event_id) = webinar.modified_event_room_id() {
+            webinar_obj.add_version(WebinarVersion {
+                version: "modified",
+                stream_id: recording.rtc_id(),
+                event_room_id: md_event_id,
+                tags: webinar.tags(),
+            });
+        }
+        if recording.transcoded_at().is_some() {
+            webinar_obj.set_status("transcoded");
+        } else if recording.adjusted_at().is_some() {
+            webinar_obj.set_status("adjusted");
+        } else {
+            webinar_obj.set_status("finished");
+        }
+    } else {
+        webinar_obj.set_status("real-time");
+    }
+
+    let body = serde_json::to_string(&webinar_obj).map_err(|e| HttpError::new(500, e))?;
+    let response = Response::builder(200).body(body).build();
+    Ok(response)
+}
+
 #[derive(Deserialize)]
 struct Webinar {
     title: String,
@@ -457,6 +533,31 @@ async fn find_webinar(
             .execute(&mut conn)
             .await?
             .ok_or_else(|| HttpError::new(404, anyhow!("Room not found, id = {:?}", id)))?
+    };
+    Ok(webinar)
+}
+
+async fn find_webinar_by_scope(
+    req: &Request<Arc<dyn AppContext>>,
+) -> Result<crate::db::class::Object, HttpError> {
+    let audience = req.param("audience")?.to_owned();
+    let scope = req.param("scope")?.to_owned();
+
+    let webinar = {
+        let mut conn = req.state().get_conn().await?;
+        crate::db::class::WebinarReadByScopeQuery::new(audience.clone(), scope.clone())
+            .execute(&mut conn)
+            .await?
+            .ok_or_else(|| {
+                HttpError::new(
+                    404,
+                    anyhow!(
+                        "Room not found, audience = {:?}, scope = {:?}",
+                        audience,
+                        scope
+                    ),
+                )
+            })?
     };
     Ok(webinar)
 }
