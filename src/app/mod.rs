@@ -18,7 +18,8 @@ use crate::config::{self, Config};
 use api::{
     redirect_to_frontend, rollback, v1::healthz, v1::redirect_to_frontend as redirect_to_frontend2,
     v1::webinar::convert as convert_webinar, v1::webinar::create as create_webinar,
-    v1::webinar::read as read_webinar, v1::webinar::update as update_webinar,
+    v1::webinar::read as read_webinar, v1::webinar::read_by_scope as read_webinar_by_scope,
+    v1::webinar::update as update_webinar,
 };
 use info::{list_frontends, list_scopes};
 use tide_state::conference_client::{ConferenceClient, MqttConferenceClient};
@@ -166,6 +167,9 @@ pub async fn run(db: PgPool, authz_cache: Option<Box<dyn AuthzCache>>) -> Result
     app.at("/api/v1/redirs").get(redirect_to_frontend2);
 
     app.at("/api/v1/webinars/:id").get(read_webinar);
+    app.at("/api/v1/audiences/:audience/webinars/:scope")
+        .get(read_webinar_by_scope);
+
     app.at("/api/v1/webinars").post(create_webinar);
     app.at("/api/v1/webinars/:id").put(update_webinar);
 

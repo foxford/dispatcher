@@ -37,7 +37,13 @@ impl MessageHandler {
     }
 
     pub async fn handle_event(&self, data: IncomingEvent<String>, topic: String) {
-        let audience: Option<&str> = topic.split("/audiences/").collect::<Vec<&str>>().iter().rev().next().and_then(|s| s.split("/events").next());
+        let audience: Option<&str> = topic
+            .split("/audiences/")
+            .collect::<Vec<&str>>()
+            .iter()
+            .rev()
+            .next()
+            .and_then(|s| s.split("/events").next());
         let audience = audience.map(|s| s.to_owned()).unwrap();
         let result = match data.properties().label() {
             Some("room.close") => self.handle_close(data, audience).await,
@@ -135,10 +141,11 @@ impl MessageHandler {
                         .and_then(|s| s.as_str().map(|s| s.to_owned()))
                 }) {
                     let mut conn = self.ctx.get_conn().await?;
-                    let webinar = crate::db::class::WebinarReadByScopeQuery::new(audience, scope.clone())
-                        .execute(&mut conn)
-                        .await?
-                        .ok_or_else(|| anyhow!("Room not found by scope = {:?}", scope))?;
+                    let webinar =
+                        crate::db::class::WebinarReadByScopeQuery::new(audience, scope.clone())
+                            .execute(&mut conn)
+                            .await?
+                            .ok_or_else(|| anyhow!("Room not found by scope = {:?}", scope))?;
 
                     let mut txn = conn
                         .begin()
@@ -180,7 +187,11 @@ impl MessageHandler {
         Ok(())
     }
 
-    async fn handle_transcoding(&self, data: IncomingEvent<String>, audience: String) -> Result<()> {
+    async fn handle_transcoding(
+        &self,
+        data: IncomingEvent<String>,
+        audience: String,
+    ) -> Result<()> {
         let payload = data.extract_payload();
         let task: TaskComplete = serde_json::from_str(&payload)?;
         match task.result {
@@ -194,10 +205,11 @@ impl MessageHandler {
                         .and_then(|s| s.as_str().map(|s| s.to_owned()))
                 }) {
                     let mut conn = self.ctx.get_conn().await?;
-                    let webinar = crate::db::class::WebinarReadByScopeQuery::new(audience, scope.clone())
-                        .execute(&mut conn)
-                        .await?
-                        .ok_or_else(|| anyhow!("Room not found by scope = {:?}", scope))?;
+                    let webinar =
+                        crate::db::class::WebinarReadByScopeQuery::new(audience, scope.clone())
+                            .execute(&mut conn)
+                            .await?
+                            .ok_or_else(|| anyhow!("Room not found by scope = {:?}", scope))?;
 
                     crate::db::recording::TranscodingUpdateQuery::new(webinar.id())
                         .execute(&mut conn)

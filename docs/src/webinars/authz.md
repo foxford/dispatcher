@@ -27,6 +27,6 @@ Possible values for `OBJECT` and `ACTION`:
 Object                                 | Action  | Description
 -------------------------------------- | ------- | ------------
 ["webinars"]                           | create  | Tenant attempts to [create](api.md#create-webinar) a webinar
-["webinars"]                           | update  | Tenant attempts to [update](api.md#update-webinar) a webinar
 ["webinars"]                           | convert | Tenant attempts to [convert](api.md#update-webinar) already existings rooms into a webinar
+["webinars", WEBINAR_ID]               | update  | Tenant attempts to [update](api.md#update-webinar) a webinar
 ["webinars", WEBINAR_ID]               | read    | Agent attempts to [read](api.md#read-webinar) the webinar state
