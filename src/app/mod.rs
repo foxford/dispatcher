@@ -136,7 +136,7 @@ pub async fn run(db: PgPool, authz_cache: Option<Box<dyn AuthzCache>>) -> Result
             .subscribe(
                 &Subscription::broadcast_events(
                     &config.conference_client.account_id,
-                    "v2",
+                    &config.conference_client.api_version,
                     &format!("audiences/{}/events", tenant_audience),
                 ),
                 QoS::AtLeastOnce,
@@ -148,7 +148,7 @@ pub async fn run(db: PgPool, authz_cache: Option<Box<dyn AuthzCache>>) -> Result
             .subscribe(
                 &Subscription::broadcast_events(
                     &config.event_client.account_id,
-                    "v1",
+                    &config.event_client.api_version,
                     &format!("audiences/{}/events", tenant_audience),
                 ),
                 QoS::AtLeastOnce,

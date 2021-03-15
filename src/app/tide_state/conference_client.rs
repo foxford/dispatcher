@@ -93,7 +93,7 @@ impl ConferenceClient for MqttConferenceClient {
         let dispatcher = self.dispatcher.clone();
 
         let response_topic =
-            match Subscription::unicast_responses_from(&conference).subscription_topic(&me, "v2") {
+            match Subscription::unicast_responses_from(&conference).subscription_topic(&me, &self.api_version) {
                 Err(e) => {
                     let e = AgentError::new(&e.to_string()).into();
                     return Err(e);
