@@ -1,3 +1,5 @@
+use std::error::Error as StdError;
+use std::fmt;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
@@ -118,6 +120,23 @@ pub enum ClientError {
 impl From<AgentError> for ClientError {
     fn from(e: AgentError) -> Self {
         Self::AgentError(e)
+    }
+}
+
+impl fmt::Display for ClientError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ClientError::AgentError(ae) => write!(f, "Agent inner error: {}", ae),
+            ClientError::PayloadError(s) => write!(f, "Payload error: {}", s),
+            ClientError::TimeoutError => write!(f, "Timeout"),
+            ClientError::HttpError(s) => write!(f, "Http error: {}", s),
+        }
+    }
+}
+
+impl StdError for ClientError {
+    fn source(&self) -> Option<&(dyn StdError + 'static)> {
+        None
     }
 }
 

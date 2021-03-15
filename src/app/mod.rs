@@ -230,5 +230,6 @@ fn cors() -> CorsMiddleware {
 
 mod api;
 mod authz;
+mod error;
 mod info;
 mod tide_state;

@@ -2,18 +2,24 @@ use std::ops::Bound;
 use std::str::FromStr;
 use std::sync::Arc;
 
+use anyhow::Context;
 use async_std::prelude::FutureExt;
 use chrono::Utc;
 use serde_derive::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use sqlx::Acquire;
-use tide::{http::Error as HttpError, Request, Response};
+use svc_authn::AccountId;
+use tide::{Request, Response};
 use uuid::Uuid;
 
 use crate::app::authz::AuthzObject;
+use crate::app::error::ErrorExt;
+use crate::app::error::ErrorKind as AppErrorKind;
 use crate::app::AppContext;
 use crate::db::class::Object as Class;
 use crate::db::recording::Segments;
+
+type AppResult = Result<tide::Response, crate::app::error::Error>;
 
 #[derive(Serialize)]
 struct WebinarObject {
@@ -66,26 +72,18 @@ impl From<Class> for WebinarObject {
 }
 
 pub async fn read(req: Request<Arc<dyn AppContext>>) -> tide::Result {
-    let maybe_token = fetch_token(&req);
+    read_inner(req).await.or_else(|e| Ok(e.to_tide_response()))
+}
+async fn read_inner(req: Request<Arc<dyn AppContext>>) -> AppResult {
+    let account_id = fetch_token(&req).error(AppErrorKind::Unauthorized)?;
     let state = req.state();
-    let account_id = match state.validate_token(maybe_token.as_deref()) {
-        Ok(id) => id,
-        Err(e) => {
-            error!(
-                crate::LOG,
-                "Failed to process Authorization header, header = {:?}, err = {:?}",
-                req.header("Authorization"),
-                e
-            );
-            return Ok(access_denied_response());
-        }
-    };
 
-    let webinar = find_webinar(&req).await?;
+    let webinar = find_webinar(&req)
+        .await
+        .error(AppErrorKind::WebinarNotFound)?;
 
     let object = AuthzObject::new(&["webinars", &webinar.id().to_string()]).into();
-
-    if let Err(err) = state
+    state
         .authz()
         .authorize(
             webinar.audience(),
@@ -93,17 +91,18 @@ pub async fn read(req: Request<Arc<dyn AppContext>>) -> tide::Result {
             object,
             "read".into(),
         )
-        .await
-    {
-        error!(crate::LOG, "Failed to authorize action, reason = {:?}", err);
-        return Ok(access_denied_response());
-    }
+        .await?;
 
-    let mut conn = req.state().get_conn().await?;
+    let mut conn = req
+        .state()
+        .get_conn()
+        .await
+        .error(AppErrorKind::DbConnAcquisitionFailed)?;
     let recording = crate::db::recording::RecordingReadQuery::new(webinar.id())
         .execute(&mut conn)
         .await
-        .map_err(|e| HttpError::new(500, e))?;
+        .context("Failed to find recording")
+        .error(AppErrorKind::DbQueryFailed)?;
 
     let mut webinar_obj: WebinarObject = webinar.clone().into();
 
@@ -136,26 +135,21 @@ pub async fn read(req: Request<Arc<dyn AppContext>>) -> tide::Result {
         webinar_obj.set_status("real-time");
     }
 
-    let body = serde_json::to_string(&webinar_obj).map_err(|e| HttpError::new(500, e))?;
+    let body = serde_json::to_string(&webinar_obj)
+        .context("Failed to serialize webinar")
+        .error(AppErrorKind::SerializationFailed)?;
     let response = Response::builder(200).body(body).build();
     Ok(response)
 }
 
 pub async fn read_by_scope(req: Request<Arc<dyn AppContext>>) -> tide::Result {
-    let maybe_token = fetch_token(&req);
+    read_by_scope_inner(req)
+        .await
+        .or_else(|e| Ok(e.to_tide_response()))
+}
+async fn read_by_scope_inner(req: Request<Arc<dyn AppContext>>) -> AppResult {
     let state = req.state();
-    let account_id = match state.validate_token(maybe_token.as_deref()) {
-        Ok(id) => id,
-        Err(e) => {
-            error!(
-                crate::LOG,
-                "Failed to process Authorization header, header = {:?}, err = {:?}",
-                req.header("Authorization"),
-                e
-            );
-            return Ok(access_denied_response());
-        }
-    };
+    let account_id = fetch_token(&req).error(AppErrorKind::Unauthorized)?;
 
     let webinar = match find_webinar_by_scope(&req).await {
         Ok(webinar) => webinar,
@@ -167,7 +161,7 @@ pub async fn read_by_scope(req: Request<Arc<dyn AppContext>>) -> tide::Result {
 
     let object = AuthzObject::new(&["webinars", &webinar.id().to_string()]).into();
 
-    if let Err(err) = state
+    state
         .authz()
         .authorize(
             webinar.audience(),
@@ -175,17 +169,18 @@ pub async fn read_by_scope(req: Request<Arc<dyn AppContext>>) -> tide::Result {
             object,
             "read".into(),
         )
-        .await
-    {
-        error!(crate::LOG, "Failed to authorize action, reason = {:?}", err);
-        return Ok(access_denied_response());
-    }
+        .await?;
 
-    let mut conn = req.state().get_conn().await?;
+    let mut conn = req
+        .state()
+        .get_conn()
+        .await
+        .error(AppErrorKind::DbConnAcquisitionFailed)?;
     let recording = crate::db::recording::RecordingReadQuery::new(webinar.id())
         .execute(&mut conn)
         .await
-        .map_err(|e| HttpError::new(500, e))?;
+        .context("Failed to find recording")
+        .error(AppErrorKind::DbQueryFailed)?;
 
     let mut webinar_obj: WebinarObject = webinar.clone().into();
 
@@ -218,7 +213,10 @@ pub async fn read_by_scope(req: Request<Arc<dyn AppContext>>) -> tide::Result {
         webinar_obj.set_status("real-time");
     }
 
-    let body = serde_json::to_string(&webinar_obj).map_err(|e| HttpError::new(500, e))?;
+    let body = serde_json::to_string(&webinar_obj)
+        .context("Failed to serialize webinar")
+        .error(AppErrorKind::SerializationFailed)?;
+
     let response = Response::builder(200).body(body).build();
     Ok(response)
 }
@@ -247,27 +245,20 @@ lazy_static! {
         chrono::Duration::minutes(10);
 }
 
-pub async fn create(mut req: Request<Arc<dyn AppContext>>) -> tide::Result {
-    let body: Webinar = req.body_json().await?;
+pub async fn create(req: Request<Arc<dyn AppContext>>) -> tide::Result {
+    create_inner(req)
+        .await
+        .or_else(|e| Ok(e.to_tide_response()))
+}
+async fn create_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
+    let body: Webinar = req.body_json().await.error(AppErrorKind::InvalidPayload)?;
 
-    let maybe_token = fetch_token(&req);
+    let account_id = fetch_token(&req).error(AppErrorKind::Unauthorized)?;
     let state = req.state();
-    let account_id = match state.validate_token(maybe_token.as_deref()) {
-        Ok(id) => id,
-        Err(e) => {
-            error!(
-                crate::LOG,
-                "Failed to process Authorization header, header = {:?}, err = {:?}",
-                req.header("Authorization"),
-                e
-            );
-            return Ok(access_denied_response());
-        }
-    };
 
     let object = AuthzObject::new(&["webinars"]).into();
 
-    if let Err(err) = state
+    state
         .authz()
         .authorize(
             body.audience.clone(),
@@ -275,11 +266,7 @@ pub async fn create(mut req: Request<Arc<dyn AppContext>>) -> tide::Result {
             object,
             "create".into(),
         )
-        .await
-    {
-        error!(crate::LOG, "Failed to authorize action, reason = {:?}", err);
-        return Ok(access_denied_response());
-    }
+        .await?;
 
     let conference_time = match body.time.0 {
         Bound::Included(t) | Bound::Excluded(t) => (Bound::Included(t), Bound::Unbounded),
@@ -304,7 +291,8 @@ pub async fn create(mut req: Request<Arc<dyn AppContext>>) -> tide::Result {
     let (event_room_id, conference_room_id) = event_fut
         .try_join(conference_fut)
         .await
-        .map_err(|e| HttpError::new(500, anyhow!("{:?}", e)))?;
+        .context("Services requests")
+        .error(AppErrorKind::MqttRequestFailed)?;
 
     let query = crate::db::class::WebinarInsertQuery::new(
         body.title,
@@ -327,8 +315,16 @@ pub async fn create(mut req: Request<Arc<dyn AppContext>>) -> tide::Result {
         query
     };
 
-    let mut conn = req.state().get_conn().await?;
-    let webinar = query.execute(&mut conn).await?;
+    let mut conn = req
+        .state()
+        .get_conn()
+        .await
+        .error(AppErrorKind::DbConnAcquisitionFailed)?;
+    let webinar = query
+        .execute(&mut conn)
+        .await
+        .context("Failed to insert webinar")
+        .error(AppErrorKind::DbQueryFailed)?;
 
     if body.locked_chat {
         if let Err(e) = req.state().event_client().lock_chat(event_room_id).await {
@@ -339,7 +335,9 @@ pub async fn create(mut req: Request<Arc<dyn AppContext>>) -> tide::Result {
         }
     }
 
-    let body = serde_json::to_string_pretty(&webinar)?;
+    let body = serde_json::to_string_pretty(&webinar)
+        .context("Failed to serialize webinar")
+        .error(AppErrorKind::SerializationFailed)?;
 
     let response = Response::builder(201).body(body).build();
 
@@ -352,29 +350,24 @@ struct WebinarUpdate {
     time: crate::db::class::BoundedDateTimeTuple,
 }
 
-pub async fn update(mut req: Request<Arc<dyn AppContext>>) -> tide::Result {
-    let body: WebinarUpdate = req.body_json().await?;
+pub async fn update(req: Request<Arc<dyn AppContext>>) -> tide::Result {
+    update_inner(req)
+        .await
+        .or_else(|e| Ok(e.to_tide_response()))
+}
+async fn update_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
+    let body: WebinarUpdate = req.body_json().await.error(AppErrorKind::InvalidPayload)?;
 
-    let maybe_token = fetch_token(&req);
+    let account_id = fetch_token(&req).error(AppErrorKind::Unauthorized)?;
     let state = req.state();
-    let account_id = match state.validate_token(maybe_token.as_deref()) {
-        Ok(id) => id,
-        Err(e) => {
-            error!(
-                crate::LOG,
-                "Failed to process Authorization header, header = {:?}, err = {:?}",
-                req.header("Authorization"),
-                e
-            );
-            return Ok(access_denied_response());
-        }
-    };
 
-    let webinar = find_webinar(&req).await?;
+    let webinar = find_webinar(&req)
+        .await
+        .error(AppErrorKind::WebinarNotFound)?;
 
     let object = AuthzObject::new(&["webinars", &webinar.id().to_string()]).into();
 
-    if let Err(err) = state
+    state
         .authz()
         .authorize(
             webinar.audience(),
@@ -382,11 +375,7 @@ pub async fn update(mut req: Request<Arc<dyn AppContext>>) -> tide::Result {
             object,
             "update".into(),
         )
-        .await
-    {
-        error!(crate::LOG, "Failed to authorize action, reason = {:?}", err);
-        return Ok(access_denied_response());
-    }
+        .await?;
 
     let conference_time = match body.time.0 {
         Bound::Included(t) | Bound::Excluded(t) => (Bound::Included(t), body.time.1),
@@ -406,13 +395,25 @@ pub async fn update(mut req: Request<Arc<dyn AppContext>>) -> tide::Result {
     event_fut
         .try_join(conference_fut)
         .await
-        .map_err(|e| HttpError::new(500, anyhow!("{:?}", e)))?;
+        .context("Services requests")
+        .error(AppErrorKind::MqttRequestFailed)?;
 
     let query = crate::db::class::WebinarTimeUpdateQuery::new(webinar.id(), body.time.into());
 
-    let mut conn = req.state().get_conn().await?;
-    let webinar = query.execute(&mut conn).await?;
-    let body = serde_json::to_string_pretty(&webinar)?;
+    let mut conn = req
+        .state()
+        .get_conn()
+        .await
+        .error(AppErrorKind::DbQueryFailed)?;
+    let webinar = query
+        .execute(&mut conn)
+        .await
+        .context("Failed to update webinar")
+        .error(AppErrorKind::DbQueryFailed)?;
+
+    let body = serde_json::to_string(&webinar)
+        .context("Failed to serialize webinar")
+        .error(AppErrorKind::SerializationFailed)?;
 
     let response = Response::builder(200).body(body).build();
 
@@ -442,27 +443,20 @@ struct RecordingConvertObject {
     uri: String,
 }
 
-pub async fn convert(mut req: Request<Arc<dyn AppContext>>) -> tide::Result {
-    let body: WebinarConvertObject = req.body_json().await?;
+pub async fn convert(req: Request<Arc<dyn AppContext>>) -> tide::Result {
+    convert_inner(req)
+        .await
+        .or_else(|e| Ok(e.to_tide_response()))
+}
+async fn convert_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
+    let body: WebinarConvertObject = req.body_json().await.error(AppErrorKind::InvalidPayload)?;
 
-    let maybe_token = fetch_token(&req);
+    let account_id = fetch_token(&req).error(AppErrorKind::Unauthorized)?;
     let state = req.state();
-    let account_id = match state.validate_token(maybe_token.as_deref()) {
-        Ok(id) => id,
-        Err(e) => {
-            error!(
-                crate::LOG,
-                "Failed to process Authorization header, header = {:?}, err = {:?}",
-                req.header("Authorization"),
-                e
-            );
-            return Ok(access_denied_response());
-        }
-    };
 
     let object = AuthzObject::new(&["webinars"]).into();
 
-    if let Err(err) = state
+    state
         .authz()
         .authorize(
             body.audience.clone(),
@@ -470,11 +464,7 @@ pub async fn convert(mut req: Request<Arc<dyn AppContext>>) -> tide::Result {
             object,
             "convert".into(),
         )
-        .await
-    {
-        error!(crate::LOG, "Failed to authorize action, reason = {:?}", err);
-        return Ok(access_denied_response());
-    }
+        .await?;
 
     let query = crate::db::class::WebinarInsertQuery::new(
         body.title,
@@ -504,9 +494,23 @@ pub async fn convert(mut req: Request<Arc<dyn AppContext>>) -> tide::Result {
     };
 
     let webinar = {
-        let mut conn = req.state().get_conn().await?;
-        let mut txn = conn.begin().await?;
-        let webinar = query.execute(&mut txn).await?;
+        let mut conn = req
+            .state()
+            .get_conn()
+            .await
+            .error(AppErrorKind::DbConnAcquisitionFailed)?;
+
+        let mut txn = conn
+            .begin()
+            .await
+            .context("Failed to acquire transaction")
+            .error(AppErrorKind::DbQueryFailed)?;
+        let webinar = query
+            .execute(&mut txn)
+            .await
+            .context("Failed to find recording")
+            .error(AppErrorKind::DbQueryFailed)?;
+
         if let Some(recording) = body.recording {
             crate::db::recording::RecordingConvertInsertQuery::new(
                 webinar.id(),
@@ -516,65 +520,78 @@ pub async fn convert(mut req: Request<Arc<dyn AppContext>>) -> tide::Result {
                 recording.uri,
             )
             .execute(&mut txn)
-            .await?;
+            .await
+            .context("Failed to insert recording")
+            .error(AppErrorKind::DbQueryFailed)?;
         }
         webinar
     };
 
-    let body = serde_json::to_string_pretty(&webinar)?;
+    let body = serde_json::to_string(&webinar)
+        .context("Failed to serialize webinar")
+        .error(AppErrorKind::SerializationFailed)?;
 
     let response = Response::builder(201).body(body).build();
 
     Ok(response)
 }
 
-fn fetch_token<T>(req: &Request<T>) -> Option<String> {
-    req.header("Authorization")
+fn fetch_token<T: std::ops::Deref<Target = dyn AppContext>>(
+    req: &Request<T>,
+) -> anyhow::Result<AccountId> {
+    let token = req
+        .header("Authorization")
         .and_then(|h| h.get(0))
-        .map(|header| header.to_string())
+        .map(|header| header.to_string());
+
+    let state = req.state();
+    let account_id = state
+        .validate_token(token.as_deref())
+        .context("Token authentication failed")?;
+
+    Ok(account_id)
 }
 
 async fn find_webinar(
     req: &Request<Arc<dyn AppContext>>,
-) -> Result<crate::db::class::Object, HttpError> {
-    let id = req.param("id")?;
-    let id = Uuid::from_str(id).map_err(|e| HttpError::new(404, e))?;
+) -> anyhow::Result<crate::db::class::Object> {
+    let id = extract_id(req)?;
 
     let webinar = {
         let mut conn = req.state().get_conn().await?;
         crate::db::class::WebinarReadQuery::new(id)
             .execute(&mut conn)
             .await?
-            .ok_or_else(|| HttpError::new(404, anyhow!("Room not found, id = {:?}", id)))?
+            .ok_or_else(|| anyhow!("Failed to find webinar"))?
     };
     Ok(webinar)
 }
 
+fn extract_param<'a>(req: &'a Request<Arc<dyn AppContext>>, key: &str) -> anyhow::Result<&'a str> {
+    req.param(key)
+        .map_err(|e| anyhow!("Failed to get {}, reason = {:?}", key, e))
+}
+
+fn extract_id(req: &Request<Arc<dyn AppContext>>) -> anyhow::Result<Uuid> {
+    let id = extract_param(req, "id")?;
+    let id = Uuid::from_str(id)
+        .map_err(|e| anyhow!("Failed to convert id to uuid, reason = {:?}", e))?;
+
+    Ok(id)
+}
+
 async fn find_webinar_by_scope(
     req: &Request<Arc<dyn AppContext>>,
-) -> Result<crate::db::class::Object, HttpError> {
-    let audience = req.param("audience")?.to_owned();
-    let scope = req.param("scope")?.to_owned();
+) -> anyhow::Result<crate::db::class::Object> {
+    let audience = extract_param(req, "audience")?.to_owned();
+    let scope = extract_param(req, "scope")?.to_owned();
 
     let webinar = {
         let mut conn = req.state().get_conn().await?;
         crate::db::class::WebinarReadByScopeQuery::new(audience.clone(), scope.clone())
             .execute(&mut conn)
             .await?
-            .ok_or_else(|| {
-                HttpError::new(
-                    404,
-                    anyhow!(
-                        "Room not found, audience = {:?}, scope = {:?}",
-                        audience,
-                        scope
-                    ),
-                )
-            })?
+            .ok_or_else(|| anyhow!("Failed to find webinar by scope"))?
     };
     Ok(webinar)
-}
-
-fn access_denied_response() -> Response {
-    tide::Response::builder(403).body("Access denied").build()
 }
