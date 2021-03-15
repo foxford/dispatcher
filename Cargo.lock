@@ -3370,6 +3370,7 @@ dependencies = [
  "serde_derive",
  "svc-agent",
  "svc-authn",
+ "svc-authz",
 ]
 
 [[package]]
