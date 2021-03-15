@@ -44,7 +44,6 @@ impl MessageHandler {
             .rev()
             .next()
             .and_then(|s| s.split("/events").next());
-        error!(crate::LOG, "{:?} {:?}", topic, audience);
         let audience = audience.map(|s| s.to_owned()).unwrap();
         let result = match data.properties().label() {
             Some("room.close") => self.handle_close(data, audience).await,
