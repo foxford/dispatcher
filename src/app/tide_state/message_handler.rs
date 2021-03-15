@@ -45,8 +45,9 @@ impl MessageHandler {
             .next()
             .and_then(|s| s.split("/events").next());
         let audience = audience.map(|s| s.to_owned()).unwrap();
+        let topic = topic.split('/').collect::<Vec<&str>>();
         let result = match data.properties().label() {
-            Some("room.close") => self.handle_close(data, audience).await,
+            Some("room.close") => self.handle_close(data, topic).await,
             Some("room.upload") => self.handle_upload(data).await,
             Some("room.adjust") => self.handle_adjust(data, audience).await,
             Some("task.complete") => self.handle_transcoding(data, audience).await,
@@ -64,14 +65,23 @@ impl MessageHandler {
         }
     }
 
-    async fn handle_close(&self, _data: IncomingEvent<String>, _audience: String) -> Result<()> {
-        // TODO
-        /*let payload = serde_json::from_str::<RoomClose>(&data.extract_payload())?;
+    async fn handle_close(&self, data: IncomingEvent<String>, topic: Vec<&str>) -> Result<()> {
+        let payload = serde_json::from_str::<RoomClose>(&data.extract_payload())?;
         let mut conn = self.ctx.get_conn().await?;
-        let webinar = crate::db::class::WebinarReadByScopeQuery::new(audience, payload.scope.clone())
+        let query = match topic.get(1) {
+            Some(app) if app.starts_with("event.") => {
+                crate::db::class::WebinarReadQuery::by_event_room(payload.id)
+            }
+            Some(app) if app.starts_with("conference.") => {
+                crate::db::class::WebinarReadQuery::by_conference_room(payload.id)
+            }
+            _ => return Ok(()),
+        };
+
+        let webinar = query
             .execute(&mut conn)
             .await?
-            .ok_or_else(|| anyhow!("Room not found by scope = {:?}", scope))?;
+            .ok_or_else(|| anyhow!("Webinar not found by id from payload = {:?}", payload,))?;
 
         let mut agent = self.ctx.agent();
         let timing = ShortTermTimingProperties::new(chrono::Utc::now());
@@ -91,7 +101,7 @@ impl MessageHandler {
                 crate::LOG,
                 "Failed to publish rollback event, reason = {:?}", err
             );
-        }*/
+        }
         Ok(())
     }
 
@@ -142,7 +152,7 @@ impl MessageHandler {
                 }) {
                     let mut conn = self.ctx.get_conn().await?;
                     let webinar =
-                        crate::db::class::WebinarReadByScopeQuery::new(audience, scope.clone())
+                        crate::db::class::WebinarReadQuery::by_scope(audience, scope.clone())
                             .execute(&mut conn)
                             .await?
                             .ok_or_else(|| anyhow!("Room not found by scope = {:?}", scope))?;
@@ -206,7 +216,7 @@ impl MessageHandler {
                 }) {
                     let mut conn = self.ctx.get_conn().await?;
                     let webinar =
-                        crate::db::class::WebinarReadByScopeQuery::new(audience, scope.clone())
+                        crate::db::class::WebinarReadQuery::by_scope(audience, scope.clone())
                             .execute(&mut conn)
                             .await?
                             .ok_or_else(|| anyhow!("Room not found by scope = {:?}", scope))?;

@@ -16,7 +16,7 @@ pub enum ClassType {
     Webinar,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, sqlx::FromRow)]
 pub struct Object {
     id: Uuid,
     title: String,
@@ -94,79 +94,73 @@ impl Into<PgRange<DateTime<Utc>>> for Time {
     }
 }
 
+enum ReadQueryPredicate {
+    Id(Uuid),
+    Scope { audience: String, scope: String },
+    ConferenceRoom(Uuid),
+    EventRoom(Uuid),
+}
+
 pub struct WebinarReadQuery {
-    id: Uuid,
+    condition: ReadQueryPredicate,
 }
 
 impl WebinarReadQuery {
-    pub fn new(id: Uuid) -> Self {
-        Self { id }
+    pub fn by_id(id: Uuid) -> Self {
+        Self {
+            condition: ReadQueryPredicate::Id(id),
+        }
+    }
+
+    pub fn by_scope(audience: String, scope: String) -> Self {
+        Self {
+            condition: ReadQueryPredicate::Scope { audience, scope },
+        }
+    }
+
+    pub fn by_conference_room(id: Uuid) -> Self {
+        Self {
+            condition: ReadQueryPredicate::ConferenceRoom(id),
+        }
+    }
+
+    pub fn by_event_room(id: Uuid) -> Self {
+        Self {
+            condition: ReadQueryPredicate::EventRoom(id),
+        }
     }
 
     pub async fn execute(self, conn: &mut PgConnection) -> sqlx::Result<Option<Object>> {
-        sqlx::query_as!(
-            Object,
-            r#"
-            SELECT
-                id,
-                title,
-                kind AS "kind!: ClassType",
-                audience,
-                scope,
-                time AS "time!: Time",
-                tags,
-                conference_room_id,
-                event_room_id,
-                original_event_room_id,
-                modified_event_room_id,
-                created_at,
-                preserve_history
-            FROM class
-            WHERE kind = 'webinar' AND id = $1
-            "#,
-            self.id
-        )
-        .fetch_optional(conn)
-        .await
-    }
-}
+        use quaint::ast::{Comparable, Select};
+        use quaint::visitor::{Postgres, Visitor};
 
-pub struct WebinarReadByScopeQuery {
-    audience: String,
-    scope: String,
-}
+        let q = Select::from_table("class").and_where("kind".equals("webinar"));
 
-impl WebinarReadByScopeQuery {
-    pub fn new(audience: String, scope: String) -> Self {
-        Self { audience, scope }
-    }
+        let q = match self.condition {
+            ReadQueryPredicate::Id(_) => q.and_where("id".equals("_placeholder_")),
+            ReadQueryPredicate::Scope { .. } => q
+                .and_where("audience".equals("_placeholder_"))
+                .and_where("scope".equals("_placeholder_")),
+            ReadQueryPredicate::ConferenceRoom(_) => {
+                q.and_where("conference_room_id".equals("_placeholder_"))
+            }
+            ReadQueryPredicate::EventRoom(_) => {
+                q.and_where("event_room_id".equals("_placeholder_"))
+            }
+        };
 
-    pub async fn execute(self, conn: &mut PgConnection) -> sqlx::Result<Option<Object>> {
-        sqlx::query_as!(
-            Object,
-            r#"
-            SELECT
-                id,
-                title,
-                kind AS "kind!: ClassType",
-                audience,
-                scope,
-                time AS "time!: Time",
-                tags,
-                conference_room_id,
-                event_room_id,
-                original_event_room_id,
-                modified_event_room_id,
-                created_at,
-                preserve_history
-            FROM class
-            WHERE kind = 'webinar' AND audience = $1 AND scope = $2
-            "#,
-            self.audience,
-            self.scope
-        )
-        .fetch_optional(conn)
-        .await
+        let (sql, _bindings) = Postgres::build(q);
+
+        let query = sqlx::query_as(&sql);
+
+        let query = match self.condition {
+            ReadQueryPredicate::Id(id) => query.bind(id),
+            ReadQueryPredicate::Scope { audience, scope } => query.bind(audience).bind(scope),
+            ReadQueryPredicate::ConferenceRoom(id) => query.bind(id),
+            ReadQueryPredicate::EventRoom(id) => query.bind(id),
+        };
+
+        query.fetch_optional(conn).await
     }
 }
 

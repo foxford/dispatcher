@@ -559,7 +559,7 @@ async fn find_webinar(
 
     let webinar = {
         let mut conn = req.state().get_conn().await?;
-        crate::db::class::WebinarReadQuery::new(id)
+        crate::db::class::WebinarReadQuery::by_id(id)
             .execute(&mut conn)
             .await?
             .ok_or_else(|| anyhow!("Failed to find webinar"))?
@@ -588,7 +588,7 @@ async fn find_webinar_by_scope(
 
     let webinar = {
         let mut conn = req.state().get_conn().await?;
-        crate::db::class::WebinarReadByScopeQuery::new(audience.clone(), scope.clone())
+        crate::db::class::WebinarReadQuery::by_scope(audience.clone(), scope.clone())
             .execute(&mut conn)
             .await?
             .ok_or_else(|| anyhow!("Failed to find webinar by scope"))?

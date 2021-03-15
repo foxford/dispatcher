@@ -92,14 +92,15 @@ impl ConferenceClient for MqttConferenceClient {
         let conference = self.conference_account_id.clone();
         let dispatcher = self.dispatcher.clone();
 
-        let response_topic =
-            match Subscription::unicast_responses_from(&conference).subscription_topic(&me, &self.api_version) {
-                Err(e) => {
-                    let e = AgentError::new(&e.to_string()).into();
-                    return Err(e);
-                }
-                Ok(topic) => topic,
-            };
+        let response_topic = match Subscription::unicast_responses_from(&conference)
+            .subscription_topic(&me, &self.api_version)
+        {
+            Err(e) => {
+                let e = AgentError::new(&e.to_string()).into();
+                return Err(e);
+            }
+            Ok(topic) => topic,
+        };
 
         let reqp = OutgoingRequestProperties::new(
             "room.create",
