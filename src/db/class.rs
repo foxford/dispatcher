@@ -203,13 +203,6 @@ impl WebinarInsertQuery {
         }
     }
 
-    pub fn preserve_history(self, preserve_history: bool) -> Self {
-        Self {
-            preserve_history,
-            ..self
-        }
-    }
-
     pub fn original_event_room_id(self, id: Uuid) -> Self {
         Self {
             original_event_room_id: Some(id),

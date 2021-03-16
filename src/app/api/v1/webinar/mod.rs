@@ -232,7 +232,6 @@ struct Webinar {
     #[serde(with = "crate::serde::ts_seconds_bound_tuple")]
     time: crate::db::class::BoundedDateTimeTuple,
     tags: Option<serde_json::Value>,
-    preserve_history: Option<bool>,
     reserve: Option<i32>,
     backend: Option<String>,
     #[serde(default)]
@@ -283,7 +282,7 @@ async fn create_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
     let event_fut = req.state().event_client().create_room(
         event_time,
         body.audience.clone(),
-        body.preserve_history,
+        Some(true),
         body.tags.clone(),
     );
 
@@ -303,12 +302,6 @@ async fn create_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
 
     let query = if let Some(tags) = body.tags {
         query.tags(tags)
-    } else {
-        query
-    };
-
-    let query = if let Some(preserve_history) = body.preserve_history {
-        query.preserve_history(preserve_history)
     } else {
         query
     };

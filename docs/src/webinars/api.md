@@ -21,7 +21,6 @@ scope                  | string      |          | Scope
 audience               | string      |          | Audience
 time                   | [int, int]  | +        | Start and end
 tags                   | json object | +        | Arbitrary tags.
-preserve_history       | bool        | +        | History preservation enabled or not.
 reserve                | i32         | +        | Slots to reserve on janus backend.
 backend                | string      | +        | Room backend, possible values: `janus`, `none`
 locked_chat            | bool        | +        | Lock chat in created event room
