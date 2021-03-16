@@ -19,7 +19,6 @@ pub enum ClassType {
 #[derive(Clone, Debug, Serialize, sqlx::FromRow)]
 pub struct Object {
     id: Uuid,
-    title: String,
     #[serde(skip)]
     kind: ClassType,
     scope: String,
@@ -165,7 +164,6 @@ impl WebinarReadQuery {
 }
 
 pub struct WebinarInsertQuery {
-    title: String,
     scope: String,
     audience: String,
     time: Time,
@@ -179,7 +177,6 @@ pub struct WebinarInsertQuery {
 
 impl WebinarInsertQuery {
     pub fn new(
-        title: String,
         scope: String,
         audience: String,
         time: Time,
@@ -187,7 +184,6 @@ impl WebinarInsertQuery {
         event_room_id: Uuid,
     ) -> Self {
         Self {
-            title,
             scope,
             audience,
             time,
@@ -235,14 +231,13 @@ impl WebinarInsertQuery {
             Object,
             r#"
             INSERT INTO class (
-                title, scope, audience, time, tags, preserve_history, kind,
+                scope, audience, time, tags, preserve_history, kind,
                 conference_room_id, event_room_id,
                 original_event_room_id, modified_event_room_id
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7::class_type, $8, $9, $10, $11)
+            VALUES ($1, $2, $3, $4, $5, $6::class_type, $7, $8, $9, $10)
             RETURNING
                 id,
-                title,
                 scope,
                 kind AS "kind!: ClassType",
                 audience,
@@ -255,7 +250,6 @@ impl WebinarInsertQuery {
                 original_event_room_id,
                 modified_event_room_id
             "#,
-            self.title,
             self.scope,
             self.audience,
             time,
@@ -293,7 +287,6 @@ impl WebinarTimeUpdateQuery {
             WHERE id = $1
             RETURNING
                 id,
-                title,
                 scope,
                 kind AS "kind!: ClassType",
                 audience,
@@ -339,7 +332,6 @@ impl WebinarUpdateQuery {
             WHERE id = $1
             RETURNING
                 id,
-                title,
                 scope,
                 kind AS "kind!: ClassType",
                 audience,

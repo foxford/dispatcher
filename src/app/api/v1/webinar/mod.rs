@@ -227,7 +227,6 @@ pub async fn options(_req: Request<Arc<dyn AppContext>>) -> tide::Result {
 
 #[derive(Deserialize)]
 struct Webinar {
-    title: String,
     scope: String,
     audience: String,
     #[serde(with = "crate::serde::ts_seconds_bound_tuple")]
@@ -295,7 +294,6 @@ async fn create_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
         .error(AppErrorKind::MqttRequestFailed)?;
 
     let query = crate::db::class::WebinarInsertQuery::new(
-        body.title,
         body.scope,
         body.audience,
         body.time.into(),
@@ -422,7 +420,6 @@ async fn update_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
 
 #[derive(Deserialize)]
 struct WebinarConvertObject {
-    title: String,
     scope: String,
     audience: String,
     event_room_id: Uuid,
@@ -467,7 +464,6 @@ async fn convert_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
         .await?;
 
     let query = crate::db::class::WebinarInsertQuery::new(
-        body.title,
         body.scope,
         body.audience,
         body.time.into(),
