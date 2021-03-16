@@ -3,6 +3,7 @@ use std::time::Duration;
 
 use anyhow::{Context, Result};
 use futures::StreamExt;
+use signal_hook::consts::TERM_SIGNALS;
 use sqlx::postgres::PgPool;
 use svc_agent::{
     mqtt::{AgentBuilder, AgentNotification, ConnectionMode, IncomingMessage, QoS},
@@ -183,7 +184,17 @@ pub async fn run(db: PgPool, authz_cache: Option<Box<dyn AuthzCache>>) -> Result
     bind_minigroups_routes(&mut app);
     bind_chat_routes(&mut app);
 
-    app.listen(config.http.listener_address).await?;
+    let app_future = app.listen(config.http.listener_address);
+    pin_utils::pin_mut!(app_future);
+    let mut signals_stream = signal_hook_async_std::Signals::new(TERM_SIGNALS)?.fuse();
+    let signals = signals_stream.next();
+
+    futures::future::select(app_future, signals).await;
+
+    // sleep for 2 secs to finish requests
+    // this is very primitive way of waiting for them but
+    // neither tide nor svc-agent (rumqtt) support graceful shutdowns
+    async_std::task::sleep(Duration::from_secs(2)).await;
     Ok(())
 }
 
