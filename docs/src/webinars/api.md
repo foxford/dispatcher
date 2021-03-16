@@ -3,12 +3,13 @@
 All routes expect json payloads.
 
 ### Routes
-Route                                 | Method | Short description
-------------------------------------- | ------ | ----------
-/api/v1/webinars/:webinar_id          | GET    | [Reads](#read-webinar) webinar.
-/api/v1/webinars                      | POST   | [Creates](#create-webinar) webinar and required rooms in other services.
-/api/v1/webinars/:webinar_id          | PUT    | [Updates](#update-webinar) webinar.
-/api/v1/webinars/convert              | POST   | [Creates](#convert-webinar) webinar with already existing event and conference rooms.
+Route                                           | Method | Short description
+----------------------------------------------- | ------ | ----------
+/api/v1/webinars/:webinar_id                    | GET    | [Reads](#read-webinar) webinar.
+/api/v1/audiences/:audience/webinars/:scope     | GET    | [Reads](#read-webinar) webinar.
+/api/v1/webinars                                | POST   | [Creates](#create-webinar) webinar and required rooms in other services.
+/api/v1/webinars/:webinar_id                    | PUT    | [Updates](#update-webinar) webinar.
+/api/v1/webinars/convert                        | POST   | [Creates](#convert-webinar) webinar with already existing event and conference rooms.
 
 ### Create webinar
 
@@ -16,7 +17,6 @@ Request parameters:
 
 Attribute              | Type        | Optional | Description
 ---------------------- | ----------- | -------- | -------------------------------------------------
-title                  | string      |          | Webinar title
 scope                  | string      |          | Scope
 audience               | string      |          | Audience
 time                   | [int, int]  | +        | Start and end
@@ -30,23 +30,29 @@ Response: status 201 and webinar object as payload.
 
 ### Read webinar
 
-Parameters:
+Parameters either
 
 Attribute              | Type        | Optional | Description
----------------------- | ----------- | -------- | -------------------------------------------------
+---------------------- | ----------- | -------- | --------------
 webinar_id             | uuid        |          | Webinar id
-time                   | [int, int]  | +        | New time
+
+Or:
+
+Attribute            | Type        | Optional | Description
+-------------------- | ----------- | -------- | ------------------
+audience             | string      |          | Webinar audience
+scope                | string      |          | Webinar scope
 
 Response:
 
 Attribute              | Type        | Optional | Description
 ---------------------- | ----------- | -------- | ---------------------------------------------------------
 id                     | string      |          | Webinar scope
-title                  | string      |          | Title
-real_time              | json object |          | `event_room_id` and `conference_room_id` fields
+real_time              | json object | +        | `event_room_id` and `conference_room_id` fields
 on_demand              | json array  | +        | Array with original and modified stream versions.
 status                 | string      | +        | Webinar state, possible values: `transcoded`, `adjusted`, `finished`, `realtime`
 
+Response: status 200 and webinar object as payload.
 
 ### Update webinar
 
@@ -54,7 +60,7 @@ Parameters:
 
 Свойство               | Тип         | Optional | Description
 ---------------------- | ----------- | -------- | -------------------------------------------------
-webinar_id             | uuid        |          | Webinar id
+time                   | [int, int]  | +        | New time
 
 Response: status 200 and webinar object as payload.
 
@@ -66,10 +72,9 @@ Parameters:
 
 Attribute              | Type        | Optional | Description
 ---------------------- | ----------- | -------- | -------------------------------------------------
-title                  | string      |          | Webinar title
 scope                  | string      |          | Scope
 audience               | string      |          | Audience
-time                   | [int, int]  | +        | Start and end
+time                   | [int, int]  |          | Start and end
 tags                   | json object | +        | Arbitrary tags
 conference_room_id     | uuid        |          | Conference room uuid
 event_room_id          | uuid        |          | Event room uuid
