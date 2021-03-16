@@ -73,7 +73,7 @@ Attribute              | Type        | Optional | Description
 ---------------------- | ----------- | -------- | -------------------------------------------------
 scope                  | string      |          | Scope
 audience               | string      |          | Audience
-time                   | [int, int]  |          | Start and end
+time                   | [int, int]  | +        | Start and end
 tags                   | json object | +        | Arbitrary tags
 conference_room_id     | uuid        |          | Conference room uuid
 event_room_id          | uuid        |          | Event room uuid
