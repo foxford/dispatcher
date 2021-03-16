@@ -5,7 +5,7 @@ use std::time::Duration;
 use anyhow::Result;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use serde_derive::Serialize;
+use serde_derive::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use svc_agent::{
     error::Error as AgentError,
@@ -24,6 +24,8 @@ use crate::db::recording::Object as Recording;
 
 #[async_trait]
 pub trait EventClient: Sync + Send {
+    async fn read_room(&self, id: Uuid) -> Result<EventRoomResponse, ClientError>;
+
     async fn create_room(
         &self,
         time: BoundedDateTimeTuple,
@@ -66,9 +68,8 @@ impl MqttEventClient {
 
     fn response_topic(&self) -> Result<String, ClientError> {
         let me = self.me.clone();
-        let event = self.event_account_id.clone();
 
-        Subscription::unicast_responses_from(&event)
+        Subscription::unicast_responses_from(&self.event_account_id)
             .subscription_topic(&me, &self.api_version)
             .map_err(|e| AgentError::new(&e.to_string()).into())
     }
@@ -120,8 +121,45 @@ struct ChatLockPayload {
     data: JsonValue,
 }
 
+#[derive(Serialize)]
+struct EventRoomReadPayload {
+    id: Uuid,
+}
+
+#[derive(Deserialize)]
+pub struct EventRoomResponse {
+    pub id: Uuid,
+    #[serde(with = "crate::serde::ts_seconds_bound_tuple")]
+    pub time: BoundedDateTimeTuple,
+}
+
 #[async_trait]
 impl EventClient for MqttEventClient {
+    async fn read_room(&self, id: Uuid) -> Result<EventRoomResponse, ClientError> {
+        let reqp = self.build_reqp("room.read")?;
+
+        let payload = EventRoomReadPayload { id };
+        let msg = if let OutgoingMessage::Request(msg) =
+            OutgoingRequest::multicast(payload, reqp, &self.event_account_id, &self.api_version)
+        {
+            msg
+        } else {
+            unreachable!()
+        };
+
+        let request = self.dispatcher.request::<_, EventRoomResponse>(msg);
+        let payload_result = if let Some(dur) = self.timeout {
+            async_std::future::timeout(dur, request)
+                .await
+                .map_err(|_e| ClientError::TimeoutError)?
+        } else {
+            request.await
+        };
+        let payload = payload_result.map_err(|e| ClientError::PayloadError(e.to_string()))?;
+
+        Ok(payload.extract_payload())
+    }
+
     async fn create_room(
         &self,
         time: BoundedDateTimeTuple,
@@ -129,9 +167,6 @@ impl EventClient for MqttEventClient {
         preserve_history: Option<bool>,
         tags: Option<JsonValue>,
     ) -> Result<Uuid, ClientError> {
-        let event = self.event_account_id.clone();
-        let dispatcher = self.dispatcher.clone();
-
         let reqp = self.build_reqp("room.create")?;
 
         let payload = EventRoomPayload {
@@ -141,14 +176,14 @@ impl EventClient for MqttEventClient {
             preserve_history,
         };
         let msg = if let OutgoingMessage::Request(msg) =
-            OutgoingRequest::multicast(payload, reqp, &event, &self.api_version)
+            OutgoingRequest::multicast(payload, reqp, &self.event_account_id, &self.api_version)
         {
             msg
         } else {
             unreachable!()
         };
 
-        let request = dispatcher.request::<_, JsonValue>(msg);
+        let request = self.dispatcher.request::<_, JsonValue>(msg);
         let payload_result = if let Some(dur) = self.timeout {
             async_std::future::timeout(dur, request)
                 .await
@@ -171,21 +206,18 @@ impl EventClient for MqttEventClient {
     }
 
     async fn update_room(&self, id: Uuid, time: BoundedDateTimeTuple) -> Result<(), ClientError> {
-        let event = self.event_account_id.clone();
-        let dispatcher = self.dispatcher.clone();
-
         let reqp = self.build_reqp("room.create")?;
         let payload = EventRoomUpdatePayload { id, time };
 
         let msg = if let OutgoingMessage::Request(msg) =
-            OutgoingRequest::multicast(payload, reqp, &event, &self.api_version)
+            OutgoingRequest::multicast(payload, reqp, &self.event_account_id, &self.api_version)
         {
             msg
         } else {
             unreachable!()
         };
 
-        let request = dispatcher.request::<_, JsonValue>(msg);
+        let request = self.dispatcher.request::<_, JsonValue>(msg);
         let payload_result = if let Some(dur) = self.timeout {
             async_std::future::timeout(dur, request)
                 .await
@@ -203,9 +235,6 @@ impl EventClient for MqttEventClient {
     }
 
     async fn adjust_room(&self, recording: &Recording, offset: i64) -> Result<(), ClientError> {
-        let event = self.event_account_id.clone();
-        let dispatcher = self.dispatcher.clone();
-
         let reqp = self.build_reqp("room.adjust")?;
 
         let payload = EventAdjustPayload {
@@ -215,14 +244,14 @@ impl EventClient for MqttEventClient {
             offset,
         };
         let msg = if let OutgoingMessage::Request(msg) =
-            OutgoingRequest::multicast(payload, reqp, &event, &self.api_version)
+            OutgoingRequest::multicast(payload, reqp, &self.event_account_id, &self.api_version)
         {
             msg
         } else {
             unreachable!()
         };
 
-        let request = dispatcher.request::<_, JsonValue>(msg);
+        let request = self.dispatcher.request::<_, JsonValue>(msg);
         let payload_result = if let Some(dur) = self.timeout {
             async_std::future::timeout(dur, request)
                 .await
@@ -243,9 +272,6 @@ impl EventClient for MqttEventClient {
     }
 
     async fn lock_chat(&self, room_id: Uuid) -> Result<(), ClientError> {
-        let event = self.event_account_id.clone();
-        let dispatcher = self.dispatcher.clone();
-
         let reqp = self.build_reqp("event.create")?;
 
         let payload = ChatLockPayload {
@@ -255,14 +281,14 @@ impl EventClient for MqttEventClient {
             data: serde_json::json!({"value": "true"}),
         };
         let msg = if let OutgoingMessage::Request(msg) =
-            OutgoingRequest::multicast(payload, reqp, &event, &self.api_version)
+            OutgoingRequest::multicast(payload, reqp, &self.event_account_id, &self.api_version)
         {
             msg
         } else {
             unreachable!()
         };
 
-        let request = dispatcher.request::<_, JsonValue>(msg);
+        let request = self.dispatcher.request::<_, JsonValue>(msg);
         let payload_result = if let Some(dur) = self.timeout {
             async_std::future::timeout(dur, request)
                 .await

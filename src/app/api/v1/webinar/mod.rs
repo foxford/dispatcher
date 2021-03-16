@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use async_std::prelude::FutureExt;
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use serde_derive::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use sqlx::Acquire;
@@ -15,7 +15,11 @@ use uuid::Uuid;
 use crate::app::authz::AuthzObject;
 use crate::app::error::ErrorExt;
 use crate::app::error::ErrorKind as AppErrorKind;
+use crate::app::tide_state::{
+    conference_client::ConferenceRoomResponse, event_client::EventRoomResponse,
+};
 use crate::app::AppContext;
+use crate::db::class::BoundedDateTimeTuple;
 use crate::db::class::Object as Class;
 use crate::db::recording::Segments;
 
@@ -230,7 +234,7 @@ struct Webinar {
     scope: String,
     audience: String,
     #[serde(with = "crate::serde::ts_seconds_bound_tuple")]
-    time: crate::db::class::BoundedDateTimeTuple,
+    time: BoundedDateTimeTuple,
     tags: Option<serde_json::Value>,
     reserve: Option<i32>,
     backend: Option<String>,
@@ -338,7 +342,7 @@ async fn create_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
 #[derive(Deserialize)]
 struct WebinarUpdate {
     #[serde(with = "crate::serde::ts_seconds_bound_tuple")]
-    time: crate::db::class::BoundedDateTimeTuple,
+    time: BoundedDateTimeTuple,
 }
 
 pub async fn update(req: Request<Arc<dyn AppContext>>) -> tide::Result {
@@ -417,8 +421,8 @@ struct WebinarConvertObject {
     audience: String,
     event_room_id: Uuid,
     conference_room_id: Uuid,
-    #[serde(with = "crate::serde::ts_seconds_bound_tuple")]
-    time: crate::db::class::BoundedDateTimeTuple,
+    #[serde(default, with = "crate::serde::ts_seconds_option_bound_tuple")]
+    time: Option<BoundedDateTimeTuple>,
     tags: Option<serde_json::Value>,
     original_event_room_id: Option<Uuid>,
     modified_event_room_id: Option<Uuid>,
@@ -434,12 +438,16 @@ struct RecordingConvertObject {
 }
 
 pub async fn convert(req: Request<Arc<dyn AppContext>>) -> tide::Result {
+    slog::error!(crate::LOG, "convert");
     convert_inner(req)
         .await
         .or_else(|e| Ok(e.to_tide_response()))
 }
 async fn convert_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
-    let body: WebinarConvertObject = req.body_json().await.error(AppErrorKind::InvalidPayload)?;
+    slog::error!(crate::LOG, "convert inner");
+
+    let body = req.body_json::<WebinarConvertObject>().await.error(AppErrorKind::InvalidPayload)?;
+    slog::error!(crate::LOG, "convert inner body parsed");
 
     let account_id = fetch_token(&req).error(AppErrorKind::Unauthorized)?;
     let state = req.state();
@@ -456,10 +464,33 @@ async fn convert_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
         )
         .await?;
 
+    let time = match body.time {
+        Some(t) => t,
+        None => {
+            // Lets try to fetch room time from conference and event
+            let conference_fut = req
+                .state()
+                .conference_client()
+                .read_room(body.conference_room_id);
+            let event_fut = req.state().event_client().read_room(body.event_room_id);
+            match event_fut.try_join(conference_fut).await {
+                // if we got times back correctly lets pick the overlap of event and conf times
+                Ok((
+                    EventRoomResponse { time: ev_time, .. },
+                    ConferenceRoomResponse {
+                        time: conf_time, ..
+                    },
+                )) => times_overlap(ev_time, conf_time),
+                // if there was an error we actually dont care much about the time being correct
+                Err(_) => (Bound::Unbounded, Bound::Unbounded),
+            }
+        }
+    };
+
     let query = crate::db::class::WebinarInsertQuery::new(
         body.scope,
         body.audience,
-        body.time.into(),
+        time.into(),
         body.conference_room_id,
         body.event_room_id,
     );
@@ -583,4 +614,44 @@ async fn find_webinar_by_scope(
             .ok_or_else(|| anyhow!("Failed to find webinar by scope"))?
     };
     Ok(webinar)
+}
+
+fn extract_bound(t: Bound<DateTime<Utc>>) -> Option<DateTime<Utc>> {
+    match t {
+        Bound::Included(t) => Some(t),
+        Bound::Excluded(t) => Some(t),
+        Bound::Unbounded => None,
+    }
+}
+
+fn dt_options_cmp_max(a: Option<DateTime<Utc>>, b: Option<DateTime<Utc>>) -> Option<DateTime<Utc>> {
+    match (a, b) {
+        (Some(a), Some(b)) => Some(std::cmp::max(a, b)),
+        (Some(a), None) => Some(a),
+        (None, Some(b)) => Some(b),
+        (None, None) => None,
+    }
+}
+
+fn dt_options_cmp_min(a: Option<DateTime<Utc>>, b: Option<DateTime<Utc>>) -> Option<DateTime<Utc>> {
+    match (a, b) {
+        (Some(a), Some(b)) => Some(std::cmp::min(a, b)),
+        (Some(a), None) => Some(a),
+        (None, Some(b)) => Some(b),
+        (None, None) => None,
+    }
+}
+
+fn times_overlap(t1: BoundedDateTimeTuple, t2: BoundedDateTimeTuple) -> BoundedDateTimeTuple {
+    let st1 = extract_bound(t1.0);
+    let end1 = extract_bound(t1.1);
+    let st2 = extract_bound(t2.0);
+    let end2 = extract_bound(t2.1);
+
+    let st = dt_options_cmp_max(st1, st2);
+    let st = st.map(Bound::Included).unwrap_or(Bound::Unbounded);
+    let end = dt_options_cmp_min(end1, end2);
+    let end = end.map(Bound::Excluded).unwrap_or(Bound::Unbounded);
+
+    (st, end)
 }

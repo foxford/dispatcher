@@ -5,7 +5,7 @@ use std::time::Duration;
 use anyhow::Result;
 use async_trait::async_trait;
 use chrono::Utc;
-use serde_derive::Serialize;
+use serde_derive::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use svc_agent::{
     error::Error as AgentError,
@@ -23,6 +23,8 @@ use crate::db::class::BoundedDateTimeTuple;
 
 #[async_trait]
 pub trait ConferenceClient: Sync + Send {
+    async fn read_room(&self, id: Uuid) -> Result<ConferenceRoomResponse, ClientError>;
+
     async fn create_room(
         &self,
         time: BoundedDateTimeTuple,
@@ -59,6 +61,25 @@ impl MqttConferenceClient {
             api_version: api_version.to_string(),
         }
     }
+
+    fn response_topic(&self) -> Result<String, ClientError> {
+        let me = self.me.clone();
+
+        Subscription::unicast_responses_from(&self.conference_account_id)
+            .subscription_topic(&me, &self.api_version)
+            .map_err(|e| AgentError::new(&e.to_string()).into())
+    }
+
+    fn build_reqp(&self, method: &str) -> Result<OutgoingRequestProperties, ClientError> {
+        let reqp = OutgoingRequestProperties::new(
+            method,
+            &self.response_topic()?,
+            &generate_correlation_data(),
+            ShortTermTimingProperties::new(Utc::now()),
+        );
+
+        Ok(reqp)
+    }
 }
 
 #[derive(Serialize)]
@@ -78,8 +99,48 @@ struct ConferenceRoomUpdatePayload {
     time: BoundedDateTimeTuple,
 }
 
+#[derive(Serialize)]
+struct ConferenceRoomReadPayload {
+    id: Uuid,
+}
+
+#[derive(Deserialize)]
+pub struct ConferenceRoomResponse {
+    pub id: Uuid,
+    #[serde(with = "crate::serde::ts_seconds_bound_tuple")]
+    pub time: BoundedDateTimeTuple,
+}
+
 #[async_trait]
 impl ConferenceClient for MqttConferenceClient {
+    async fn read_room(&self, id: Uuid) -> Result<ConferenceRoomResponse, ClientError> {
+        let reqp = self.build_reqp("room.read")?;
+
+        let payload = ConferenceRoomReadPayload { id };
+        let msg = if let OutgoingMessage::Request(msg) = OutgoingRequest::multicast(
+            payload,
+            reqp,
+            &self.conference_account_id,
+            &self.api_version,
+        ) {
+            msg
+        } else {
+            unreachable!()
+        };
+
+        let request = self.dispatcher.request::<_, ConferenceRoomResponse>(msg);
+        let payload_result = if let Some(dur) = self.timeout {
+            async_std::future::timeout(dur, request)
+                .await
+                .map_err(|_e| ClientError::TimeoutError)?
+        } else {
+            request.await
+        };
+        let payload = payload_result.map_err(|e| ClientError::PayloadError(e.to_string()))?;
+
+        Ok(payload.extract_payload())
+    }
+
     async fn create_room(
         &self,
         time: BoundedDateTimeTuple,
@@ -88,26 +149,7 @@ impl ConferenceClient for MqttConferenceClient {
         reserve: Option<i32>,
         tags: Option<JsonValue>,
     ) -> Result<Uuid, ClientError> {
-        let me = self.me.clone();
-        let conference = self.conference_account_id.clone();
-        let dispatcher = self.dispatcher.clone();
-
-        let response_topic = match Subscription::unicast_responses_from(&conference)
-            .subscription_topic(&me, &self.api_version)
-        {
-            Err(e) => {
-                let e = AgentError::new(&e.to_string()).into();
-                return Err(e);
-            }
-            Ok(topic) => topic,
-        };
-
-        let reqp = OutgoingRequestProperties::new(
-            "room.create",
-            &response_topic,
-            &generate_correlation_data(),
-            ShortTermTimingProperties::new(Utc::now()),
-        );
+        let reqp = self.build_reqp("room.create")?;
 
         let payload = ConferenceRoomPayload {
             time,
@@ -116,9 +158,12 @@ impl ConferenceClient for MqttConferenceClient {
             reserve,
             tags,
         };
-        let msg = if let OutgoingMessage::Request(msg) =
-            OutgoingRequest::multicast(payload, reqp, &conference, &self.api_version)
-        {
+        let msg = if let OutgoingMessage::Request(msg) = OutgoingRequest::multicast(
+            payload,
+            reqp,
+            &self.conference_account_id,
+            &self.api_version,
+        ) {
             msg
         } else {
             return Err(ClientError::AgentError(AgentError::new(
@@ -126,7 +171,7 @@ impl ConferenceClient for MqttConferenceClient {
             )));
         };
 
-        let request = dispatcher.request::<_, JsonValue>(msg);
+        let request = self.dispatcher.request::<_, JsonValue>(msg);
         let payload_result = if let Some(dur) = self.timeout {
             async_std::future::timeout(dur, request)
                 .await
@@ -149,36 +194,18 @@ impl ConferenceClient for MqttConferenceClient {
     }
 
     async fn update_room(&self, id: Uuid, time: BoundedDateTimeTuple) -> Result<(), ClientError> {
-        let me = self.me.clone();
-        let conference = self.conference_account_id.clone();
-        let dispatcher = self.dispatcher.clone();
-
-        let response_topic =
-            match Subscription::unicast_responses_from(&conference).subscription_topic(&me, "v2") {
-                Err(e) => {
-                    let e = AgentError::new(&e.to_string()).into();
-                    return Err(e);
-                }
-                Ok(topic) => topic,
-            };
-
-        let reqp = OutgoingRequestProperties::new(
-            "room.update",
-            &response_topic,
-            &generate_correlation_data(),
-            ShortTermTimingProperties::new(Utc::now()),
-        );
+        let reqp = self.build_reqp("room.update")?;
 
         let payload = ConferenceRoomUpdatePayload { id, time };
         let msg = if let OutgoingMessage::Request(msg) =
-            OutgoingRequest::multicast(payload, reqp, &conference, "v2")
+            OutgoingRequest::multicast(payload, reqp, &self.conference_account_id, "v2")
         {
             msg
         } else {
             unreachable!()
         };
 
-        let request = dispatcher.request::<_, JsonValue>(msg);
+        let request = self.dispatcher.request::<_, JsonValue>(msg);
         let payload_result = if let Some(dur) = self.timeout {
             async_std::future::timeout(dur, request)
                 .await
