@@ -11,7 +11,7 @@ use serde_json::Value as JsonValue;
 pub type BoundedDateTimeTuple = (Bound<DateTime<Utc>>, Bound<DateTime<Utc>>);
 
 #[derive(Clone, Debug, sqlx::Type)]
-#[sqlx(rename = "class_type", rename_all = "lowercase")]
+#[sqlx(type_name = "class_type", rename_all = "lowercase")]
 pub enum ClassType {
     Webinar,
 }
@@ -133,7 +133,7 @@ impl WebinarReadQuery {
         use quaint::ast::{Comparable, Select};
         use quaint::visitor::{Postgres, Visitor};
 
-        let q = Select::from_table("class").and_where("kind".equals("webinar"));
+        let q = Select::from_table("class");
 
         let q = match self.condition {
             ReadQueryPredicate::Id(_) => q.and_where("id".equals("_placeholder_")),
@@ -148,6 +148,8 @@ impl WebinarReadQuery {
             }
         };
 
+        let q = q.and_where("kind".equals("_placeholder_"));
+
         let (sql, _bindings) = Postgres::build(q);
 
         let query = sqlx::query_as(&sql);
@@ -158,6 +160,8 @@ impl WebinarReadQuery {
             ReadQueryPredicate::ConferenceRoom(id) => query.bind(id),
             ReadQueryPredicate::EventRoom(id) => query.bind(id),
         };
+
+        let query = query.bind(ClassType::Webinar);
 
         query.fetch_optional(conn).await
     }
