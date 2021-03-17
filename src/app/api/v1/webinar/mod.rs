@@ -438,16 +438,15 @@ struct RecordingConvertObject {
 }
 
 pub async fn convert(req: Request<Arc<dyn AppContext>>) -> tide::Result {
-    slog::error!(crate::LOG, "convert");
     convert_inner(req)
         .await
         .or_else(|e| Ok(e.to_tide_response()))
 }
 async fn convert_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
-    slog::error!(crate::LOG, "convert inner");
-
-    let body = req.body_json::<WebinarConvertObject>().await.error(AppErrorKind::InvalidPayload)?;
-    slog::error!(crate::LOG, "convert inner body parsed");
+    let body = req
+        .body_json::<WebinarConvertObject>()
+        .await
+        .error(AppErrorKind::InvalidPayload)?;
 
     let account_id = fetch_token(&req).error(AppErrorKind::Unauthorized)?;
     let state = req.state();
@@ -544,6 +543,10 @@ async fn convert_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
             .context("Failed to insert recording")
             .error(AppErrorKind::DbQueryFailed)?;
         }
+        txn.commit()
+            .await
+            .context("Convert transaction failed")
+            .error(AppErrorKind::DbQueryFailed)?;
         webinar
     };
 
