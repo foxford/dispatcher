@@ -43,12 +43,18 @@ impl WebinarObject {
     pub fn set_status(&mut self, status: &str) {
         self.status = Some(status.to_owned());
     }
+
+    pub fn set_rtc_id(&mut self, rtc_id: Uuid) {
+        self.real_time.set_rtc_id(rtc_id);
+    }
 }
 
 #[derive(Serialize)]
 struct WebinarVersion {
     version: &'static str,
     event_room_id: Uuid,
+    // TODO: this is deprecated and should be removed eventually
+    // right now its necessary to generate HLS links
     stream_id: Uuid,
     tags: Option<JsonValue>,
 }
@@ -58,6 +64,13 @@ struct RealTimeObject {
     conference_room_id: Uuid,
     event_room_id: Uuid,
     fallback_uri: Option<String>,
+    rtc_id: Option<Uuid>,
+}
+
+impl RealTimeObject {
+    pub fn set_rtc_id(&mut self, rtc_id: Uuid) {
+        self.rtc_id = Some(rtc_id);
+    }
 }
 
 impl From<Class> for WebinarObject {
@@ -68,6 +81,7 @@ impl From<Class> for WebinarObject {
                 fallback_uri: None,
                 conference_room_id: obj.conference_room_id(),
                 event_room_id: obj.event_room_id(),
+                rtc_id: None,
             },
             on_demand: vec![],
             status: None,
@@ -206,6 +220,9 @@ async fn read_by_scope_inner(req: Request<Arc<dyn AppContext>>) -> AppResult {
                 tags: webinar.tags(),
             });
         }
+
+        webinar_obj.set_rtc_id(recording.rtc_id());
+
         if recording.transcoded_at().is_some() {
             webinar_obj.set_status("transcoded");
         } else if recording.adjusted_at().is_some() {
