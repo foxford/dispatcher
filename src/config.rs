@@ -43,7 +43,10 @@ pub struct HttpConfig {
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct TqClientConfig {
-    pub base_url: surf::Url,
+    pub base_url: String,
+    pub timeout: u64,
+    pub account_id: AccountId,
+    pub api_version: String,
 }
 
 #[derive(Clone, Debug, Deserialize)]

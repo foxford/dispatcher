@@ -37,6 +37,14 @@ impl MessageHandler {
     }
 
     pub async fn handle_event(&self, data: IncomingEvent<String>, topic: String) {
+        slog::info!(
+            crate::LOG,
+            "Incoming event, label = {:?}, payload = {:?}, topic = {:?}",
+            data.properties().label(),
+            data.payload(),
+            topic
+        );
+
         let audience: Option<&str> = topic
             .split("/audiences/")
             .collect::<Vec<&str>>()
@@ -46,6 +54,8 @@ impl MessageHandler {
             .and_then(|s| s.split("/events").next());
         let audience = audience.map(|s| s.to_owned()).unwrap();
         let topic = topic.split('/').collect::<Vec<&str>>();
+        let data_ = data.clone();
+
         let result = match data.properties().label() {
             Some("room.close") => self.handle_close(data, topic).await,
             Some("room.upload") => self.handle_upload(data).await,
@@ -61,7 +71,13 @@ impl MessageHandler {
         };
 
         if let Err(e) = result {
-            error!(crate::LOG, "Event handler failed, reason = {:?}", e);
+            slog::error!(
+                crate::LOG,
+                "Event handler failed, label = {:?}, payload = {:?}, reason = {:?}",
+                data_.properties().label(),
+                data_.payload(),
+                e
+            );
         }
     }
 
@@ -112,29 +128,34 @@ impl MessageHandler {
             .rtcs
             .get(0)
             .ok_or_else(|| anyhow!("Missing rtc in room upload, payload = {:?}", room_upload))?;
-        let recording = {
-            let mut conn = self.ctx.get_conn().await?;
+        let mut conn = self.ctx.get_conn().await?;
+        let webinar = crate::db::class::WebinarReadQuery::by_conference_room(room_upload.id)
+            .execute(&mut conn)
+            .await?;
+        if let Some(webinar) = webinar {
             let q = crate::db::recording::RecordingInsertQuery::new(
-                room_upload.id,
+                webinar.id(),
                 rtc.id,
                 rtc.segments.clone(),
                 rtc.started_at,
                 rtc.uri.clone(),
             );
-            q.execute(&mut conn).await?
-        };
+            let recording = q.execute(&mut conn).await?;
+            self.ctx
+                .event_client()
+                // TODO FIX OFFSET
+                .adjust_room(webinar.event_room_id(), &recording, 4018)
+                .await
+                .map_err(|e| {
+                    anyhow!(
+                        "Failed to adjust room, room id = {:?}, err = {:?}",
+                        room_upload.id,
+                        e
+                    )
+                })?;
+        }
 
-        self.ctx
-            .event_client()
-            .adjust_room(&recording, 0)
-            .await
-            .map_err(|e| {
-                anyhow!(
-                    "Failed to adjust room, room id = {:?}, err = {:?}",
-                    room_upload.id,
-                    e
-                )
-            })
+        Ok(())
     }
 
     async fn handle_adjust(&self, data: IncomingEvent<String>, audience: String) -> Result<()> {
@@ -280,7 +301,9 @@ struct RtcUpload {
     id: Uuid,
     uri: String,
     status: String,
+    #[serde(deserialize_with = "crate::db::recording::serde::segments::deserialize")]
     segments: crate::db::recording::Segments,
+    #[serde(deserialize_with = "chrono::serde::ts_milliseconds::deserialize")]
     started_at: DateTime<Utc>,
 }
 
@@ -312,23 +335,23 @@ struct TaskComplete {
 }
 
 #[derive(Deserialize)]
-#[serde(untagged)]
+#[serde(tag = "status")]
 enum TaskCompleteResult {
+    #[serde(rename = "success")]
     Success {
         stream_id: Uuid,
         stream_uri: String,
-        stream_duration: u64,
+        stream_duration: String,
     },
-    Failure {
-        error: JsonValue,
-    },
+    #[serde(rename = "failure")]
+    Failure { error: JsonValue },
 }
 
 #[derive(Serialize)]
 struct WebinarReady {
     tags: Option<JsonValue>,
     status: &'static str,
-    stream_duration: u64,
+    stream_duration: String,
     stream_id: Uuid,
     stream_uri: String,
     scope: String,

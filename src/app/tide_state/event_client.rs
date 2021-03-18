@@ -36,7 +36,12 @@ pub trait EventClient: Sync + Send {
 
     async fn update_room(&self, id: Uuid, time: BoundedDateTimeTuple) -> Result<(), ClientError>;
 
-    async fn adjust_room(&self, recording: &Recording, offset: i64) -> Result<(), ClientError>;
+    async fn adjust_room(
+        &self,
+        event_room_id: Uuid,
+        recording: &Recording,
+        offset: i64,
+    ) -> Result<(), ClientError>;
 
     async fn lock_chat(&self, room_id: Uuid) -> Result<(), ClientError>;
 }
@@ -234,11 +239,16 @@ impl EventClient for MqttEventClient {
         }
     }
 
-    async fn adjust_room(&self, recording: &Recording, offset: i64) -> Result<(), ClientError> {
+    async fn adjust_room(
+        &self,
+        event_room_id: Uuid,
+        recording: &Recording,
+        offset: i64,
+    ) -> Result<(), ClientError> {
         let reqp = self.build_reqp("room.adjust")?;
 
         let payload = EventAdjustPayload {
-            id: recording.class_id(),
+            id: event_room_id,
             started_at: recording.started_at(),
             segments: recording.segments().clone(),
             offset,
