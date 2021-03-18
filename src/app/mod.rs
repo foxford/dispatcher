@@ -17,6 +17,9 @@ use tide::security::{CorsMiddleware, Origin};
 
 use crate::app::authz::db_ban_callback;
 use crate::config::{self, Config};
+use api::v1::chat::{
+    convert as convert_chat, create as create_chat, read_by_scope as read_chat_by_scope,
+};
 use api::v1::classroom::{
     convert as convert_classroom, create as create_classroom,
     read_by_scope as read_classroom_by_scope,
@@ -178,6 +181,7 @@ pub async fn run(db: PgPool, authz_cache: Option<Box<dyn AuthzCache>>) -> Result
     bind_redirects_routes(&mut app);
     bind_webinars_routes(&mut app);
     bind_classroom_routes(&mut app);
+    bind_chat_routes(&mut app);
 
     app.listen(config.http.listener_address).await?;
     Ok(())
@@ -216,16 +220,29 @@ fn bind_webinars_routes(app: &mut tide::Server<Arc<dyn AppContext>>) {
 }
 
 fn bind_classroom_routes(app: &mut tide::Server<Arc<dyn AppContext>>) {
-    app.at("/api/v1/audiences/:audience/webinars/:scope")
+    app.at("/api/v1/audiences/:audience/classrooms/:scope")
         .with(cors())
         .options(read_options);
-    app.at("/api/v1/audiences/:audience/webinars/:scope")
+    app.at("/api/v1/audiences/:audience/classrooms/:scope")
         .with(cors())
         .get(read_classroom_by_scope);
 
-    app.at("/api/v1/classroom").post(create_classroom);
+    app.at("/api/v1/classrooms").post(create_classroom);
 
-    app.at("/api/v1/classroom/convert").post(convert_classroom);
+    app.at("/api/v1/classrooms/convert").post(convert_classroom);
+}
+
+fn bind_chat_routes(app: &mut tide::Server<Arc<dyn AppContext>>) {
+    app.at("/api/v1/audiences/:audience/chats/:scope")
+        .with(cors())
+        .options(read_options);
+    app.at("/api/v1/audiences/:audience/chats/:scope")
+        .with(cors())
+        .get(read_chat_by_scope);
+
+    app.at("/api/v1/chats").post(create_chat);
+
+    app.at("/api/v1/chats/convert").post(convert_chat);
 }
 
 fn build_event_client(config: &Config, dispatcher: Arc<Dispatcher>) -> Arc<dyn EventClient> {
