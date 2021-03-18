@@ -3366,7 +3366,7 @@ dependencies = [
 [[package]]
 name = "svc-authz"
 version = "0.10.7"
-source = "git+https://github.com/netology-group/svc-authz-rs?branch=isahc#4be74330df3c5fbfeb30cb4f19d25b448d8d041f"
+source = "git+https://github.com/netology-group/svc-authz-rs?branch=isahc#46c57f6a745329d5267c9240603265074b76ed95"
 dependencies = [
  "async-std",
  "async-trait",
