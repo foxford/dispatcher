@@ -93,6 +93,7 @@ pub async fn redirect_to_frontend(req: Request<Arc<dyn AppContext>>) -> tide::Re
     Ok(response)
 }
 
+pub mod chat;
 pub mod classroom;
 #[cfg(test)]
 mod tests;
