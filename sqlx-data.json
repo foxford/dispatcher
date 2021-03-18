@@ -357,6 +357,59 @@
       ]
     }
   },
+  "5a0c38ae0c50c5ff8be4aef10d0e758d9d2abc89ab82556b26aa743005e3c190": {
+    "query": "\n            INSERT INTO chat (\n                scope, audience, tags, event_room_id\n            )\n            VALUES ($1, $2, $3, $4)\n            RETURNING\n                id,\n                scope,\n                audience,\n                tags,\n                created_at,\n                event_room_id\n            ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 1,
+          "name": "scope",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 2,
+          "name": "audience",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 3,
+          "name": "tags",
+          "type_info": "Json"
+        },
+        {
+          "ordinal": 4,
+          "name": "created_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 5,
+          "name": "event_room_id",
+          "type_info": "Uuid"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Text",
+          "Json",
+          "Uuid"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        true,
+        false,
+        false
+      ]
+    }
+  },
   "621790bd7e88b551bbb9ae747ef12b76645f7ce17148adfb0f1b8005086fe198": {
     "query": "\n            SELECT fe.*\n            FROM frontend fe\n            INNER JOIN scope s\n            ON s.frontend_id = fe.id\n            WHERE s.scope = $1 AND s.app = $2\n            ",
     "describe": {
@@ -728,6 +781,84 @@
         false,
         true,
         true
+      ]
+    }
+  },
+  "d2d10be7be7d88769d40a4023e74d596aa0ec079db777b3e7de0435f166f436c": {
+    "query": "\n                INSERT INTO scope (scope, frontend_id, app)\n                VALUES ($1, $2, $3)\n                RETURNING id, scope, frontend_id, created_at, app\n            ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 1,
+          "name": "scope",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 2,
+          "name": "frontend_id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 3,
+          "name": "created_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 4,
+          "name": "app",
+          "type_info": "Text"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Int8",
+          "Text"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    }
+  },
+  "e87e871c0a14a8db056901aff1125c9ef5e416ecac8113e2618c299d224375bd": {
+    "query": "\n                INSERT INTO frontend (url)\n                VALUES ($1)\n                RETURNING id, url, created_at\n            ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 1,
+          "name": "url",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 2,
+          "name": "created_at",
+          "type_info": "Timestamptz"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Text"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false
       ]
     }
   },
