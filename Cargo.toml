@@ -34,8 +34,9 @@ futures = "0.3"
 futures-channel = "0.3"
 uuid = { version = "0.8", features = ["v4", "serde"] }
 rand = "0.7"
-surf = "2.1.0"
 quaint = { version = "0.1", features = ["uuid-0_8", "chrono-0_4"] }
+isahc = "1.1.0"
+http = "0.2"
 
 [patch.crates-io]
 svc-authz = { git = "https://github.com/netology-group/svc-authz-rs", branch = "isahc" }
