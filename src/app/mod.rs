@@ -65,7 +65,7 @@ pub async fn run(db: PgPool, authz_cache: Option<Box<dyn AuthzCache>>) -> Result
     let dispatcher = Arc::new(Dispatcher::new(&agent));
     let event_client = build_event_client(&config, dispatcher.clone());
     let conference_client = build_conference_client(&config, dispatcher.clone());
-    let tq_client = build_tq_client(&config);
+    let tq_client = build_tq_client(&config, &token);
     let authz = Authz::new(
         &config.id,
         authz_cache,
@@ -147,7 +147,7 @@ pub async fn run(db: PgPool, authz_cache: Option<Box<dyn AuthzCache>>) -> Result
                 QoS::AtLeastOnce,
                 Some(&group),
             )
-            .context("Error subscribing to app's events topic")?;
+            .context("Error subscribing to app's conference topic")?;
 
         agent
             .subscribe(
@@ -160,6 +160,18 @@ pub async fn run(db: PgPool, authz_cache: Option<Box<dyn AuthzCache>>) -> Result
                 Some(&group),
             )
             .context("Error subscribing to app's events topic")?;
+
+        agent
+            .subscribe(
+                &Subscription::broadcast_events(
+                    &config.tq_client.account_id,
+                    &config.tq_client.api_version,
+                    &format!("audiences/{}/events", tenant_audience),
+                ),
+                QoS::AtLeastOnce,
+                Some(&group),
+            )
+            .context("Error subscribing to app's tq topic")?;
     }
 
     let mut app = tide::with_state(state);
@@ -243,8 +255,12 @@ fn build_conference_client(
     ))
 }
 
-fn build_tq_client(config: &Config) -> Arc<dyn TqClient> {
-    Arc::new(HttpTqClient::new(config.tq_client.base_url.clone()))
+fn build_tq_client(config: &Config, token: &str) -> Arc<dyn TqClient> {
+    Arc::new(HttpTqClient::new(
+        config.tq_client.base_url.clone(),
+        token.to_owned(),
+        config.tq_client.timeout,
+    ))
 }
 
 fn cors() -> CorsMiddleware {

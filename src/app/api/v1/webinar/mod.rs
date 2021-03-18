@@ -259,11 +259,6 @@ struct Webinar {
     locked_chat: bool,
 }
 
-lazy_static! {
-    static ref CONFERENCE_PRESTART_SIGNALING_WINDOW: chrono::Duration =
-        chrono::Duration::minutes(10);
-}
-
 pub async fn create(req: Request<Arc<dyn AppContext>>) -> tide::Result {
     create_inner(req)
         .await
