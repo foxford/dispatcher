@@ -100,7 +100,8 @@
               "name": "class_type",
               "kind": {
                 "Enum": [
-                  "webinar"
+                  "webinar",
+                  "classroom"
                 ]
               }
             }
@@ -208,7 +209,8 @@
               "name": "class_type",
               "kind": {
                 "Enum": [
-                  "webinar"
+                  "webinar",
+                  "classroom"
                 ]
               }
             }
@@ -636,7 +638,8 @@
               "name": "class_type",
               "kind": {
                 "Enum": [
-                  "webinar"
+                  "webinar",
+                  "classroom"
                 ]
               }
             }
@@ -700,7 +703,8 @@
               "name": "class_type",
               "kind": {
                 "Enum": [
-                  "webinar"
+                  "webinar",
+                  "classroom"
                 ]
               }
             }
@@ -796,6 +800,119 @@
         false,
         false,
         true,
+        false,
+        true,
+        true
+      ]
+    }
+  },
+  "fcca56f516d9eab2884cbb5b4e54f0d6552452cac2a07d9f87d946762c721760": {
+    "query": "\n            INSERT INTO class (\n                scope, audience, time, tags, preserve_history, kind,\n                conference_room_id, event_room_id\n            )\n            VALUES ($1, $2, $3, $4, $5, $6::class_type, $7, $8)\n            RETURNING\n                id,\n                scope,\n                kind AS \"kind!: ClassType\",\n                audience,\n                time AS \"time!: Time\",\n                tags,\n                preserve_history,\n                created_at,\n                event_room_id,\n                conference_room_id,\n                original_event_room_id,\n                modified_event_room_id\n            ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 1,
+          "name": "scope",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 2,
+          "name": "kind!: ClassType",
+          "type_info": {
+            "Custom": {
+              "name": "class_type",
+              "kind": {
+                "Enum": [
+                  "webinar",
+                  "classroom"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "ordinal": 3,
+          "name": "audience",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 4,
+          "name": "time!: Time",
+          "type_info": "TstzRange"
+        },
+        {
+          "ordinal": 5,
+          "name": "tags",
+          "type_info": "Json"
+        },
+        {
+          "ordinal": 6,
+          "name": "preserve_history",
+          "type_info": "Bool"
+        },
+        {
+          "ordinal": 7,
+          "name": "created_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 8,
+          "name": "event_room_id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 9,
+          "name": "conference_room_id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 10,
+          "name": "original_event_room_id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 11,
+          "name": "modified_event_room_id",
+          "type_info": "Uuid"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Text",
+          "TstzRange",
+          "Json",
+          "Bool",
+          {
+            "Custom": {
+              "name": "class_type",
+              "kind": {
+                "Enum": [
+                  "webinar",
+                  "classroom"
+                ]
+              }
+            }
+          },
+          "Uuid",
+          "Uuid"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        false,
+        false,
+        false,
         false,
         true,
         true

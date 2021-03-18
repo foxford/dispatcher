@@ -17,11 +17,16 @@ use tide::security::{CorsMiddleware, Origin};
 
 use crate::app::authz::db_ban_callback;
 use crate::config::{self, Config};
+use api::v1::classroom::{
+    convert as convert_classroom, create as create_classroom,
+    read_by_scope as read_classroom_by_scope,
+};
+use api::v1::webinar::{
+    convert as convert_webinar, create as create_webinar, options as read_options,
+    read as read_webinar, read_by_scope as read_webinar_by_scope, update as update_webinar,
+};
 use api::{
     redirect_to_frontend, rollback, v1::healthz, v1::redirect_to_frontend as redirect_to_frontend2,
-    v1::webinar::convert as convert_webinar, v1::webinar::create as create_webinar,
-    v1::webinar::options as read_options, v1::webinar::read as read_webinar,
-    v1::webinar::read_by_scope as read_webinar_by_scope, v1::webinar::update as update_webinar,
 };
 use info::{list_frontends, list_scopes};
 use tide_state::conference_client::{ConferenceClient, MqttConferenceClient};
@@ -158,6 +163,15 @@ pub async fn run(db: PgPool, authz_cache: Option<Box<dyn AuthzCache>>) -> Result
     }
 
     let mut app = tide::with_state(state);
+    bind_redirects_routes(&mut app);
+    bind_webinars_routes(&mut app);
+    bind_classroom_routes(&mut app);
+
+    app.listen(config.http.listener_address).await?;
+    Ok(())
+}
+
+fn bind_redirects_routes(app: &mut tide::Server<Arc<dyn AppContext>>) {
     app.at("/info/scopes").get(list_scopes);
     app.at("/info/frontends").get(list_frontends);
     app.at("/redirs/tenants/:tenant/apps/:app")
@@ -167,7 +181,9 @@ pub async fn run(db: PgPool, authz_cache: Option<Box<dyn AuthzCache>>) -> Result
     app.at("/api/v1/healthz").get(healthz);
     app.at("/api/v1/scopes/:scope/rollback").post(rollback);
     app.at("/api/v1/redirs").get(redirect_to_frontend2);
+}
 
+fn bind_webinars_routes(app: &mut tide::Server<Arc<dyn AppContext>>) {
     app.at("/api/v1/webinars/:id")
         .with(cors())
         .options(read_options);
@@ -185,9 +201,19 @@ pub async fn run(db: PgPool, authz_cache: Option<Box<dyn AuthzCache>>) -> Result
     app.at("/api/v1/webinars/:id").put(update_webinar);
 
     app.at("/api/v1/webinars/convert").post(convert_webinar);
+}
 
-    app.listen(config.http.listener_address).await?;
-    Ok(())
+fn bind_classroom_routes(app: &mut tide::Server<Arc<dyn AppContext>>) {
+    app.at("/api/v1/audiences/:audience/webinars/:scope")
+        .with(cors())
+        .options(read_options);
+    app.at("/api/v1/audiences/:audience/webinars/:scope")
+        .with(cors())
+        .get(read_classroom_by_scope);
+
+    app.at("/api/v1/classroom").post(create_classroom);
+
+    app.at("/api/v1/classroom/convert").post(convert_classroom);
 }
 
 fn build_event_client(config: &Config, dispatcher: Arc<Dispatcher>) -> Arc<dyn EventClient> {
