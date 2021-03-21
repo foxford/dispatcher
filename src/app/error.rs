@@ -42,64 +42,64 @@ impl fmt::Display for ErrorKind {
     }
 }
 
-impl Into<ErrorKindProperties> for ErrorKind {
-    fn into(self) -> ErrorKindProperties {
-        match self {
-            Self::AccessDenied => ErrorKindProperties {
+impl From<ErrorKind> for ErrorKindProperties {
+    fn from(k: ErrorKind) -> Self {
+        match k {
+            ErrorKind::AccessDenied => ErrorKindProperties {
                 status: ResponseStatus::FORBIDDEN,
                 kind: "access_denied",
                 title: "Access denied",
                 is_notify_sentry: false,
             },
-            Self::AuthorizationFailed => ErrorKindProperties {
+            ErrorKind::AuthorizationFailed => ErrorKindProperties {
                 status: ResponseStatus::UNPROCESSABLE_ENTITY,
                 kind: "authorization_failed",
                 title: "Authorization failed",
                 is_notify_sentry: false,
             },
-            Self::DbConnAcquisitionFailed => ErrorKindProperties {
+            ErrorKind::DbConnAcquisitionFailed => ErrorKindProperties {
                 status: ResponseStatus::UNPROCESSABLE_ENTITY,
                 kind: "database_connection_acquisition_failed",
                 title: "Database connection acquisition failed",
                 is_notify_sentry: true,
             },
-            Self::DbQueryFailed => ErrorKindProperties {
+            ErrorKind::DbQueryFailed => ErrorKindProperties {
                 status: ResponseStatus::UNPROCESSABLE_ENTITY,
                 kind: "database_query_failed",
                 title: "Database query failed",
                 is_notify_sentry: true,
             },
-            Self::InvalidPayload => ErrorKindProperties {
+            ErrorKind::InvalidPayload => ErrorKindProperties {
                 status: ResponseStatus::BAD_REQUEST,
                 kind: "invalid_payload",
                 title: "Invalid payload",
                 is_notify_sentry: false,
             },
-            Self::InvalidRoomTime => ErrorKindProperties {
+            ErrorKind::InvalidRoomTime => ErrorKindProperties {
                 status: ResponseStatus::BAD_REQUEST,
                 kind: "invalid_room_time",
                 title: "Invalid room time",
                 is_notify_sentry: false,
             },
-            Self::WebinarNotFound => ErrorKindProperties {
+            ErrorKind::WebinarNotFound => ErrorKindProperties {
                 status: ResponseStatus::NOT_FOUND,
                 kind: "webinar_not_found",
                 title: "webinar not found",
                 is_notify_sentry: false,
             },
-            Self::MqttRequestFailed => ErrorKindProperties {
+            ErrorKind::MqttRequestFailed => ErrorKindProperties {
                 status: ResponseStatus::INTERNAL_SERVER_ERROR,
                 kind: "mqtt_request_failed",
                 title: "Mqtt request failed",
                 is_notify_sentry: true,
             },
-            Self::SerializationFailed => ErrorKindProperties {
+            ErrorKind::SerializationFailed => ErrorKindProperties {
                 status: ResponseStatus::UNPROCESSABLE_ENTITY,
                 kind: "serialization_failed",
                 title: "Serialization failed",
                 is_notify_sentry: true,
             },
-            Self::Unauthorized => ErrorKindProperties {
+            ErrorKind::Unauthorized => ErrorKindProperties {
                 status: ResponseStatus::UNAUTHORIZED,
                 kind: "authentication_failed",
                 title: "Authentication failed",
