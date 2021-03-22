@@ -219,7 +219,7 @@ impl TranscodingUpdateQuery {
             Object,
             r#"
             UPDATE recording
-            SET adjusted_at = NOW()
+            SET transcoded_at = NOW()
             WHERE class_id = $1
             RETURNING
                 id,

@@ -60,7 +60,7 @@ impl MessageHandler {
             Some("room.close") => self.handle_close(data, topic).await,
             Some("room.upload") => self.handle_upload(data).await,
             Some("room.adjust") => self.handle_adjust(data, audience).await,
-            Some("task.complete") => self.handle_transcoding(data, audience).await,
+            Some("task.complete") => self.handle_transcoding(data).await,
             val => {
                 debug!(
                     crate::LOG,
@@ -218,11 +218,7 @@ impl MessageHandler {
         Ok(())
     }
 
-    async fn handle_transcoding(
-        &self,
-        data: IncomingEvent<String>,
-        audience: String,
-    ) -> Result<()> {
+    async fn handle_transcoding(&self, data: IncomingEvent<String>) -> Result<()> {
         let payload = data.extract_payload();
         let task: TaskComplete = serde_json::from_str(&payload)?;
         match task.result {
@@ -230,47 +226,50 @@ impl MessageHandler {
                 stream_duration,
                 stream_id,
                 stream_uri,
+                event_room_id,
+                ..
             } => {
-                if let Some(scope) = task.tags.and_then(|v| {
-                    v.get("scope")
-                        .and_then(|s| s.as_str().map(|s| s.to_owned()))
-                }) {
-                    let mut conn = self.ctx.get_conn().await?;
-                    let webinar =
-                        crate::db::class::WebinarReadQuery::by_scope(audience, scope.clone())
-                            .execute(&mut conn)
-                            .await?
-                            .ok_or_else(|| anyhow!("Room not found by scope = {:?}", scope))?;
+                let stream_duration = stream_duration.parse::<f64>()?.round() as u64;
 
-                    crate::db::recording::TranscodingUpdateQuery::new(webinar.id())
+                let mut conn = self.ctx.get_conn().await?;
+                let webinar =
+                    crate::db::class::WebinarReadQuery::by_modified_event_room(event_room_id)
                         .execute(&mut conn)
-                        .await?;
+                        .await?
+                        .ok_or_else(|| {
+                            anyhow!(
+                                "Room not found by modified event room = {:?}",
+                                event_room_id
+                            )
+                        })?;
 
-                    let mut agent = self.ctx.agent();
-                    let timing = ShortTermTimingProperties::new(chrono::Utc::now());
-                    let props = OutgoingEventProperties::new("webinar.ready", timing);
-                    let path = format!("audiences/{}/events", webinar.audience());
-                    let payload = WebinarReady {
-                        tags: webinar.tags(),
-                        stream_duration,
-                        stream_uri,
-                        stream_id,
-                        status: "success",
-                        scope: webinar.scope(),
-                        id: webinar.id(),
-                    };
-                    let event = OutgoingEvent::broadcast(payload, props, &path);
+                crate::db::recording::TranscodingUpdateQuery::new(webinar.id())
+                    .execute(&mut conn)
+                    .await?;
 
-                    let e = Box::new(event) as Box<dyn IntoPublishableMessage + Send>;
+                let mut agent = self.ctx.agent();
+                let timing = ShortTermTimingProperties::new(chrono::Utc::now());
+                let props = OutgoingEventProperties::new("webinar.ready", timing);
+                let path = format!("audiences/{}/events", webinar.audience());
+                let payload = WebinarReady {
+                    tags: webinar.tags(),
+                    stream_duration,
+                    stream_uri,
+                    stream_id,
+                    status: "success",
+                    scope: webinar.scope(),
+                    id: webinar.id(),
+                    event_room_id,
+                };
+                let event = OutgoingEvent::broadcast(payload, props, &path);
 
-                    if let Err(err) = agent.publish_publishable(e) {
-                        error!(
-                            crate::LOG,
-                            "Failed to publish rollback event, reason = {:?}", err
-                        );
-                    }
-                } else {
-                    bail!("No scope specified in tags, payload = {:?}", payload);
+                let e = Box::new(event) as Box<dyn IntoPublishableMessage + Send>;
+
+                if let Err(err) = agent.publish_publishable(e) {
+                    error!(
+                        crate::LOG,
+                        "Failed to publish rollback event, reason = {:?}", err
+                    );
                 }
             }
             TaskCompleteResult::Failure { error } => {
@@ -342,6 +341,7 @@ enum TaskCompleteResult {
         stream_id: Uuid,
         stream_uri: String,
         stream_duration: String,
+        event_room_id: Uuid,
     },
     #[serde(rename = "failure")]
     Failure { error: JsonValue },
@@ -351,11 +351,12 @@ enum TaskCompleteResult {
 struct WebinarReady {
     tags: Option<JsonValue>,
     status: &'static str,
-    stream_duration: String,
+    stream_duration: u64,
     stream_id: Uuid,
     stream_uri: String,
     scope: String,
     id: Uuid,
+    event_room_id: Uuid,
 }
 
 #[derive(Serialize)]
