@@ -20,6 +20,7 @@ pub struct Config {
     pub tenants: Vec<String>,
     pub authn: Authn,
     pub authz: Authz,
+    pub storage: StorageConfig,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -54,4 +55,9 @@ pub struct MqttServiceConfig {
     pub account_id: AccountId,
     pub timeout: u64,
     pub api_version: String,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct StorageConfig {
+    pub base_url: String,
 }
