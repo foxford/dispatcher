@@ -43,7 +43,6 @@ const API_VERSION: &str = "v1";
 pub async fn run(db: PgPool, authz_cache: Option<Box<dyn AuthzCache>>) -> Result<()> {
     let config = config::load().context("Failed to load config")?;
     info!(crate::LOG, "App config: {:?}", config);
-    tide::log::start();
 
     let agent_id = AgentId::new(&config.agent_label, config.id.clone());
     info!(crate::LOG, "Agent id: {:?}", &agent_id);
