@@ -10,6 +10,7 @@ Route                                           | Method | Short description
 /api/v1/webinars                                | POST   | [Creates](#create-webinar) webinar and required rooms in other services.
 /api/v1/webinars/:webinar_id                    | PUT    | [Updates](#update-webinar) webinar.
 /api/v1/webinars/convert                        | POST   | [Creates](#convert-webinar) webinar with already existing event and conference rooms.
+/api/v1/webinars/:webinar_id/download           | GET    | [Downloads](#download-webinar) webinar source file.
 
 ### Create webinar
 
@@ -90,3 +91,17 @@ segments               | [[int, int]] |          | Segments
 modified_segments      | [[int, int]] |          | Modified segments
 
 Response: status 201 and webinar object as payload.
+
+### Download webinar
+
+Parameters either
+
+Attribute              | Type        | Optional | Description
+---------------------- | ----------- | -------- | --------------
+webinar_id             | uuid        |          | Webinar id
+
+Response:
+
+Attribute              | Type        | Optional | Description
+---------------------- | ----------- | -------- | --------------
+url                    | string      |          | Url, supplied with `access_token` this will let someone access the recording.

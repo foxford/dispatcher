@@ -25,6 +25,7 @@ pub enum ErrorKind {
     SerializationFailed,
     Unauthorized,
     WebinarNotFound,
+    RecordingNotFound,
 }
 
 impl ErrorKind {
@@ -77,7 +78,7 @@ impl From<ErrorKind> for ErrorKindProperties {
             ErrorKind::WebinarNotFound => ErrorKindProperties {
                 status: ResponseStatus::NOT_FOUND,
                 kind: "webinar_not_found",
-                title: "webinar not found",
+                title: "Webinar not found",
                 is_notify_sentry: false,
             },
             ErrorKind::MqttRequestFailed => ErrorKindProperties {
@@ -96,6 +97,12 @@ impl From<ErrorKind> for ErrorKindProperties {
                 status: ResponseStatus::UNAUTHORIZED,
                 kind: "authentication_failed",
                 title: "Authentication failed",
+                is_notify_sentry: false,
+            },
+            ErrorKind::RecordingNotFound => ErrorKindProperties {
+                status: ResponseStatus::NOT_FOUND,
+                kind: "recording_not_found",
+                title: "Recording not found",
                 is_notify_sentry: false,
             },
         }

@@ -14,6 +14,7 @@ use svc_authz::ClientMap as Authz;
 use tide::http::url::Url;
 
 use crate::config::Config;
+use crate::config::StorageConfig;
 
 use conference_client::ConferenceClient;
 use event_client::EventClient;
@@ -29,6 +30,7 @@ pub trait AppContext: Sync + Send {
     fn event_client(&self) -> &dyn EventClient;
     fn tq_client(&self) -> &dyn TqClient;
     fn authz(&self) -> &Authz;
+    fn storage_config(&self) -> &StorageConfig;
 }
 
 #[derive(Clone)]
@@ -106,6 +108,10 @@ impl AppContext for TideState {
 
     fn authz(&self) -> &Authz {
         &self.authz
+    }
+
+    fn storage_config(&self) -> &StorageConfig {
+        &self.config.storage
     }
 }
 
