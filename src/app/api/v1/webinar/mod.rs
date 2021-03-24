@@ -475,10 +475,11 @@ async fn convert_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
         )
         .await?;
 
-    let time = match body.time {
-        Some(t) => t,
-        None => {
-            // Lets try to fetch room time from conference and event
+    let (time, tags) = match (body.time, body.tags) {
+        // if we have both time and tags - lets use them
+        (Some(t), Some(tags)) => (t, Some(tags)),
+        // otherwise we try to fetch room time from conference and event
+        _ => {
             let conference_fut = req
                 .state()
                 .conference_client()
@@ -487,13 +488,17 @@ async fn convert_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
             match event_fut.try_join(conference_fut).await {
                 // if we got times back correctly lets pick the overlap of event and conf times
                 Ok((
-                    EventRoomResponse { time: ev_time, .. },
+                    EventRoomResponse {
+                        time: ev_time,
+                        tags,
+                        ..
+                    },
                     ConferenceRoomResponse {
                         time: conf_time, ..
                     },
-                )) => times_overlap(ev_time, conf_time),
+                )) => (times_overlap(ev_time, conf_time), tags),
                 // if there was an error we actually dont care much about the time being correct
-                Err(_) => (Bound::Unbounded, Bound::Unbounded),
+                Err(_) => ((Bound::Unbounded, Bound::Unbounded), None),
             }
         }
     };
@@ -506,7 +511,7 @@ async fn convert_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
         body.event_room_id,
     );
 
-    let query = if let Some(tags) = body.tags {
+    let query = if let Some(tags) = tags {
         query.tags(tags)
     } else {
         query

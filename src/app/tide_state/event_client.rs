@@ -136,6 +136,7 @@ pub struct EventRoomResponse {
     pub id: Uuid,
     #[serde(with = "crate::serde::ts_seconds_bound_tuple")]
     pub time: BoundedDateTimeTuple,
+    pub tags: Option<JsonValue>,
 }
 
 #[async_trait]
