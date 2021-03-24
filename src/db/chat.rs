@@ -6,14 +6,6 @@ use uuid::Uuid;
 use chrono::serde::ts_seconds;
 
 use serde_derive::Serialize;
-
-#[derive(Clone, Debug, sqlx::Type)]
-#[sqlx(type_name = "class_type", rename_all = "lowercase")]
-pub enum ClassType {
-    Webinar,
-    Classroom,
-}
-
 #[derive(Clone, Debug, Serialize, sqlx::FromRow)]
 pub struct Object {
     id: Uuid,
