@@ -29,7 +29,7 @@ pub trait ConferenceClient: Sync + Send {
         &self,
         time: BoundedDateTimeTuple,
         audience: String,
-        backend: Option<String>,
+        rtc_sharing_policy: Option<String>,
         reserve: Option<i32>,
         tags: Option<JsonValue>,
     ) -> Result<Uuid, ClientError>;
@@ -87,7 +87,7 @@ struct ConferenceRoomPayload {
     audience: String,
     #[serde(with = "crate::serde::ts_seconds_bound_tuple")]
     time: BoundedDateTimeTuple,
-    backend: Option<String>,
+    rtc_sharing_policy: Option<String>,
     reserve: Option<i32>,
     tags: Option<JsonValue>,
 }
@@ -145,7 +145,7 @@ impl ConferenceClient for MqttConferenceClient {
         &self,
         time: BoundedDateTimeTuple,
         audience: String,
-        backend: Option<String>,
+        rtc_sharing_policy: Option<String>,
         reserve: Option<i32>,
         tags: Option<JsonValue>,
     ) -> Result<Uuid, ClientError> {
@@ -154,7 +154,7 @@ impl ConferenceClient for MqttConferenceClient {
         let payload = ConferenceRoomPayload {
             time,
             audience,
-            backend,
+            rtc_sharing_policy,
             reserve,
             tags,
         };

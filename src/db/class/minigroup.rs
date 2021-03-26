@@ -9,16 +9,13 @@ use super::{ClassType, Object, Time};
 enum ReadQueryPredicate {
     Id(Uuid),
     Scope { audience: String, scope: String },
-    ConferenceRoom(Uuid),
-    EventRoom(Uuid),
-    ModifiedEventRoomId(Uuid),
 }
 
-pub struct WebinarReadQuery {
+pub struct MinigroupReadQuery {
     condition: ReadQueryPredicate,
 }
 
-impl WebinarReadQuery {
+impl MinigroupReadQuery {
     pub fn by_id(id: Uuid) -> Self {
         Self {
             condition: ReadQueryPredicate::Id(id),
@@ -28,24 +25,6 @@ impl WebinarReadQuery {
     pub fn by_scope(audience: String, scope: String) -> Self {
         Self {
             condition: ReadQueryPredicate::Scope { audience, scope },
-        }
-    }
-
-    pub fn by_conference_room(id: Uuid) -> Self {
-        Self {
-            condition: ReadQueryPredicate::ConferenceRoom(id),
-        }
-    }
-
-    pub fn by_event_room(id: Uuid) -> Self {
-        Self {
-            condition: ReadQueryPredicate::EventRoom(id),
-        }
-    }
-
-    pub fn by_modified_event_room(id: Uuid) -> Self {
-        Self {
-            condition: ReadQueryPredicate::ModifiedEventRoomId(id),
         }
     }
 
@@ -60,15 +39,6 @@ impl WebinarReadQuery {
             ReadQueryPredicate::Scope { .. } => q
                 .and_where("audience".equals("_placeholder_"))
                 .and_where("scope".equals("_placeholder_")),
-            ReadQueryPredicate::ConferenceRoom(_) => {
-                q.and_where("conference_room_id".equals("_placeholder_"))
-            }
-            ReadQueryPredicate::EventRoom(_) => {
-                q.and_where("event_room_id".equals("_placeholder_"))
-            }
-            ReadQueryPredicate::ModifiedEventRoomId(_) => {
-                q.and_where("modified_event_room_id".equals("_placeholder_"))
-            }
         };
 
         let q = q.and_where("kind".equals("_placeholder_"));
@@ -80,34 +50,31 @@ impl WebinarReadQuery {
         let query = match self.condition {
             ReadQueryPredicate::Id(id) => query.bind(id),
             ReadQueryPredicate::Scope { audience, scope } => query.bind(audience).bind(scope),
-            ReadQueryPredicate::ConferenceRoom(id) => query.bind(id),
-            ReadQueryPredicate::EventRoom(id) => query.bind(id),
-            ReadQueryPredicate::ModifiedEventRoomId(id) => query.bind(id),
         };
 
-        let query = query.bind(ClassType::Webinar);
+        let query = query.bind(ClassType::Minigroup);
 
         query.fetch_optional(conn).await
     }
 }
 
-pub struct WebinarInsertQuery {
+pub struct MinigroupInsertQuery {
     scope: String,
     audience: String,
     time: Time,
+    host: AccountId,
     tags: Option<JsonValue>,
     preserve_history: bool,
     conference_room_id: Uuid,
     event_room_id: Uuid,
-    original_event_room_id: Option<Uuid>,
-    modified_event_room_id: Option<Uuid>,
 }
 
-impl WebinarInsertQuery {
+impl MinigroupInsertQuery {
     pub fn new(
         scope: String,
         audience: String,
         time: Time,
+        host: AccountId,
         conference_room_id: Uuid,
         event_room_id: Uuid,
     ) -> Self {
@@ -115,32 +82,17 @@ impl WebinarInsertQuery {
             scope,
             audience,
             time,
+            host,
             tags: None,
             preserve_history: true,
             conference_room_id,
             event_room_id,
-            original_event_room_id: None,
-            modified_event_room_id: None,
         }
     }
 
     pub fn tags(self, tags: JsonValue) -> Self {
         Self {
             tags: Some(tags),
-            ..self
-        }
-    }
-
-    pub fn original_event_room_id(self, id: Uuid) -> Self {
-        Self {
-            original_event_room_id: Some(id),
-            ..self
-        }
-    }
-
-    pub fn modified_event_room_id(self, id: Uuid) -> Self {
-        Self {
-            modified_event_room_id: Some(id),
             ..self
         }
     }
@@ -153,10 +105,9 @@ impl WebinarInsertQuery {
             r#"
             INSERT INTO class (
                 scope, audience, time, tags, preserve_history, kind,
-                conference_room_id, event_room_id,
-                original_event_room_id, modified_event_room_id
+                conference_room_id, event_room_id, host
             )
-            VALUES ($1, $2, $3, $4, $5, $6::class_type, $7, $8, $9, $10)
+            VALUES ($1, $2, $3, $4, $5, $6::class_type, $7, $8, $9)
             RETURNING
                 id,
                 scope,
@@ -177,23 +128,22 @@ impl WebinarInsertQuery {
             time,
             self.tags,
             self.preserve_history,
-            ClassType::Webinar as ClassType,
+            ClassType::Minigroup as ClassType,
             self.conference_room_id,
             self.event_room_id,
-            self.original_event_room_id,
-            self.modified_event_room_id,
+            self.host as AccountId
         )
         .fetch_one(conn)
         .await
     }
 }
 
-pub struct WebinarTimeUpdateQuery {
+pub struct MinigroupTimeUpdateQuery {
     id: Uuid,
     time: Time,
 }
 
-impl WebinarTimeUpdateQuery {
+impl MinigroupTimeUpdateQuery {
     pub fn new(id: Uuid, time: Time) -> Self {
         Self { id, time }
     }
@@ -224,53 +174,6 @@ impl WebinarTimeUpdateQuery {
             "#,
             self.id,
             time,
-        )
-        .fetch_one(conn)
-        .await
-    }
-}
-
-pub struct WebinarUpdateQuery {
-    id: Uuid,
-    original_event_room_id: Uuid,
-    modified_event_room_id: Uuid,
-}
-
-impl WebinarUpdateQuery {
-    pub fn new(id: Uuid, original_event_room_id: Uuid, modified_event_room_id: Uuid) -> Self {
-        Self {
-            id,
-            original_event_room_id,
-            modified_event_room_id,
-        }
-    }
-
-    pub async fn execute(self, conn: &mut PgConnection) -> sqlx::Result<Object> {
-        sqlx::query_as!(
-            Object,
-            r#"
-            UPDATE class
-            SET original_event_room_id = $2,
-                modified_event_room_id = $3
-            WHERE id = $1
-            RETURNING
-                id,
-                scope,
-                kind AS "kind!: ClassType",
-                audience,
-                host AS "host?: AccountId",
-                time AS "time!: Time",
-                tags,
-                preserve_history,
-                created_at,
-                event_room_id,
-                conference_room_id,
-                original_event_room_id,
-                modified_event_room_id
-            "#,
-            self.id,
-            self.original_event_room_id,
-            self.modified_event_room_id,
         )
         .fetch_one(conn)
         .await

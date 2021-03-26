@@ -3,6 +3,7 @@ use std::ops::Bound;
 use chrono::{DateTime, Utc};
 use serde_json::Value as JsonValue;
 use sqlx::postgres::{types::PgRange, PgConnection};
+use svc_agent::AccountId;
 use uuid::Uuid;
 
 use super::{ClassType, Object, Time};
@@ -88,6 +89,7 @@ impl ClassroomInsertQuery {
                 kind AS "kind!: ClassType",
                 audience,
                 time AS "time!: Time",
+                host AS "host?: AccountId",
                 tags,
                 preserve_history,
                 created_at,

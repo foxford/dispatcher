@@ -24,6 +24,10 @@ use api::v1::classroom::{
     convert as convert_classroom, create as create_classroom,
     read_by_scope as read_classroom_by_scope,
 };
+use api::v1::minigroup::{
+    create as create_minigroup, read as read_minigroup, read_by_scope as read_minigroup_by_scope,
+    update as update_minigroup,
+};
 use api::v1::webinar::{
     convert as convert_webinar, create as create_webinar, options as read_options,
     read as read_webinar, read_by_scope as read_webinar_by_scope, update as update_webinar,
@@ -181,6 +185,7 @@ pub async fn run(db: PgPool, authz_cache: Option<Box<dyn AuthzCache>>) -> Result
     bind_redirects_routes(&mut app);
     bind_webinars_routes(&mut app);
     bind_classroom_routes(&mut app);
+    bind_minigroups_routes(&mut app);
     bind_chat_routes(&mut app);
 
     app.listen(config.http.listener_address).await?;
@@ -230,6 +235,24 @@ fn bind_classroom_routes(app: &mut tide::Server<Arc<dyn AppContext>>) {
     app.at("/api/v1/classrooms").post(create_classroom);
 
     app.at("/api/v1/classrooms/convert").post(convert_classroom);
+}
+
+fn bind_minigroups_routes(app: &mut tide::Server<Arc<dyn AppContext>>) {
+    app.at("/api/v1/minigroups/:id")
+        .with(cors())
+        .options(read_options);
+    app.at("/api/v1/audiences/:audience/minigroups/:scope")
+        .with(cors())
+        .options(read_options);
+    app.at("/api/v1/minigroups/:id")
+        .with(cors())
+        .get(read_minigroup);
+    app.at("/api/v1/audiences/:audience/minigroups/:scope")
+        .with(cors())
+        .get(read_minigroup_by_scope);
+
+    app.at("/api/v1/minigroups").post(create_minigroup);
+    app.at("/api/v1/minigroups/:id").put(update_minigroup);
 }
 
 fn bind_chat_routes(app: &mut tide::Server<Arc<dyn AppContext>>) {

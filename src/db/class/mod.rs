@@ -3,6 +3,7 @@ use std::ops::Bound;
 use chrono::serde::ts_seconds;
 use chrono::{DateTime, Utc};
 use sqlx::postgres::types::PgRange;
+use svc_agent::AccountId;
 use uuid::Uuid;
 
 use serde_derive::{Deserialize, Serialize};
@@ -11,10 +12,11 @@ use serde_json::Value as JsonValue;
 pub type BoundedDateTimeTuple = (Bound<DateTime<Utc>>, Bound<DateTime<Utc>>);
 
 #[derive(Clone, Debug, sqlx::Type)]
-#[sqlx(type_name = "class_type", rename_all = "lowercase")]
+#[sqlx(rename = "class_type", rename_all = "lowercase")]
 pub enum ClassType {
     Webinar,
     Classroom,
+    Minigroup,
 }
 
 #[derive(Clone, Debug, Serialize, sqlx::FromRow)]
@@ -34,6 +36,7 @@ pub struct Object {
     original_event_room_id: Option<Uuid>,
     modified_event_room_id: Option<Uuid>,
     preserve_history: bool,
+    host: Option<AccountId>,
 }
 
 impl Object {
@@ -119,7 +122,9 @@ pub(crate) mod serde {
 }
 
 mod classroom;
+mod minigroup;
 mod webinar;
 
 pub use classroom::*;
+pub use minigroup::*;
 pub use webinar::*;
