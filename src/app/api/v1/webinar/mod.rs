@@ -1,5 +1,4 @@
 use std::ops::Bound;
-use std::str::FromStr;
 use std::sync::Arc;
 
 use anyhow::Context;
@@ -8,7 +7,6 @@ use chrono::{DateTime, Utc};
 use serde_derive::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use sqlx::Acquire;
-use svc_authn::AccountId;
 use tide::{Request, Response};
 use uuid::Uuid;
 
@@ -23,7 +21,7 @@ use crate::db::class::BoundedDateTimeTuple;
 use crate::db::class::Object as Class;
 use crate::db::recording::Segments;
 
-type AppResult = Result<tide::Response, crate::app::error::Error>;
+use super::{extract_id, extract_param, validate_token, AppResult};
 
 #[derive(Serialize)]
 struct WebinarObject {
@@ -93,7 +91,7 @@ pub async fn read(req: Request<Arc<dyn AppContext>>) -> tide::Result {
     read_inner(req).await.or_else(|e| Ok(e.to_tide_response()))
 }
 async fn read_inner(req: Request<Arc<dyn AppContext>>) -> AppResult {
-    let account_id = fetch_token(&req).error(AppErrorKind::Unauthorized)?;
+    let account_id = validate_token(&req).error(AppErrorKind::Unauthorized)?;
     let state = req.state();
 
     let webinar = find_webinar(&req)
@@ -167,7 +165,7 @@ pub async fn read_by_scope(req: Request<Arc<dyn AppContext>>) -> tide::Result {
 }
 async fn read_by_scope_inner(req: Request<Arc<dyn AppContext>>) -> AppResult {
     let state = req.state();
-    let account_id = fetch_token(&req).error(AppErrorKind::Unauthorized)?;
+    let account_id = validate_token(&req).error(AppErrorKind::Unauthorized)?;
 
     let webinar = match find_webinar_by_scope(&req).await {
         Ok(webinar) => webinar,
@@ -267,7 +265,7 @@ pub async fn create(req: Request<Arc<dyn AppContext>>) -> tide::Result {
 async fn create_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
     let body: Webinar = req.body_json().await.error(AppErrorKind::InvalidPayload)?;
 
-    let account_id = fetch_token(&req).error(AppErrorKind::Unauthorized)?;
+    let account_id = validate_token(&req).error(AppErrorKind::Unauthorized)?;
     let state = req.state();
 
     let object = AuthzObject::new(&["webinars"]).into();
@@ -365,7 +363,7 @@ pub async fn update(req: Request<Arc<dyn AppContext>>) -> tide::Result {
 async fn update_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
     let body: WebinarUpdate = req.body_json().await.error(AppErrorKind::InvalidPayload)?;
 
-    let account_id = fetch_token(&req).error(AppErrorKind::Unauthorized)?;
+    let account_id = validate_token(&req).error(AppErrorKind::Unauthorized)?;
     let state = req.state();
 
     let webinar = find_webinar(&req)
@@ -460,7 +458,7 @@ async fn convert_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
         .await
         .error(AppErrorKind::InvalidPayload)?;
 
-    let account_id = fetch_token(&req).error(AppErrorKind::Unauthorized)?;
+    let account_id = validate_token(&req).error(AppErrorKind::Unauthorized)?;
     let state = req.state();
 
     let object = AuthzObject::new(&["webinars"]).into();
@@ -576,22 +574,6 @@ async fn convert_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
     Ok(response)
 }
 
-fn fetch_token<T: std::ops::Deref<Target = dyn AppContext>>(
-    req: &Request<T>,
-) -> anyhow::Result<AccountId> {
-    let token = req
-        .header("Authorization")
-        .and_then(|h| h.get(0))
-        .map(|header| header.to_string());
-
-    let state = req.state();
-    let account_id = state
-        .validate_token(token.as_deref())
-        .context("Token authentication failed")?;
-
-    Ok(account_id)
-}
-
 async fn find_webinar(
     req: &Request<Arc<dyn AppContext>>,
 ) -> anyhow::Result<crate::db::class::Object> {
@@ -605,19 +587,6 @@ async fn find_webinar(
             .ok_or_else(|| anyhow!("Failed to find webinar"))?
     };
     Ok(webinar)
-}
-
-fn extract_param<'a>(req: &'a Request<Arc<dyn AppContext>>, key: &str) -> anyhow::Result<&'a str> {
-    req.param(key)
-        .map_err(|e| anyhow!("Failed to get {}, reason = {:?}", key, e))
-}
-
-fn extract_id(req: &Request<Arc<dyn AppContext>>) -> anyhow::Result<Uuid> {
-    let id = extract_param(req, "id")?;
-    let id = Uuid::from_str(id)
-        .map_err(|e| anyhow!("Failed to convert id to uuid, reason = {:?}", e))?;
-
-    Ok(id)
 }
 
 async fn find_webinar_by_scope(
