@@ -3,7 +3,6 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use serde_derive::{Deserialize, Serialize};
-use svc_authn::AccountId;
 use tide::{Request, Response};
 use uuid::Uuid;
 
@@ -13,7 +12,7 @@ use crate::app::error::ErrorKind as AppErrorKind;
 use crate::app::AppContext;
 use crate::db::chat::Object as Chat;
 
-type AppResult = Result<tide::Response, crate::app::error::Error>;
+use super::{extract_param, validate_token, AppResult};
 
 #[derive(Serialize)]
 struct ChatObject {
@@ -46,7 +45,7 @@ pub async fn read_by_scope(req: Request<Arc<dyn AppContext>>) -> tide::Result {
 }
 async fn read_by_scope_inner(req: Request<Arc<dyn AppContext>>) -> AppResult {
     let state = req.state();
-    let account_id = fetch_token(&req).error(AppErrorKind::Unauthorized)?;
+    let account_id = validate_token(&req).error(AppErrorKind::Unauthorized)?;
 
     let chat = match find_chat_by_scope(&req).await {
         Ok(chat) => chat,
@@ -88,7 +87,7 @@ pub async fn create(req: Request<Arc<dyn AppContext>>) -> tide::Result {
 async fn create_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
     let body: ChatPayload = req.body_json().await.error(AppErrorKind::InvalidPayload)?;
 
-    let account_id = fetch_token(&req).error(AppErrorKind::Unauthorized)?;
+    let account_id = validate_token(&req).error(AppErrorKind::Unauthorized)?;
     let state = req.state();
 
     let object = AuthzObject::new(&["chats"]).into();
@@ -163,7 +162,7 @@ async fn convert_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
         .await
         .error(AppErrorKind::InvalidPayload)?;
 
-    let account_id = fetch_token(&req).error(AppErrorKind::Unauthorized)?;
+    let account_id = validate_token(&req).error(AppErrorKind::Unauthorized)?;
     let state = req.state();
 
     let object = AuthzObject::new(&["chats"]).into();
@@ -210,27 +209,6 @@ async fn convert_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
     let response = Response::builder(201).body(body).build();
 
     Ok(response)
-}
-
-fn fetch_token<T: std::ops::Deref<Target = dyn AppContext>>(
-    req: &Request<T>,
-) -> anyhow::Result<AccountId> {
-    let token = req
-        .header("Authorization")
-        .and_then(|h| h.get(0))
-        .map(|header| header.to_string());
-
-    let state = req.state();
-    let account_id = state
-        .validate_token(token.as_deref())
-        .context("Token authentication failed")?;
-
-    Ok(account_id)
-}
-
-fn extract_param<'a>(req: &'a Request<Arc<dyn AppContext>>, key: &str) -> anyhow::Result<&'a str> {
-    req.param(key)
-        .map_err(|e| anyhow!("Failed to get {}, reason = {:?}", key, e))
 }
 
 async fn find_chat_by_scope(req: &Request<Arc<dyn AppContext>>) -> anyhow::Result<Chat> {

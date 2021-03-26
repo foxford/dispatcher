@@ -1,12 +1,18 @@
+use std::str::FromStr;
 use std::sync::Arc;
 
+use anyhow::Context;
 use percent_encoding::{percent_encode, NON_ALPHANUMERIC};
 use serde_derive::Deserialize;
+use svc_agent::AccountId;
 use tide::{Request, Response};
+use uuid::Uuid;
 
 use crate::app::AppContext;
 
 use super::FEATURE_POLICY;
+
+type AppResult = Result<tide::Response, crate::app::error::Error>;
 
 pub async fn healthz(_req: Request<Arc<dyn AppContext>>) -> tide::Result {
     Ok("Ok".into())
@@ -91,6 +97,35 @@ pub async fn redirect_to_frontend(req: Request<Arc<dyn AppContext>>) -> tide::Re
         .build();
 
     Ok(response)
+}
+
+fn validate_token<T: std::ops::Deref<Target = dyn AppContext>>(
+    req: &Request<T>,
+) -> anyhow::Result<AccountId> {
+    let token = req
+        .header("Authorization")
+        .and_then(|h| h.get(0))
+        .map(|header| header.to_string());
+
+    let state = req.state();
+    let account_id = state
+        .validate_token(token.as_deref())
+        .context("Token authentication failed")?;
+
+    Ok(account_id)
+}
+
+fn extract_param<'a>(req: &'a Request<Arc<dyn AppContext>>, key: &str) -> anyhow::Result<&'a str> {
+    req.param(key)
+        .map_err(|e| anyhow!("Failed to get {}, reason = {:?}", key, e))
+}
+
+fn extract_id(req: &Request<Arc<dyn AppContext>>) -> anyhow::Result<Uuid> {
+    let id = extract_param(req, "id")?;
+    let id = Uuid::from_str(id)
+        .map_err(|e| anyhow!("Failed to convert id to uuid, reason = {:?}", e))?;
+
+    Ok(id)
 }
 
 pub mod chat;

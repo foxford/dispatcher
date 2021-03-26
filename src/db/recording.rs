@@ -21,10 +21,6 @@ pub struct Object {
 }
 
 impl Object {
-    pub fn class_id(&self) -> Uuid {
-        self.class_id
-    }
-
     pub fn stream_uri(&self) -> &str {
         &self.stream_uri
     }

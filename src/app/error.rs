@@ -21,7 +21,6 @@ pub enum ErrorKind {
     DbConnAcquisitionFailed,
     DbQueryFailed,
     InvalidPayload,
-    InvalidRoomTime,
     MqttRequestFailed,
     SerializationFailed,
     Unauthorized,
@@ -73,12 +72,6 @@ impl From<ErrorKind> for ErrorKindProperties {
                 status: ResponseStatus::BAD_REQUEST,
                 kind: "invalid_payload",
                 title: "Invalid payload",
-                is_notify_sentry: false,
-            },
-            ErrorKind::InvalidRoomTime => ErrorKindProperties {
-                status: ResponseStatus::BAD_REQUEST,
-                kind: "invalid_room_time",
-                title: "Invalid room time",
                 is_notify_sentry: false,
             },
             ErrorKind::WebinarNotFound => ErrorKindProperties {
