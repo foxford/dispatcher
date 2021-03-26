@@ -253,7 +253,6 @@ struct Webinar {
     time: BoundedDateTimeTuple,
     tags: Option<serde_json::Value>,
     reserve: Option<i32>,
-    backend: Option<String>,
     #[serde(default)]
     locked_chat: bool,
 }
@@ -288,7 +287,7 @@ async fn create_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
     let conference_fut = req.state().conference_client().create_room(
         conference_time,
         body.audience.clone(),
-        body.backend,
+        Some("shared".into()),
         body.reserve,
         body.tags.clone(),
     );

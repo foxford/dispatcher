@@ -12,3 +12,5 @@
         - [Events](webinars/events.md)
     - [Classroom](classrooms/overview.md)
         - [API](classrooms/api.md)
+    - [Minigroups](minigroups/overview.md)
+        - [API](minigroups/api.md)
