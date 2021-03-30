@@ -177,6 +177,7 @@ pub async fn run(db: PgPool, authz_cache: Option<Box<dyn AuthzCache>>) -> Result
     }
 
     let mut app = tide::with_state(state);
+    app.with(request_logger::LogMiddleware::new());
     bind_redirects_routes(&mut app);
     bind_webinars_routes(&mut app);
     bind_classroom_routes(&mut app);
@@ -290,4 +291,5 @@ mod api;
 mod authz;
 mod error;
 mod info;
+mod request_logger;
 mod tide_state;
