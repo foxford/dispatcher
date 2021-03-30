@@ -1,4 +1,3 @@
-use std::convert::TryInto;
 use std::time::Duration;
 
 use anyhow::Result;
@@ -26,14 +25,12 @@ pub trait TqClient: Sync + Send {
 
 pub struct HttpTqClient {
     client: isahc::HttpClient,
-    base_url: http::uri::Uri,
+    base_url: url::Url,
 }
 
 impl HttpTqClient {
     pub fn new(base_url: String, token: String, timeout: u64) -> Self {
-        let base_url = base_url
-            .try_into()
-            .expect("Failed to convert HttpTqClient base url");
+        let base_url = url::Url::parse(&base_url).expect("Failed to convert HttpTqClient base url");
 
         let client = isahc::HttpClient::builder()
             .timeout(Duration::from_secs(timeout))
@@ -95,17 +92,24 @@ impl TqClient for HttpTqClient {
             template: "transcode-stream-to-hls".into(),
         };
 
-        let url = format!(
-            "{}/api/v1/audiences/{}/tasks/{}",
-            self.base_url,
+        let route = format!(
+            "/api/v1/audiences/{}/tasks/{}",
             webinar.audience(),
             webinar.scope()
         );
+
+        let url = self.base_url.join(&route).map_err(|e| {
+            ClientError::HttpError(format!(
+                "Failed to join base_url with route, base_url = {}, route = {}, err = {}",
+                self.base_url, route, e
+            ))
+        })?;
+
         let json =
             serde_json::to_string(&task).map_err(|e| ClientError::PayloadError(e.to_string()))?;
         let mut resp = self
             .client
-            .post_async(url, json)
+            .post_async(url.as_str(), json)
             .await
             .map_err(|e| ClientError::HttpError(e.to_string()))?;
         if resp.status() == http::StatusCode::OK {
