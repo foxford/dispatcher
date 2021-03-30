@@ -132,15 +132,16 @@ async fn read_inner(req: Request<Arc<dyn AppContext>>) -> AppResult {
             });
         }
 
-        if let Some(md_event_id) = webinar.modified_event_room_id() {
-            webinar_obj.add_version(WebinarVersion {
-                version: "modified",
-                stream_id: recording.rtc_id(),
-                event_room_id: md_event_id,
-                tags: webinar.tags(),
-            });
-        }
         if recording.transcoded_at().is_some() {
+            if let Some(md_event_id) = webinar.modified_event_room_id() {
+                webinar_obj.add_version(WebinarVersion {
+                    version: "modified",
+                    stream_id: recording.rtc_id(),
+                    event_room_id: md_event_id,
+                    tags: webinar.tags(),
+                });
+            }
+
             webinar_obj.set_status("transcoded");
         } else if recording.adjusted_at().is_some() {
             webinar_obj.set_status("adjusted");
