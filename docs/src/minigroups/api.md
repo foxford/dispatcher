@@ -20,7 +20,7 @@ scope                  | string      |          | Scope
 audience               | string      |          | Audience
 time                   | [int, int]  | +        | Start and end
 tags                   | json object | +        | Arbitrary tags.
-host                   | string      |          | Host of the nightmare
+host                   | string      |          | Host account id
 reserve                | i32         | +        | Slots to reserve on janus backend.
 locked_chat            | bool        | +        | Lock chat in created event room
 
@@ -53,9 +53,11 @@ Response: status 200 and minigroup object as payload.
 ### Update minigroup
 
 Parameters:
+All parameters are optional but at least one is expected
 
 Свойство               | Тип         | Optional | Description
 ---------------------- | ----------- | -------- | -------------------------------------------------
 time                   | [int, int]  | +        | New time
+host                   | string      | +        | Host account id
 
 Response: status 200 and minigroup object as payload.

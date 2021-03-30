@@ -28,7 +28,6 @@ struct MinigroupObject {
 struct RealTimeObject {
     conference_room_id: Uuid,
     event_room_id: Uuid,
-    fallback_uri: Option<String>,
     rtc_id: Option<Uuid>,
 }
 
@@ -37,7 +36,6 @@ impl From<Class> for MinigroupObject {
         Self {
             id: obj.scope(),
             real_time: RealTimeObject {
-                fallback_uri: None,
                 conference_room_id: obj.conference_room_id(),
                 event_room_id: obj.event_room_id(),
                 rtc_id: None,
@@ -224,8 +222,9 @@ async fn create_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
 
 #[derive(Deserialize)]
 struct MinigroupUpdate {
-    #[serde(with = "crate::serde::ts_seconds_bound_tuple")]
-    time: BoundedDateTimeTuple,
+    #[serde(with = "crate::serde::ts_seconds_option_bound_tuple")]
+    time: Option<BoundedDateTimeTuple>,
+    host: Option<AccountId>,
 }
 
 pub async fn update(req: Request<Arc<dyn AppContext>>) -> tide::Result {
@@ -255,28 +254,36 @@ async fn update_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
         )
         .await?;
 
-    let conference_time = match body.time.0 {
-        Bound::Included(t) | Bound::Excluded(t) => (Bound::Included(t), body.time.1),
-        Bound::Unbounded => (Bound::Unbounded, Bound::Unbounded),
-    };
-    let conference_fut = req
-        .state()
-        .conference_client()
-        .update_room(minigroup.id(), conference_time);
+    if let Some(time) = &body.time {
+        let conference_time = match time.0 {
+            Bound::Included(t) | Bound::Excluded(t) => (Bound::Included(t), time.1),
+            Bound::Unbounded => (Bound::Unbounded, Bound::Unbounded),
+        };
+        let conference_fut = req
+            .state()
+            .conference_client()
+            .update_room(minigroup.id(), conference_time);
 
-    let event_time = (Bound::Included(Utc::now()), Bound::Unbounded);
-    let event_fut = req
-        .state()
-        .event_client()
-        .update_room(minigroup.id(), event_time);
+        let event_time = (Bound::Included(Utc::now()), Bound::Unbounded);
+        let event_fut = req
+            .state()
+            .event_client()
+            .update_room(minigroup.id(), event_time);
 
-    event_fut
-        .try_join(conference_fut)
-        .await
-        .context("Services requests")
-        .error(AppErrorKind::MqttRequestFailed)?;
+        event_fut
+            .try_join(conference_fut)
+            .await
+            .context("Services requests")
+            .error(AppErrorKind::MqttRequestFailed)?;
+    }
 
-    let query = crate::db::class::MinigroupTimeUpdateQuery::new(minigroup.id(), body.time.into());
+    let mut query = crate::db::class::MinigroupTimeUpdateQuery::new(minigroup.id());
+    if let Some(t) = body.time {
+        query.time(t.into());
+    }
+    if let Some(h) = body.host {
+        query.host(h);
+    }
 
     let mut conn = req
         .state()

@@ -140,42 +140,66 @@ impl MinigroupInsertQuery {
 
 pub struct MinigroupTimeUpdateQuery {
     id: Uuid,
-    time: Time,
+    time: Option<Time>,
+    host: Option<AccountId>,
 }
 
 impl MinigroupTimeUpdateQuery {
-    pub fn new(id: Uuid, time: Time) -> Self {
-        Self { id, time }
+    pub fn new(id: Uuid) -> Self {
+        Self {
+            id,
+            time: None,
+            host: None,
+        }
     }
 
-    pub async fn execute(self, conn: &mut PgConnection) -> sqlx::Result<Object> {
-        let time: PgRange<DateTime<Utc>> = self.time.into();
+    pub fn time(&mut self, time: Time) -> &mut Self {
+        self.time = Some(time);
+        self
+    }
 
-        sqlx::query_as!(
-            Object,
-            r#"
-            UPDATE class
-            SET time = $2
-            WHERE id = $1
-            RETURNING
-                id,
-                scope,
-                kind AS "kind!: ClassType",
-                audience,
-                host AS "host?: AccountId",
-                time AS "time!: Time",
-                tags,
-                preserve_history,
-                created_at,
-                event_room_id,
-                conference_room_id,
-                original_event_room_id,
-                modified_event_room_id
-            "#,
-            self.id,
-            time,
-        )
-        .fetch_one(conn)
-        .await
+    pub fn host(&mut self, host: AccountId) -> &mut Self {
+        self.host = Some(host);
+        self
+    }
+
+    pub async fn execute(&self, conn: &mut PgConnection) -> sqlx::Result<Object> {
+        use quaint::ast::{Comparable, Update};
+        use quaint::visitor::{Postgres, Visitor};
+
+        let q = Update::table("class");
+        let q = match self.time {
+            Some(_) => q.set("time", "__placeholder__"),
+            None => q,
+        };
+        let q = match self.host {
+            Some(_) => q.set("host", "__placeholder__"),
+            None => q,
+        };
+
+        let q = q
+            .so_that("id".equals(self.id))
+            .so_that("kind".equals("__placeholder__"));
+
+        let (sql, _bindings) = Postgres::build(q);
+
+        let query = sqlx::query_as(&sql);
+
+        let query = match &self.time {
+            Some(t) => {
+                let t: PgRange<DateTime<Utc>> = t.into();
+                query.bind(t)
+            }
+            None => query,
+        };
+
+        let query = match &self.host {
+            Some(h) => query.bind(h),
+            None => query,
+        };
+
+        let query = query.bind(self.id);
+
+        query.fetch_one(conn).await
     }
 }
