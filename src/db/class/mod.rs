@@ -97,6 +97,12 @@ impl Into<PgRange<DateTime<Utc>>> for Time {
     }
 }
 
+impl Into<PgRange<DateTime<Utc>>> for &Time {
+    fn into(self) -> PgRange<DateTime<Utc>> {
+        self.0.clone()
+    }
+}
+
 pub(crate) mod serde {
     pub(crate) mod time {
         use super::super::Time;
