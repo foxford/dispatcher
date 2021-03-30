@@ -13,6 +13,7 @@ use sqlx::postgres::PgPool;
 use svc_authz::cache::{create_pool, AuthzCache, RedisCache};
 
 const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
+const APP: &str = env!("CARGO_PKG_NAME");
 
 lazy_static! {
     static ref LOG: slog::Logger = {
@@ -25,7 +26,7 @@ lazy_static! {
 
 #[async_std::main]
 async fn main() -> Result<()> {
-    warn!(crate::LOG, "Launching event, version: {}", APP_VERSION);
+    warn!(crate::LOG, "Launching {}, version: {}", APP, APP_VERSION);
 
     let db = create_db().await;
     let authz_cache = create_redis();
