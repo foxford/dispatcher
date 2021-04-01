@@ -20,6 +20,7 @@ use crate::clients::conference::{ConferenceClient, MqttConferenceClient};
 use crate::clients::event::{EventClient, MqttEventClient};
 use crate::clients::tq::{HttpTqClient, TqClient};
 use crate::config::{self, Config};
+use api::v1::authz::proxy as proxy_authz;
 use api::v1::chat::{
     convert as convert_chat, create as create_chat, read_by_scope as read_chat_by_scope,
 };
@@ -184,6 +185,7 @@ pub async fn run(db: PgPool, authz_cache: Option<Box<dyn AuthzCache>>) -> Result
     bind_classroom_routes(&mut app);
     bind_minigroups_routes(&mut app);
     bind_chat_routes(&mut app);
+    bind_authz_routes(&mut app);
 
     let app_future = app.listen(config.http.listener_address);
     pin_utils::pin_mut!(app_future);
@@ -276,6 +278,10 @@ fn bind_chat_routes(app: &mut tide::Server<Arc<dyn AppContext>>) {
     app.at("/api/v1/chats").post(create_chat);
 
     app.at("/api/v1/chats/convert").post(convert_chat);
+}
+
+fn bind_authz_routes(app: &mut tide::Server<Arc<dyn AppContext>>) {
+    app.at("/api/v1/authz/:audience").post(proxy_authz);
 }
 
 fn build_event_client(config: &Config, dispatcher: Arc<Dispatcher>) -> Arc<dyn EventClient> {

@@ -26,3 +26,17 @@ Possible values for `OBJECT` and `ACTION` are listed under each class type:
 * [chats](./chats.md)
 * [classrooms](./classrooms.md)
 * [webinars](./webinars.md)
+
+## Proxy
+
+This service also provides authorization proxying facility:
+
+Route                             | Method | Short description
+--------------------------------- | ------ | ----------
+/api/v1/api/v1/authz/:audience    | POST   | [Proxies](proxy.md#proxy) chat.
+
+Dispatcher will proxy all requests arriving at this route with updated authz object.
+
+Payload format mirrors the one shown in example above.
+
+See [proxy](proxy.md#proxy) docs for more info.

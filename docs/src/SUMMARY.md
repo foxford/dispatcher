@@ -7,6 +7,7 @@
         - [Classrooms](authz/classrooms.md)
         - [Chats](authz/chats.md)
         - [Event types](authz/events.md)
+        - [Proxy](authz/proxy.md)
     - [Webinars integration](webinars/overview.md)
         - [API](webinars/api.md)
         - [Events](webinars/events.md)

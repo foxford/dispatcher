@@ -1,5 +1,83 @@
 {
   "db": "PostgreSQL",
+  "015a902187052d30ad46d1e8cb3a6ca42c8b5e03ea7b73d50d0aebbe6528a5fc": {
+    "query": "\n            INSERT INTO recording (class_id, rtc_id, segments, modified_segments, stream_uri, started_at, adjusted_at, transcoded_at)\n            VALUES ($1, $2, $3, $4, $5, NOW(), NOW(), NOW())\n            RETURNING\n                id,\n                class_id,\n                rtc_id,\n                stream_uri,\n                segments AS \"segments!: Segments\",\n                started_at,\n                modified_segments AS \"modified_segments!: Option<Segments>\",\n                created_at,\n                adjusted_at,\n                transcoded_at\n            ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 1,
+          "name": "class_id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 2,
+          "name": "rtc_id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 3,
+          "name": "stream_uri",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 4,
+          "name": "segments!: Segments",
+          "type_info": "Int8RangeArray"
+        },
+        {
+          "ordinal": 5,
+          "name": "started_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 6,
+          "name": "modified_segments!: Option<Segments>",
+          "type_info": "Int8RangeArray"
+        },
+        {
+          "ordinal": 7,
+          "name": "created_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 8,
+          "name": "adjusted_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 9,
+          "name": "transcoded_at",
+          "type_info": "Timestamptz"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Uuid",
+          "Uuid",
+          "Int8RangeArray",
+          "Int8RangeArray",
+          "Text"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        false,
+        true,
+        true
+      ]
+    }
+  },
   "03bc1c3efcbb6290fd2f533a47aea237e664f439cb1f12479a4288425b544129": {
     "query": "\n            SELECT\n                id,\n                class_id,\n                rtc_id,\n                stream_uri,\n                segments AS \"segments!: Segments\",\n                modified_segments AS \"modified_segments!: Option<Segments>\",\n                started_at,\n                created_at,\n                adjusted_at,\n                transcoded_at,\n                created_by AS \"created_by: AgentId\"\n            FROM recording\n            WHERE class_id = $1\n            ",
     "describe": {
@@ -109,6 +187,86 @@
         true,
         true,
         false
+      ]
+    }
+  },
+  "0b61b8f63cfbd0404c27436656894953c69de9c4156b6eefc6d6e337af3d1dec": {
+    "query": "\n            SELECT\n                id,\n                class_id,\n                rtc_id,\n                stream_uri,\n                segments AS \"segments!: Segments\",\n                modified_segments AS \"modified_segments!: Option<Segments>\",\n                started_at,\n                created_at,\n                adjusted_at,\n                transcoded_at,\n                deleted_at\n            FROM recording\n            WHERE class_id = $1 AND deleted_at IS NULL\n            ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 1,
+          "name": "class_id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 2,
+          "name": "rtc_id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 3,
+          "name": "stream_uri",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 4,
+          "name": "segments!: Segments",
+          "type_info": "Int8RangeArray"
+        },
+        {
+          "ordinal": 5,
+          "name": "modified_segments!: Option<Segments>",
+          "type_info": "Int8RangeArray"
+        },
+        {
+          "ordinal": 6,
+          "name": "started_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 7,
+          "name": "created_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 8,
+          "name": "adjusted_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 9,
+          "name": "transcoded_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 10,
+          "name": "deleted_at",
+          "type_info": "Timestamptz"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Uuid"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        false,
+        false,
+        true,
+        true,
+        true
       ]
     }
   },
@@ -263,6 +421,93 @@
         false,
         false,
         false,
+        true,
+        true
+      ]
+    }
+  },
+  "11cbe70eff0b4ec3e8a8785e6f589a4d0a495abde2fcc6ed480598ff4e9a2f4c": {
+    "query": "\n            INSERT INTO recording (\n                class_id, rtc_id, stream_uri, segments, modified_segments, started_at, adjusted_at,\n                transcoded_at\n            )\n            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)\n            RETURNING\n                id,\n                class_id,\n                rtc_id,\n                stream_uri,\n                segments AS \"segments!: Segments\",\n                started_at,\n                modified_segments AS \"modified_segments!: Option<Segments>\",\n                created_at,\n                adjusted_at,\n                transcoded_at,\n                deleted_at\n            ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 1,
+          "name": "class_id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 2,
+          "name": "rtc_id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 3,
+          "name": "stream_uri",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 4,
+          "name": "segments!: Segments",
+          "type_info": "Int8RangeArray"
+        },
+        {
+          "ordinal": 5,
+          "name": "started_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 6,
+          "name": "modified_segments!: Option<Segments>",
+          "type_info": "Int8RangeArray"
+        },
+        {
+          "ordinal": 7,
+          "name": "created_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 8,
+          "name": "adjusted_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 9,
+          "name": "transcoded_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 10,
+          "name": "deleted_at",
+          "type_info": "Timestamptz"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Uuid",
+          "Uuid",
+          "Text",
+          "Int8RangeArray",
+          "Int8RangeArray",
+          "Timestamptz",
+          "Timestamptz",
+          "Timestamptz"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        false,
+        true,
         true,
         true
       ]
@@ -500,6 +745,134 @@
       ]
     }
   },
+  "227cb6555bfbb2baa29208c31f2fa9ed433c8f1ee57ce99bfecbd2eec3f16408": {
+    "query": "\n            UPDATE class\n            SET time = $2, event_room_id = $3, conference_room_id = $4, original_event_room_id = NULL, modified_event_room_id = NULL\n            WHERE id = $1\n            RETURNING\n                id,\n                scope,\n                kind AS \"kind!: ClassType\",\n                audience,\n                host AS \"host?: AccountId\",\n                time AS \"time!: Time\",\n                tags,\n                preserve_history,\n                created_at,\n                event_room_id,\n                conference_room_id,\n                original_event_room_id,\n                modified_event_room_id,\n                reserve\n            ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 1,
+          "name": "scope",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 2,
+          "name": "kind!: ClassType",
+          "type_info": {
+            "Custom": {
+              "name": "class_type",
+              "kind": {
+                "Enum": [
+                  "webinar",
+                  "classroom",
+                  "minigroup"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "ordinal": 3,
+          "name": "audience",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 4,
+          "name": "host?: AccountId",
+          "type_info": {
+            "Custom": {
+              "name": "account_id",
+              "kind": {
+                "Composite": [
+                  [
+                    "label",
+                    "Text"
+                  ],
+                  [
+                    "audience",
+                    "Text"
+                  ]
+                ]
+              }
+            }
+          }
+        },
+        {
+          "ordinal": 5,
+          "name": "time!: Time",
+          "type_info": "TstzRange"
+        },
+        {
+          "ordinal": 6,
+          "name": "tags",
+          "type_info": "Json"
+        },
+        {
+          "ordinal": 7,
+          "name": "preserve_history",
+          "type_info": "Bool"
+        },
+        {
+          "ordinal": 8,
+          "name": "created_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 9,
+          "name": "event_room_id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 10,
+          "name": "conference_room_id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 11,
+          "name": "original_event_room_id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 12,
+          "name": "modified_event_room_id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 13,
+          "name": "reserve",
+          "type_info": "Int4"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Uuid",
+          "TstzRange",
+          "Uuid",
+          "Uuid"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        true,
+        false,
+        true,
+        false,
+        false,
+        false,
+        false,
+        true,
+        true,
+        true
+      ]
+    }
+  },
   "22965438c7ad9ab618bfcad4af298dcdf7f5d3f6c84cccc21a36fef20a897103": {
     "query": "DELETE FROM scope WHERE scope = $1",
     "describe": {
@@ -510,6 +883,90 @@
         ]
       },
       "nullable": []
+    }
+  },
+  "302f60e2b84d640ae3fb2e1d3d52a408be9eecd6ae8f7262155fca3a341562e4": {
+    "query": "\n            INSERT INTO recording (class_id, rtc_id, segments, modified_segments, stream_uri, started_at, adjusted_at, transcoded_at)\n            VALUES ($1, $2, $3, $4, $5, NOW(), NOW(), NOW())\n            RETURNING\n                id,\n                class_id,\n                rtc_id,\n                stream_uri,\n                segments AS \"segments!: Segments\",\n                started_at,\n                modified_segments AS \"modified_segments!: Option<Segments>\",\n                created_at,\n                adjusted_at,\n                transcoded_at,\n                deleted_at\n            ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 1,
+          "name": "class_id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 2,
+          "name": "rtc_id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 3,
+          "name": "stream_uri",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 4,
+          "name": "segments!: Segments",
+          "type_info": "Int8RangeArray"
+        },
+        {
+          "ordinal": 5,
+          "name": "started_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 6,
+          "name": "modified_segments!: Option<Segments>",
+          "type_info": "Int8RangeArray"
+        },
+        {
+          "ordinal": 7,
+          "name": "created_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 8,
+          "name": "adjusted_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 9,
+          "name": "transcoded_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 10,
+          "name": "deleted_at",
+          "type_info": "Timestamptz"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Uuid",
+          "Uuid",
+          "Int8RangeArray",
+          "Int8RangeArray",
+          "Text"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        false,
+        true,
+        true,
+        true
+      ]
     }
   },
   "37284eda5490188734b0ee1a9877aa205948f693260376a8e326bb88b08bab85": {
@@ -551,6 +1008,246 @@
         false,
         false,
         false
+      ]
+    }
+  },
+  "37a083156f4e05af641520aafe7b4fa60c9a15c13f5f35a3d06301b8aed0ef0b": {
+    "query": "\n            UPDATE class\n            SET original_event_room_id = $2,\n                modified_event_room_id = $3\n            WHERE id = $1\n            RETURNING\n                id,\n                scope,\n                kind AS \"kind!: ClassType\",\n                audience,\n                host AS \"host?: AccountId\",\n                time AS \"time!: Time\",\n                tags,\n                preserve_history,\n                created_at,\n                event_room_id,\n                conference_room_id,\n                original_event_room_id,\n                modified_event_room_id,\n                reserve\n            ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 1,
+          "name": "scope",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 2,
+          "name": "kind!: ClassType",
+          "type_info": {
+            "Custom": {
+              "name": "class_type",
+              "kind": {
+                "Enum": [
+                  "webinar",
+                  "classroom",
+                  "minigroup"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "ordinal": 3,
+          "name": "audience",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 4,
+          "name": "host?: AccountId",
+          "type_info": {
+            "Custom": {
+              "name": "account_id",
+              "kind": {
+                "Composite": [
+                  [
+                    "label",
+                    "Text"
+                  ],
+                  [
+                    "audience",
+                    "Text"
+                  ]
+                ]
+              }
+            }
+          }
+        },
+        {
+          "ordinal": 5,
+          "name": "time!: Time",
+          "type_info": "TstzRange"
+        },
+        {
+          "ordinal": 6,
+          "name": "tags",
+          "type_info": "Json"
+        },
+        {
+          "ordinal": 7,
+          "name": "preserve_history",
+          "type_info": "Bool"
+        },
+        {
+          "ordinal": 8,
+          "name": "created_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 9,
+          "name": "event_room_id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 10,
+          "name": "conference_room_id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 11,
+          "name": "original_event_room_id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 12,
+          "name": "modified_event_room_id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 13,
+          "name": "reserve",
+          "type_info": "Int4"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Uuid",
+          "Uuid",
+          "Uuid"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        true,
+        false,
+        true,
+        false,
+        false,
+        false,
+        false,
+        true,
+        true,
+        true
+      ]
+    }
+  },
+  "392815880feea9a229e7519d683da6fa2d59f08926906d68031549b1d8b87793": {
+    "query": "\n            INSERT INTO frontend (url)\n            VALUES ($1)\n            RETURNING id, url, created_at\n            ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 1,
+          "name": "url",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 2,
+          "name": "created_at",
+          "type_info": "Timestamptz"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Text"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false
+      ]
+    }
+  },
+  "55daf56558b7e7590be0bdbd0cdf5a253dff114f760b8c413c2d520c00079c21": {
+    "query": "\n            UPDATE recording\n            SET modified_segments = $2,\n                adjusted_at = NOW()\n            WHERE class_id = $1 AND deleted_at IS NULL\n            RETURNING\n                id,\n                class_id,\n                rtc_id,\n                stream_uri,\n                segments AS \"segments!: Segments\",\n                started_at,\n                modified_segments AS \"modified_segments!: Option<Segments>\",\n                created_at,\n                adjusted_at,\n                transcoded_at,\n                deleted_at\n            ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 1,
+          "name": "class_id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 2,
+          "name": "rtc_id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 3,
+          "name": "stream_uri",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 4,
+          "name": "segments!: Segments",
+          "type_info": "Int8RangeArray"
+        },
+        {
+          "ordinal": 5,
+          "name": "started_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 6,
+          "name": "modified_segments!: Option<Segments>",
+          "type_info": "Int8RangeArray"
+        },
+        {
+          "ordinal": 7,
+          "name": "created_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 8,
+          "name": "adjusted_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 9,
+          "name": "transcoded_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 10,
+          "name": "deleted_at",
+          "type_info": "Timestamptz"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Uuid",
+          "Int8RangeArray"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        false,
+        true,
+        true,
+        true
       ]
     }
   },
@@ -905,6 +1602,52 @@
       ]
     }
   },
+  "61b7f8fd08937bc29a31e5656a36ae45065f41446ba65b55bc848c257a4f6087": {
+    "query": "\n            INSERT INTO scope (scope, frontend_id, app)\n            VALUES ($1, $2, $3)\n            RETURNING id, scope, frontend_id, created_at, app\n            ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 1,
+          "name": "scope",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 2,
+          "name": "frontend_id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 3,
+          "name": "created_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 4,
+          "name": "app",
+          "type_info": "Text"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Int8",
+          "Text"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    }
+  },
   "621790bd7e88b551bbb9ae747ef12b76645f7ce17148adfb0f1b8005086fe198": {
     "query": "\n            SELECT fe.*\n            FROM frontend fe\n            INNER JOIN scope s\n            ON s.frontend_id = fe.id\n            WHERE s.scope = $1 AND s.app = $2\n            ",
     "describe": {
@@ -935,6 +1678,80 @@
         false,
         false,
         false
+      ]
+    }
+  },
+  "6db1d7b705bd81c145f49f4aa462ad2271d3ccd584b9958ce7e5dc01426a4b97": {
+    "query": "\n            UPDATE recording\n            SET transcoded_at = NOW()\n            WHERE class_id = $1\n            RETURNING\n                id,\n                class_id,\n                rtc_id,\n                stream_uri,\n                segments AS \"segments!: Segments\",\n                started_at,\n                modified_segments AS \"modified_segments!: Option<Segments>\",\n                created_at,\n                adjusted_at,\n                transcoded_at\n            ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 1,
+          "name": "class_id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 2,
+          "name": "rtc_id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 3,
+          "name": "stream_uri",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 4,
+          "name": "segments!: Segments",
+          "type_info": "Int8RangeArray"
+        },
+        {
+          "ordinal": 5,
+          "name": "started_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 6,
+          "name": "modified_segments!: Option<Segments>",
+          "type_info": "Int8RangeArray"
+        },
+        {
+          "ordinal": 7,
+          "name": "created_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 8,
+          "name": "adjusted_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 9,
+          "name": "transcoded_at",
+          "type_info": "Timestamptz"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Uuid"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        false,
+        true,
+        true
       ]
     }
   },
@@ -1187,6 +2004,294 @@
       ]
     }
   },
+  "94ba9ad89375e6ad5fab7bc5a17ba540e684242451c63339100bee626da360bb": {
+    "query": "\n            INSERT INTO class (\n                scope, audience, time, tags, preserve_history, kind, conference_room_id,\n                event_room_id, host, original_event_room_id, modified_event_room_id\n            )\n            VALUES ($1, $2, $3, $4, $5, $6::class_type, $7, $8, $9, $10, $11)\n            RETURNING\n                id,\n                scope,\n                kind AS \"kind!: ClassType\",\n                audience,\n                host AS \"host?: AccountId\",\n                time AS \"time!: Time\",\n                tags,\n                preserve_history,\n                created_at,\n                event_room_id,\n                conference_room_id,\n                original_event_room_id,\n                modified_event_room_id,\n                reserve\n            ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 1,
+          "name": "scope",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 2,
+          "name": "kind!: ClassType",
+          "type_info": {
+            "Custom": {
+              "name": "class_type",
+              "kind": {
+                "Enum": [
+                  "webinar",
+                  "classroom",
+                  "minigroup"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "ordinal": 3,
+          "name": "audience",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 4,
+          "name": "host?: AccountId",
+          "type_info": {
+            "Custom": {
+              "name": "account_id",
+              "kind": {
+                "Composite": [
+                  [
+                    "label",
+                    "Text"
+                  ],
+                  [
+                    "audience",
+                    "Text"
+                  ]
+                ]
+              }
+            }
+          }
+        },
+        {
+          "ordinal": 5,
+          "name": "time!: Time",
+          "type_info": "TstzRange"
+        },
+        {
+          "ordinal": 6,
+          "name": "tags",
+          "type_info": "Json"
+        },
+        {
+          "ordinal": 7,
+          "name": "preserve_history",
+          "type_info": "Bool"
+        },
+        {
+          "ordinal": 8,
+          "name": "created_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 9,
+          "name": "event_room_id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 10,
+          "name": "conference_room_id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 11,
+          "name": "original_event_room_id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 12,
+          "name": "modified_event_room_id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 13,
+          "name": "reserve",
+          "type_info": "Int4"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Text",
+          "TstzRange",
+          "Json",
+          "Bool",
+          {
+            "Custom": {
+              "name": "class_type",
+              "kind": {
+                "Enum": [
+                  "webinar",
+                  "classroom",
+                  "minigroup"
+                ]
+              }
+            }
+          },
+          "Uuid",
+          "Uuid",
+          {
+            "Custom": {
+              "name": "account_id",
+              "kind": {
+                "Composite": [
+                  [
+                    "label",
+                    "Text"
+                  ],
+                  [
+                    "audience",
+                    "Text"
+                  ]
+                ]
+              }
+            }
+          },
+          "Uuid",
+          "Uuid"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        true,
+        false,
+        true,
+        false,
+        false,
+        false,
+        false,
+        true,
+        true,
+        true
+      ]
+    }
+  },
+  "a673dd5ac9d0ed4ea5359f22c3ac9294cdd9a5d680a433f91ffb2853e1a00a03": {
+    "query": "\n                        SELECT\n                            id::text AS \"id!: String\",\n                            (\n                                CASE kind\n                                    WHEN 'webinar' THEN 'webinars'\n                                    WHEN 'classroom' THEN 'classrooms'\n                                    ELSE ''\n                                END\n                            ) AS \"kind!: String\"\n                        FROM class\n                        WHERE event_room_id = $1\n                            OR original_event_room_id = $1\n                            OR modified_event_room_id = $1\n                        UNION ALL\n                        SELECT\n                            id::text AS \"id!: String\",\n                            'chats' AS kind\n                        FROM chat\n                        WHERE event_room_id = $1\n                    ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id!: String",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 1,
+          "name": "kind!: String",
+          "type_info": "Text"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Uuid"
+        ]
+      },
+      "nullable": [
+        null,
+        null
+      ]
+    }
+  },
+  "b0cb74e23e926f8df6758dc69bba9413e3da7b3784c23b7ec236a02de5d34001": {
+    "query": "\n            SELECT\n                id,\n                class_id,\n                rtc_id,\n                stream_uri,\n                segments AS \"segments!: Segments\",\n                modified_segments AS \"modified_segments!: Option<Segments>\",\n                started_at,\n                created_at,\n                adjusted_at,\n                transcoded_at\n            FROM recording\n            WHERE class_id = $1\n            ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 1,
+          "name": "class_id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 2,
+          "name": "rtc_id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 3,
+          "name": "stream_uri",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 4,
+          "name": "segments!: Segments",
+          "type_info": "Int8RangeArray"
+        },
+        {
+          "ordinal": 5,
+          "name": "modified_segments!: Option<Segments>",
+          "type_info": "Int8RangeArray"
+        },
+        {
+          "ordinal": 6,
+          "name": "started_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 7,
+          "name": "created_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 8,
+          "name": "adjusted_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 9,
+          "name": "transcoded_at",
+          "type_info": "Timestamptz"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Uuid"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        false,
+        false,
+        true,
+        true
+      ]
+    }
+  },
+  "b7767308ad0a5eff8b98a918b57a7b9011168a86c953e2ba2181b37b5905666f": {
+    "query": "\n                        SELECT\n                            class.id::text AS \"id!: String\",\n                            (\n                                CASE kind\n                                    WHEN 'webinar' THEN 'webinars'\n                                    WHEN 'classroom' THEN 'classrooms'\n                                    ELSE ''\n                                END\n                            ) AS \"kind!: String\"\n                        FROM class\n                        INNER JOIN recording r\n                        ON r.class_id = class.id\n                        WHERE rtc_id = $1\n                    ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id!: String",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 1,
+          "name": "kind!: String",
+          "type_info": "Text"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Uuid"
+        ]
+      },
+      "nullable": [
+        null,
+        null
+      ]
+    }
+  },
   "b8c709ff41aedee9e96ddca2bc0d36c9d1f82a21c5a38ef37ae2a42fcdf65e15": {
     "query": "\n            UPDATE recording\n            SET modified_segments = $2,\n                adjusted_at = NOW()\n            WHERE class_id = $1\n            RETURNING\n                id,\n                class_id,\n                rtc_id,\n                stream_uri,\n                segments AS \"segments!: Segments\",\n                started_at,\n                modified_segments AS \"modified_segments!: Option<Segments>\",\n                created_at,\n                adjusted_at,\n                transcoded_at,\n                created_by AS \"created_by: AgentId\"\n            ",
     "describe": {
@@ -1297,6 +2402,468 @@
         true,
         true,
         false
+      ]
+    }
+  },
+  "bab5b42d7f9350417f191bf5bc786d485e2ce2e93f1f08e45e1d51185871aad1": {
+    "query": "\n            UPDATE recording\n            SET transcoded_at = NOW()\n            WHERE class_id = $1 AND deleted_at IS NULL\n            RETURNING\n                id,\n                class_id,\n                rtc_id,\n                stream_uri,\n                segments AS \"segments!: Segments\",\n                started_at,\n                modified_segments AS \"modified_segments!: Option<Segments>\",\n                created_at,\n                adjusted_at,\n                transcoded_at,\n                deleted_at\n            ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 1,
+          "name": "class_id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 2,
+          "name": "rtc_id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 3,
+          "name": "stream_uri",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 4,
+          "name": "segments!: Segments",
+          "type_info": "Int8RangeArray"
+        },
+        {
+          "ordinal": 5,
+          "name": "started_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 6,
+          "name": "modified_segments!: Option<Segments>",
+          "type_info": "Int8RangeArray"
+        },
+        {
+          "ordinal": 7,
+          "name": "created_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 8,
+          "name": "adjusted_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 9,
+          "name": "transcoded_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 10,
+          "name": "deleted_at",
+          "type_info": "Timestamptz"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Uuid"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        false,
+        true,
+        true,
+        true
+      ]
+    }
+  },
+  "c810282191bca02c52efb8659202e1559ff0547fd718063a1505d7de24cf5711": {
+    "query": "\n            INSERT INTO class (\n                scope, audience, time, tags, preserve_history, kind,\n                conference_room_id, event_room_id,\n                original_event_room_id, modified_event_room_id, reserve\n            )\n            VALUES ($1, $2, $3, $4, $5, $6::class_type, $7, $8, $9, $10, $11)\n            RETURNING\n                id,\n                scope,\n                kind AS \"kind!: ClassType\",\n                audience,\n                host AS \"host?: AccountId\",\n                time AS \"time!: Time\",\n                tags,\n                preserve_history,\n                created_at,\n                event_room_id,\n                conference_room_id,\n                original_event_room_id,\n                modified_event_room_id,\n                reserve\n            ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 1,
+          "name": "scope",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 2,
+          "name": "kind!: ClassType",
+          "type_info": {
+            "Custom": {
+              "name": "class_type",
+              "kind": {
+                "Enum": [
+                  "webinar",
+                  "classroom",
+                  "minigroup"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "ordinal": 3,
+          "name": "audience",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 4,
+          "name": "host?: AccountId",
+          "type_info": {
+            "Custom": {
+              "name": "account_id",
+              "kind": {
+                "Composite": [
+                  [
+                    "label",
+                    "Text"
+                  ],
+                  [
+                    "audience",
+                    "Text"
+                  ]
+                ]
+              }
+            }
+          }
+        },
+        {
+          "ordinal": 5,
+          "name": "time!: Time",
+          "type_info": "TstzRange"
+        },
+        {
+          "ordinal": 6,
+          "name": "tags",
+          "type_info": "Json"
+        },
+        {
+          "ordinal": 7,
+          "name": "preserve_history",
+          "type_info": "Bool"
+        },
+        {
+          "ordinal": 8,
+          "name": "created_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 9,
+          "name": "event_room_id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 10,
+          "name": "conference_room_id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 11,
+          "name": "original_event_room_id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 12,
+          "name": "modified_event_room_id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 13,
+          "name": "reserve",
+          "type_info": "Int4"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Text",
+          "TstzRange",
+          "Json",
+          "Bool",
+          {
+            "Custom": {
+              "name": "class_type",
+              "kind": {
+                "Enum": [
+                  "webinar",
+                  "classroom",
+                  "minigroup"
+                ]
+              }
+            }
+          },
+          "Uuid",
+          "Uuid",
+          "Uuid",
+          "Uuid",
+          "Int4"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        true,
+        false,
+        true,
+        false,
+        false,
+        false,
+        false,
+        true,
+        true,
+        true
+      ]
+    }
+  },
+  "c9bebf5f2187157be46375c17659d71ca1afd71d2b738cea63de89a1910f3ae9": {
+    "query": "\n            INSERT INTO class (\n                scope, audience, time, tags, preserve_history, kind,\n                conference_room_id, event_room_id\n            )\n            VALUES ($1, $2, $3, $4, $5, $6::class_type, $7, $8)\n            RETURNING\n                id,\n                scope,\n                kind AS \"kind!: ClassType\",\n                audience,\n                time AS \"time!: Time\",\n                host AS \"host?: AccountId\",\n                tags,\n                preserve_history,\n                created_at,\n                event_room_id,\n                conference_room_id,\n                original_event_room_id,\n                modified_event_room_id,\n                reserve\n            ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 1,
+          "name": "scope",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 2,
+          "name": "kind!: ClassType",
+          "type_info": {
+            "Custom": {
+              "name": "class_type",
+              "kind": {
+                "Enum": [
+                  "webinar",
+                  "classroom",
+                  "minigroup"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "ordinal": 3,
+          "name": "audience",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 4,
+          "name": "time!: Time",
+          "type_info": "TstzRange"
+        },
+        {
+          "ordinal": 5,
+          "name": "host?: AccountId",
+          "type_info": {
+            "Custom": {
+              "name": "account_id",
+              "kind": {
+                "Composite": [
+                  [
+                    "label",
+                    "Text"
+                  ],
+                  [
+                    "audience",
+                    "Text"
+                  ]
+                ]
+              }
+            }
+          }
+        },
+        {
+          "ordinal": 6,
+          "name": "tags",
+          "type_info": "Json"
+        },
+        {
+          "ordinal": 7,
+          "name": "preserve_history",
+          "type_info": "Bool"
+        },
+        {
+          "ordinal": 8,
+          "name": "created_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 9,
+          "name": "event_room_id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 10,
+          "name": "conference_room_id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 11,
+          "name": "original_event_room_id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 12,
+          "name": "modified_event_room_id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 13,
+          "name": "reserve",
+          "type_info": "Int4"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Text",
+          "TstzRange",
+          "Json",
+          "Bool",
+          {
+            "Custom": {
+              "name": "class_type",
+              "kind": {
+                "Enum": [
+                  "webinar",
+                  "classroom",
+                  "minigroup"
+                ]
+              }
+            }
+          },
+          "Uuid",
+          "Uuid"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        true,
+        false,
+        false,
+        false,
+        false,
+        true,
+        true,
+        true
+      ]
+    }
+  },
+  "d3f1fe030f85e10f87c22ac77e9523f0c27bc4e75fac33c7a7e34674c2629bff": {
+    "query": "\n            UPDATE recording\n            SET deleted_at = NOW()\n            WHERE class_id = $1 AND deleted_at IS NULL\n            ",
+    "describe": {
+      "columns": [],
+      "parameters": {
+        "Left": [
+          "Uuid"
+        ]
+      },
+      "nullable": []
+    }
+  },
+  "d63f91971b89344cc97495a6e428d24ec999aaa2f89ff9bc72380f0866728fdb": {
+    "query": "\n            INSERT INTO recording (\n                class_id, rtc_id, stream_uri, segments, modified_segments, started_at, adjusted_at,\n                transcoded_at\n            )\n            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)\n            RETURNING\n                id,\n                class_id,\n                rtc_id,\n                stream_uri,\n                segments AS \"segments!: Segments\",\n                started_at,\n                modified_segments AS \"modified_segments!: Option<Segments>\",\n                created_at,\n                adjusted_at,\n                transcoded_at\n            ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 1,
+          "name": "class_id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 2,
+          "name": "rtc_id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 3,
+          "name": "stream_uri",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 4,
+          "name": "segments!: Segments",
+          "type_info": "Int8RangeArray"
+        },
+        {
+          "ordinal": 5,
+          "name": "started_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 6,
+          "name": "modified_segments!: Option<Segments>",
+          "type_info": "Int8RangeArray"
+        },
+        {
+          "ordinal": 7,
+          "name": "created_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 8,
+          "name": "adjusted_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 9,
+          "name": "transcoded_at",
+          "type_info": "Timestamptz"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Uuid",
+          "Uuid",
+          "Text",
+          "Int8RangeArray",
+          "Int8RangeArray",
+          "Timestamptz",
+          "Timestamptz",
+          "Timestamptz"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        false,
+        true,
+        true
       ]
     }
   },
@@ -1439,6 +3006,59 @@
       ]
     }
   },
+  "e7a3c90b5e4832b9802c9fe4fc1d7ec162610fb0c99c9b09d3511b83bdca299e": {
+    "query": "\n                        SELECT\n                            id::text AS \"id!: String\",\n                            (\n                                CASE kind\n                                    WHEN 'webinar' THEN 'webinars'\n                                    WHEN 'classroom' THEN 'classrooms'\n                                    ELSE ''\n                                END\n                            ) AS \"kind!: String\"\n                        FROM class\n                        WHERE conference_room_id = $1\n                    ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id!: String",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 1,
+          "name": "kind!: String",
+          "type_info": "Text"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Uuid"
+        ]
+      },
+      "nullable": [
+        null,
+        null
+      ]
+    }
+  },
+  "ed668e73b12310ec525552d9bfb526a96090d20fd4fd2539ec574b8b10581fdb": {
+    "query": "\n                        SELECT\n                            id::text AS \"id!: String\",\n                            (\n                                CASE kind\n                                    WHEN 'webinar' THEN 'webinars'\n                                    WHEN 'classroom' THEN 'classrooms'\n                                    ELSE ''\n                                END\n                            ) AS \"kind!: String\"\n                        FROM class\n                        WHERE audience = $1\n                        AND scope = $2\n                    ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id!: String",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 1,
+          "name": "kind!: String",
+          "type_info": "Text"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Text"
+        ]
+      },
+      "nullable": [
+        null,
+        null
+      ]
+    }
+  },
   "edc791aa1825afee2efeaa234c6d883267d9a69d13a6160aaffb1594eda9898d": {
     "query": "\n            UPDATE class\n            SET original_event_room_id = $2,\n                modified_event_room_id = $3\n            WHERE id = $1\n            RETURNING\n                id,\n                scope,\n                kind AS \"kind!: ClassType\",\n                audience,\n                host AS \"host?: AccountId\",\n                time AS \"time!: Time\",\n                tags,\n                preserve_history,\n                created_at,\n                event_room_id,\n                conference_room_id,\n                original_event_room_id,\n                modified_event_room_id\n            ",
     "describe": {
@@ -1555,6 +3175,207 @@
         false,
         false,
         false,
+        true,
+        true
+      ]
+    }
+  },
+  "f9b1b0ddbe3ea211940c8e05d13448953553893572f6e3dbc301a5d53ee244ee": {
+    "query": "\n            UPDATE recording\n            SET modified_segments = $2,\n                adjusted_at = NOW()\n            WHERE class_id = $1\n            RETURNING\n                id,\n                class_id,\n                rtc_id,\n                stream_uri,\n                segments AS \"segments!: Segments\",\n                started_at,\n                modified_segments AS \"modified_segments!: Option<Segments>\",\n                created_at,\n                adjusted_at,\n                transcoded_at\n            ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 1,
+          "name": "class_id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 2,
+          "name": "rtc_id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 3,
+          "name": "stream_uri",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 4,
+          "name": "segments!: Segments",
+          "type_info": "Int8RangeArray"
+        },
+        {
+          "ordinal": 5,
+          "name": "started_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 6,
+          "name": "modified_segments!: Option<Segments>",
+          "type_info": "Int8RangeArray"
+        },
+        {
+          "ordinal": 7,
+          "name": "created_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 8,
+          "name": "adjusted_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 9,
+          "name": "transcoded_at",
+          "type_info": "Timestamptz"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Uuid",
+          "Int8RangeArray"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        false,
+        true,
+        true
+      ]
+    }
+  },
+  "ff0f14b3a628d9c4abf8fd583d7feebd937d95c62e85508796838900a9f3876a": {
+    "query": "\n            UPDATE class\n            SET time = $2\n            WHERE id = $1\n            RETURNING\n                id,\n                scope,\n                kind AS \"kind!: ClassType\",\n                audience,\n                host AS \"host?: AccountId\",\n                time AS \"time!: Time\",\n                tags,\n                preserve_history,\n                created_at,\n                event_room_id,\n                conference_room_id,\n                original_event_room_id,\n                modified_event_room_id,\n                reserve\n            ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 1,
+          "name": "scope",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 2,
+          "name": "kind!: ClassType",
+          "type_info": {
+            "Custom": {
+              "name": "class_type",
+              "kind": {
+                "Enum": [
+                  "webinar",
+                  "classroom",
+                  "minigroup"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "ordinal": 3,
+          "name": "audience",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 4,
+          "name": "host?: AccountId",
+          "type_info": {
+            "Custom": {
+              "name": "account_id",
+              "kind": {
+                "Composite": [
+                  [
+                    "label",
+                    "Text"
+                  ],
+                  [
+                    "audience",
+                    "Text"
+                  ]
+                ]
+              }
+            }
+          }
+        },
+        {
+          "ordinal": 5,
+          "name": "time!: Time",
+          "type_info": "TstzRange"
+        },
+        {
+          "ordinal": 6,
+          "name": "tags",
+          "type_info": "Json"
+        },
+        {
+          "ordinal": 7,
+          "name": "preserve_history",
+          "type_info": "Bool"
+        },
+        {
+          "ordinal": 8,
+          "name": "created_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 9,
+          "name": "event_room_id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 10,
+          "name": "conference_room_id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 11,
+          "name": "original_event_room_id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 12,
+          "name": "modified_event_room_id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 13,
+          "name": "reserve",
+          "type_info": "Int4"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Uuid",
+          "TstzRange"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        true,
+        false,
+        true,
+        false,
+        false,
+        false,
+        false,
+        true,
         true,
         true
       ]
