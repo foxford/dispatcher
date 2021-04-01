@@ -2,7 +2,11 @@
 
 - [Overview](overview.md)
     - [Scopes dispatching](scopes/scopes.md)
-    - [Authz](authz.md)
+    - [Authz](authz/overview.md)
+        - [Webinars](authz/webinars.md)
+        - [Classrooms](authz/classrooms.md)
+        - [Chats](authz/chats.md)
+        - [Event types](authz/events.md)
     - [Webinars integration](webinars/overview.md)
         - [API](webinars/api.md)
         - [Events](webinars/events.md)
