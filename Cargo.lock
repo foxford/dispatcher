@@ -3447,9 +3447,9 @@ dependencies = [
 
 [[package]]
 name = "svc-authn"
-version = "0.6.3"
+version = "0.6.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "91d34e5c280d7ba8ca1112383cb8d292fa9b9e28860ed56a4a4bf15ce4d3debe"
+checksum = "05646fed4709a707d917bed423fa8f2d038453b17199a066ece5b708d5f8798d"
 dependencies = [
  "chrono",
  "http 0.1.21",
@@ -3461,8 +3461,9 @@ dependencies = [
 
 [[package]]
 name = "svc-authz"
-version = "0.10.7"
-source = "git+https://github.com/netology-group/svc-authz-rs?branch=master#07662e1374b8ddf7c04e5ea7acad0519aa22782d"
+version = "0.10.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "210a578892f7375e74e193fc115930586177015db866e82d62f301cfc542c590"
 dependencies = [
  "async-std",
  "async-trait",
