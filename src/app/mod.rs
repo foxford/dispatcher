@@ -324,5 +324,6 @@ mod api;
 mod authz;
 mod error;
 mod info;
+mod postprocessing_strategy;
 mod request_logger;
 mod tide_state;
