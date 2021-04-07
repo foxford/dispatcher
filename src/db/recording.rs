@@ -25,14 +25,6 @@ impl Object {
         &self.stream_uri
     }
 
-    pub fn segments(&self) -> &Segments {
-        &self.segments
-    }
-
-    pub fn started_at(&self) -> DateTime<Utc> {
-        self.started_at
-    }
-
     pub fn rtc_id(&self) -> Uuid {
         self.rtc_id
     }
@@ -46,7 +38,7 @@ impl Object {
     }
 }
 
-type BoundedOffsetTuples = Vec<(Bound<i64>, Bound<i64>)>;
+pub type BoundedOffsetTuples = Vec<(Bound<i64>, Bound<i64>)>;
 
 #[derive(Clone, Debug, Deserialize, Serialize, sqlx::Type)]
 #[sqlx(transparent)]

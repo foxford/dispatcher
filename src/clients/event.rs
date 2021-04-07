@@ -22,7 +22,7 @@ use uuid::Uuid;
 
 use super::{generate_correlation_data, ClientError};
 use crate::db::class::BoundedDateTimeTuple;
-use crate::db::recording::Object as Recording;
+use crate::db::recording::Segments;
 
 #[cfg_attr(test, automock)]
 #[async_trait]
@@ -42,7 +42,8 @@ pub trait EventClient: Sync + Send {
     async fn adjust_room(
         &self,
         event_room_id: Uuid,
-        recording: &Recording,
+        started_at: DateTime<Utc>,
+        segments: Segments,
         offset: i64,
     ) -> Result<(), ClientError>;
 
@@ -116,7 +117,7 @@ struct EventAdjustPayload {
     #[serde(with = "chrono::serde::ts_milliseconds")]
     started_at: DateTime<Utc>,
     #[serde(with = "crate::db::recording::serde::segments")]
-    segments: crate::db::recording::Segments,
+    segments: Segments,
     offset: i64,
 }
 
@@ -246,15 +247,16 @@ impl EventClient for MqttEventClient {
     async fn adjust_room(
         &self,
         event_room_id: Uuid,
-        recording: &Recording,
+        started_at: DateTime<Utc>,
+        segments: Segments,
         offset: i64,
     ) -> Result<(), ClientError> {
         let reqp = self.build_reqp("room.adjust")?;
 
         let payload = EventAdjustPayload {
             id: event_room_id,
-            started_at: recording.started_at(),
-            segments: recording.segments().clone(),
+            started_at: started_at,
+            segments,
             offset,
         };
         let msg = if let OutgoingMessage::Request(msg) =

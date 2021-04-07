@@ -1,3 +1,4 @@
+use std::ops::Bound;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
@@ -13,7 +14,8 @@ use svc_agent::request::Dispatcher;
 use uuid::Uuid;
 
 use super::AppContext;
-use crate::db::recording::Segments;
+use crate::db::class::ClassType;
+use crate::db::recording::{BoundedOffsetTuples, Segments};
 
 pub struct MessageHandler {
     ctx: Arc<dyn AppContext>,
@@ -124,36 +126,128 @@ impl MessageHandler {
     async fn handle_upload(&self, data: IncomingEvent<String>) -> Result<()> {
         let payload = data.extract_payload();
         let room_upload = serde_json::from_str::<RoomUpload>(&payload)?;
-        let rtc = room_upload
-            .rtcs
-            .get(0)
-            .ok_or_else(|| anyhow!("Missing rtc in room upload, payload = {:?}", room_upload))?;
         let mut conn = self.ctx.get_conn().await?;
-        let webinar = crate::db::class::WebinarReadQuery::by_conference_room(room_upload.id)
+
+        // Find either webinar or minigroup by conference room id.
+        let maybe_class = crate::db::class::ReadQuery::by_conference_room(room_upload.id)
             .execute(&mut conn)
             .await?;
-        if let Some(webinar) = webinar {
+
+        let class = match maybe_class {
+            Some(class) => class,
+            None => return Ok(()),
+        };
+
+        // Validate RTCS count.
+        match class.kind() {
+            ClassType::Classroom => {
+                bail!("Unexpected room upload event for a classroom's conference room");
+            }
+            ClassType::Webinar => {
+                if room_upload.rtcs.len() != 1 {
+                    bail!(
+                        "Expected 1 RTC for in webinar room upload, got {}, payload = {:?}",
+                        room_upload.rtcs.len(),
+                        room_upload,
+                    );
+                }
+            }
+            ClassType::Minigroup => {
+                if room_upload.rtcs.len() < 1 {
+                    bail!(
+                        "Expected at least 1 RTC for in minigroup room upload, payload = {:?}",
+                        room_upload,
+                    );
+                }
+            }
+        }
+
+        // Insert recordings for each RTC.
+        let mut txn = conn
+            .begin()
+            .await
+            .context("Failed to begin sqlx db transaction")?;
+
+        for rtc in &room_upload.rtcs {
             let q = crate::db::recording::RecordingInsertQuery::new(
-                webinar.id(),
+                class.id(),
                 rtc.id,
                 rtc.segments.clone(),
                 rtc.started_at,
                 rtc.uri.clone(),
             );
-            let recording = q.execute(&mut conn).await?;
-            self.ctx
-                .event_client()
-                // TODO FIX OFFSET
-                .adjust_room(webinar.event_room_id(), &recording, 4018)
-                .await
-                .map_err(|e| {
-                    anyhow!(
-                        "Failed to adjust room, room id = {:?}, err = {:?}",
-                        room_upload.id,
-                        e
-                    )
-                })?;
+
+            q.execute(&mut txn).await?;
         }
+
+        txn.commit().await?;
+
+        // Call event room adjustment.
+        let started_at = room_upload
+            .rtcs
+            .iter()
+            .map(|rtc| rtc.started_at)
+            .min()
+            .ok_or_else(|| anyhow!("Couldn't get min started at"))?;
+
+        let segments = match class.kind() {
+            ClassType::Classroom => bail!("Unreachable code"),
+            ClassType::Webinar => {
+                room_upload
+                    .rtcs
+                    .first()
+                    .ok_or_else(|| anyhow!("Unreachable code"))?
+                    .segments
+                    .clone()
+            }
+            ClassType::Minigroup => {
+                let mut maybe_min_start: Option<i64> = None;
+                let mut maybe_max_stop: Option<i64> = None;
+
+                for rtc in room_upload.rtcs.iter() {
+                    let segments: BoundedOffsetTuples = rtc.segments.clone().into();
+
+                    if let Some((Bound::Included(start), _)) = segments.first() {
+                        if let Some(min_start) = maybe_min_start {
+                            if *start < min_start {
+                                maybe_min_start = Some(*start);
+                            }
+                        } else {
+                            maybe_min_start = Some(*start);
+                        }
+                    }
+
+                    if let Some((_, Bound::Excluded(stop))) = segments.last() {
+                        if let Some(max_stop) = maybe_max_stop {
+                            if *stop > max_stop {
+                                maybe_max_stop = Some(*stop);
+                            }
+                        } else {
+                            maybe_max_stop = Some(*stop);
+                        }
+                    }
+                }
+
+                if let (Some(start), Some(stop)) = (maybe_min_start, maybe_max_stop) {
+                    vec![(Bound::Included(start), Bound::Excluded(stop))].into()
+                } else {
+                    bail!("Couldn't find min start & max stop in segments");
+                }
+            }
+        };
+
+        self.ctx
+            .event_client()
+            // TODO FIX OFFSET
+            .adjust_room(class.event_room_id(), started_at, segments, 4018)
+            .await
+            .map_err(|e| {
+                anyhow!(
+                    "Failed to adjust room, room id = {:?}, err = {:?}",
+                    room_upload.id,
+                    e
+                )
+            })?;
 
         Ok(())
     }
