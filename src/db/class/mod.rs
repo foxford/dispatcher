@@ -2,7 +2,7 @@ use std::ops::Bound;
 
 use chrono::serde::ts_seconds;
 use chrono::{DateTime, Utc};
-use sqlx::postgres::types::PgRange;
+use sqlx::postgres::{types::PgRange, PgConnection};
 use svc_agent::AccountId;
 use uuid::Uuid;
 
@@ -11,7 +11,9 @@ use serde_json::Value as JsonValue;
 
 pub type BoundedDateTimeTuple = (Bound<DateTime<Utc>>, Bound<DateTime<Utc>>);
 
-#[derive(Clone, Debug, sqlx::Type)]
+////////////////////////////////////////////////////////////////////////////////
+
+#[derive(Clone, Copy, Debug, sqlx::Type)]
 #[sqlx(rename = "class_type", rename_all = "lowercase")]
 pub enum ClassType {
     Webinar,
@@ -44,6 +46,10 @@ impl Object {
         self.id
     }
 
+    pub fn kind(&self) -> ClassType {
+        self.kind
+    }
+
     pub fn scope(&self) -> String {
         self.scope.clone()
     }
@@ -72,6 +78,8 @@ impl Object {
         self.modified_event_room_id
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 #[derive(Clone, Debug, Deserialize, Serialize, sqlx::Type)]
 #[sqlx(transparent)]
@@ -102,6 +110,48 @@ impl Into<PgRange<DateTime<Utc>>> for &Time {
         self.0.clone()
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+enum ReadQueryPredicate {
+    ConferenceRoom(Uuid),
+}
+
+pub struct ReadQuery {
+    condition: ReadQueryPredicate,
+}
+
+impl ReadQuery {
+    pub fn by_conference_room(id: Uuid) -> Self {
+        Self {
+            condition: ReadQueryPredicate::ConferenceRoom(id),
+        }
+    }
+
+    pub async fn execute(self, conn: &mut PgConnection) -> sqlx::Result<Option<Object>> {
+        use quaint::ast::{Comparable, Select};
+        use quaint::visitor::{Postgres, Visitor};
+
+        let q = Select::from_table("class");
+
+        let q = match self.condition {
+            ReadQueryPredicate::ConferenceRoom(_) => {
+                q.and_where("conference_room_id".equals("_placeholder_"))
+            }
+        };
+
+        let (sql, _bindings) = Postgres::build(q);
+        let query = sqlx::query_as(&sql);
+
+        let query = match self.condition {
+            ReadQueryPredicate::ConferenceRoom(id) => query.bind(id),
+        };
+
+        query.fetch_optional(conn).await
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 pub(crate) mod serde {
     pub(crate) mod time {
