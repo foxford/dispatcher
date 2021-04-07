@@ -38,11 +38,3 @@ impl From<AuthzObject> for Box<dyn IntentObject> {
         Box::new(o)
     }
 }
-
-pub fn db_ban_callback() -> svc_authz::BanCallback {
-    Arc::new(
-        move |_account_id: AccountId, _intent: Box<dyn IntentObject>| {
-            Box::pin(async move { false }) as Pin<Box<dyn futures::Future<Output = bool> + Send>>
-        },
-    ) as svc_authz::BanCallback
-}

@@ -15,7 +15,6 @@ use svc_authz::ClientMap as Authz;
 use tide::http::headers::HeaderValue;
 use tide::security::{CorsMiddleware, Origin};
 
-use crate::app::authz::db_ban_callback;
 use crate::config::{self, Config};
 use api::v1::chat::{
     convert as convert_chat, create as create_chat, read_by_scope as read_chat_by_scope,
@@ -73,13 +72,8 @@ pub async fn run(db: PgPool, authz_cache: Option<Box<dyn AuthzCache>>) -> Result
     let event_client = build_event_client(&config, dispatcher.clone());
     let conference_client = build_conference_client(&config, dispatcher.clone());
     let tq_client = build_tq_client(&config, &token);
-    let authz = Authz::new(
-        &config.id,
-        authz_cache,
-        config.authz.clone(),
-        db_ban_callback(),
-    )
-    .context("Error converting authz config to clients")?;
+    let authz = Authz::new(&config.id, authz_cache, config.authz.clone(), None)
+        .context("Error converting authz config to clients")?;
 
     let state = TideState::new(
         db,

@@ -991,7 +991,7 @@ checksum = "212d0f5754cb6769937f4501cc0e67f4f4483c8d2c3e1e922ee9edbe4ab4c7c0"
 
 [[package]]
 name = "dispatcher"
-version = "0.1.1"
+version = "0.2.1"
 dependencies = [
  "anyhow",
  "async-std",
@@ -3347,7 +3347,7 @@ dependencies = [
 [[package]]
 name = "svc-authz"
 version = "0.10.7"
-source = "git+https://github.com/netology-group/svc-authz-rs?branch=isahc#46c57f6a745329d5267c9240603265074b76ed95"
+source = "git+https://github.com/netology-group/svc-authz-rs?branch=master#07662e1374b8ddf7c04e5ea7acad0519aa22782d"
 dependencies = [
  "async-std",
  "async-trait",
