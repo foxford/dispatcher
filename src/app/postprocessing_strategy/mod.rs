@@ -7,6 +7,8 @@ use serde_derive::Deserialize;
 use uuid::Uuid;
 
 use crate::app::AppContext;
+use crate::clients::event::RoomAdjustResult;
+use crate::clients::tq::TaskCompleteResult;
 use crate::db::class::{ClassType, Object as Class};
 use crate::db::recording::Segments;
 
@@ -29,12 +31,11 @@ pub(crate) fn get(
 #[async_trait]
 pub(crate) trait PostprocessingStrategy {
     async fn handle_upload(&self, rtcs: Vec<RtcUploadResult>) -> Result<()>;
+    async fn handle_adjust(&self, room_adjust_result: RoomAdjustResult) -> Result<()>;
 
-    async fn handle_adjust(
+    async fn handle_transcoding_completion(
         &self,
-        original_room_id: Uuid,
-        modified_room_id: Uuid,
-        modified_segments: Segments,
+        completion_result: TaskCompleteResult,
     ) -> Result<()>;
 }
 

@@ -72,6 +72,39 @@ impl PinEventData {
     }
 }
 
+#[derive(Deserialize)]
+pub struct RoomAdjust {
+    tags: Option<JsonValue>,
+    #[serde(flatten)]
+    result: RoomAdjustResult,
+}
+
+impl RoomAdjust {
+    pub fn tags(&self) -> Option<&JsonValue> {
+        self.tags.as_ref()
+    }
+}
+
+impl Into<RoomAdjustResult> for RoomAdjust {
+    fn into(self) -> RoomAdjustResult {
+        self.result
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(untagged)]
+pub enum RoomAdjustResult {
+    Success {
+        original_room_id: Uuid,
+        modified_room_id: Uuid,
+        #[serde(with = "crate::db::recording::serde::segments")]
+        modified_segments: Segments,
+    },
+    Error {
+        error: JsonValue,
+    },
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 #[cfg_attr(test, automock)]

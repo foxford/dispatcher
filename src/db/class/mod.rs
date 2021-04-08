@@ -123,9 +123,12 @@ pub struct ReadQuery {
 }
 
 impl ReadQuery {
-    pub fn by_scope(audience: String, scope: String) -> Self {
+    pub fn by_scope(audience: &str, scope: &str) -> Self {
         Self {
-            condition: ReadQueryPredicate::Scope { audience, scope },
+            condition: ReadQueryPredicate::Scope {
+                audience: audience.to_owned(),
+                scope: scope.to_owned(),
+            },
         }
     }
 
