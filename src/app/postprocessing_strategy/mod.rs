@@ -29,6 +29,13 @@ pub(crate) fn get(
 #[async_trait]
 pub(crate) trait PostprocessingStrategy {
     async fn handle_upload(&self, rtcs: Vec<RtcUploadResult>) -> Result<()>;
+
+    async fn handle_adjust(
+        &self,
+        original_room_id: Uuid,
+        modified_room_id: Uuid,
+        modified_segments: Segments,
+    ) -> Result<()>;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

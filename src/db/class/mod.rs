@@ -114,6 +114,7 @@ impl Into<PgRange<DateTime<Utc>>> for &Time {
 ////////////////////////////////////////////////////////////////////////////////
 
 enum ReadQueryPredicate {
+    Scope { audience: String, scope: String },
     ConferenceRoom(Uuid),
 }
 
@@ -122,6 +123,12 @@ pub struct ReadQuery {
 }
 
 impl ReadQuery {
+    pub fn by_scope(audience: String, scope: String) -> Self {
+        Self {
+            condition: ReadQueryPredicate::Scope { audience, scope },
+        }
+    }
+
     pub fn by_conference_room(id: Uuid) -> Self {
         Self {
             condition: ReadQueryPredicate::ConferenceRoom(id),
@@ -135,6 +142,9 @@ impl ReadQuery {
         let q = Select::from_table("class");
 
         let q = match self.condition {
+            ReadQueryPredicate::Scope { .. } => q
+                .and_where("audience".equals("_placeholder_"))
+                .and_where("scope".equals("_placeholder_")),
             ReadQueryPredicate::ConferenceRoom(_) => {
                 q.and_where("conference_room_id".equals("_placeholder_"))
             }
@@ -144,10 +154,60 @@ impl ReadQuery {
         let query = sqlx::query_as(&sql);
 
         let query = match self.condition {
+            ReadQueryPredicate::Scope { audience, scope } => query.bind(audience).bind(scope),
             ReadQueryPredicate::ConferenceRoom(id) => query.bind(id),
         };
 
         query.fetch_optional(conn).await
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+pub struct UpdateQuery {
+    id: Uuid,
+    original_event_room_id: Uuid,
+    modified_event_room_id: Uuid,
+}
+
+impl UpdateQuery {
+    pub fn new(id: Uuid, original_event_room_id: Uuid, modified_event_room_id: Uuid) -> Self {
+        Self {
+            id,
+            original_event_room_id,
+            modified_event_room_id,
+        }
+    }
+
+    pub async fn execute(self, conn: &mut PgConnection) -> sqlx::Result<Object> {
+        sqlx::query_as!(
+            Object,
+            r#"
+            UPDATE class
+            SET original_event_room_id = $2,
+                modified_event_room_id = $3
+            WHERE id = $1
+            RETURNING
+                id,
+                scope,
+                kind AS "kind!: ClassType",
+                audience,
+                host AS "host?: AccountId",
+                time AS "time!: Time",
+                tags,
+                preserve_history,
+                created_at,
+                event_room_id,
+                conference_room_id,
+                original_event_room_id,
+                modified_event_room_id
+            "#,
+            self.id,
+            self.original_event_room_id,
+            self.modified_event_room_id,
+        )
+        .fetch_one(conn)
+        .await
     }
 }
 

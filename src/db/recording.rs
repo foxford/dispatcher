@@ -2,6 +2,7 @@ use std::ops::Bound;
 
 use chrono::{DateTime, Utc};
 use sqlx::postgres::{types::PgRange, PgConnection};
+use svc_agent::AgentId;
 use uuid::Uuid;
 
 use serde_derive::{Deserialize, Serialize};
@@ -18,6 +19,7 @@ pub struct Object {
     created_at: DateTime<Utc>,
     adjusted_at: Option<DateTime<Utc>>,
     transcoded_at: Option<DateTime<Utc>>,
+    created_by: AgentId,
 }
 
 impl Object {
@@ -29,12 +31,24 @@ impl Object {
         self.rtc_id
     }
 
+    pub fn started_at(&self) -> DateTime<Utc> {
+        self.started_at
+    }
+
+    pub fn segments(&self) -> &Segments {
+        &self.segments
+    }
+
     pub fn adjusted_at(&self) -> Option<DateTime<Utc>> {
         self.adjusted_at
     }
 
     pub fn transcoded_at(&self) -> Option<DateTime<Utc>> {
         self.transcoded_at
+    }
+
+    pub fn created_by(&self) -> &AgentId {
+        &self.created_by
     }
 }
 
@@ -87,7 +101,8 @@ impl RecordingReadQuery {
                 started_at,
                 created_at,
                 adjusted_at,
-                transcoded_at
+                transcoded_at,
+                created_by AS "created_by: AgentId"
             FROM recording
             WHERE class_id = $1
             "#,
@@ -172,7 +187,8 @@ impl RecordingInsertQuery {
                 modified_segments AS "modified_segments!: Option<Segments>",
                 created_at,
                 adjusted_at,
-                transcoded_at
+                transcoded_at,
+                created_by AS "created_by: AgentId"
             "#,
             self.class_id,
             self.rtc_id,
@@ -188,15 +204,15 @@ impl RecordingInsertQuery {
     }
 }
 
-pub struct AdjustUpdateQuery {
-    class_id: Uuid,
+pub struct AdjustWebinarUpdateQuery {
+    webinar_id: Uuid,
     modified_segments: Segments,
 }
 
-impl AdjustUpdateQuery {
-    pub fn new(class_id: Uuid, modified_segments: Segments) -> Self {
+impl AdjustWebinarUpdateQuery {
+    pub fn new(webinar_id: Uuid, modified_segments: Segments) -> Self {
         Self {
-            class_id,
+            webinar_id,
             modified_segments,
         }
     }
@@ -219,12 +235,50 @@ impl AdjustUpdateQuery {
                 modified_segments AS "modified_segments!: Option<Segments>",
                 created_at,
                 adjusted_at,
-                transcoded_at
+                transcoded_at,
+                created_by AS "created_by: AgentId"
             "#,
-            self.class_id,
+            self.webinar_id,
             self.modified_segments as Segments,
         )
         .fetch_one(conn)
+        .await
+    }
+}
+
+pub struct AdjustMinigroupUpdateQuery {
+    minigroup_id: Uuid,
+}
+
+impl AdjustMinigroupUpdateQuery {
+    pub fn new(minigroup_id: Uuid) -> Self {
+        Self { minigroup_id }
+    }
+
+    pub async fn execute(self, conn: &mut PgConnection) -> sqlx::Result<Vec<Object>> {
+        sqlx::query_as!(
+            Object,
+            r#"
+            UPDATE recording
+            SET modified_segments = segments,
+                adjusted_at = NOW()
+            WHERE class_id = $1
+            RETURNING
+                id,
+                class_id,
+                rtc_id,
+                stream_uri,
+                segments AS "segments!: Segments",
+                started_at,
+                modified_segments AS "modified_segments!: Option<Segments>",
+                created_at,
+                adjusted_at,
+                transcoded_at,
+                created_by AS "created_by: AgentId"
+            "#,
+            self.minigroup_id,
+        )
+        .fetch_all(conn)
         .await
     }
 }
@@ -255,7 +309,8 @@ impl TranscodingUpdateQuery {
                 modified_segments AS "modified_segments!: Option<Segments>",
                 created_at,
                 adjusted_at,
-                transcoded_at
+                transcoded_at,
+                created_by AS "created_by: AgentId"
             "#,
             self.class_id,
         )
@@ -305,7 +360,8 @@ impl RecordingConvertInsertQuery {
                 modified_segments AS "modified_segments!: Option<Segments>",
                 created_at,
                 adjusted_at,
-                transcoded_at
+                transcoded_at,
+                created_by AS "created_by: AgentId"
             "#,
             self.class_id,
             self.rtc_id,
@@ -338,6 +394,19 @@ pub(crate) mod serde {
             D: de::Deserializer<'de>,
         {
             milliseconds_bound_tuples::deserialize(d).map(Segments::from)
+        }
+    }
+
+    pub(crate) fn segments_option<S>(
+        opt: &Option<super::Segments>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error>
+    where
+        S: serde::ser::Serializer,
+    {
+        match opt {
+            Some(value) => segments::serialize(value, serializer),
+            None => serializer.serialize_none(),
         }
     }
 }
