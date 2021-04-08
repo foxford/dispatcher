@@ -163,7 +163,7 @@ pub async fn rollback(req: Request<Arc<dyn AppContext>>) -> tide::Result {
                     if let Err(err) = state.publisher().publish(e) {
                         error!(
                             crate::LOG,
-                            "Failed to publish rollback event, reason = {:?}", err
+                            "Failed to publish scope.frontend.rollback event, reason = {:?}", err
                         );
                     }
                 }

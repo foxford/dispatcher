@@ -8,8 +8,8 @@ use sqlx::{postgres::PgConnection, Acquire};
 use uuid::Uuid;
 
 use crate::app::AppContext;
-use crate::clients::event::{Event, EventData};
-use crate::clients::tq::{Task as TqTask, TranscodeMinigroupToHlsStream};
+use crate::clients::event::{Event, EventData, RoomAdjustResult};
+use crate::clients::tq::{Task as TqTask, TaskCompleteResult, TranscodeMinigroupToHlsStream};
 use crate::db::class::Object as Class;
 use crate::db::recording::{BoundedOffsetTuples, Object as Recording, Segments};
 
@@ -51,81 +51,97 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
         Ok(())
     }
 
-    async fn handle_adjust(
-        &self,
-        original_room_id: Uuid,
-        modified_room_id: Uuid,
-        _modified_segments: Segments,
-    ) -> Result<()> {
-        // Save adjust results to the DB and fetch recordings.
-        let recordings = {
-            let mut conn = self.ctx.get_conn().await?;
-
-            let mut txn = conn
-                .begin()
-                .await
-                .context("Failed to begin sqlx db transaction")?;
-
-            let q = crate::db::class::UpdateQuery::new(
-                self.minigroup.id(),
+    async fn handle_adjust(&self, room_adjust_result: RoomAdjustResult) -> Result<()> {
+        match room_adjust_result {
+            RoomAdjustResult::Success {
                 original_room_id,
                 modified_room_id,
-            );
+                ..
+            } => {
+                // Save adjust results to the DB and fetch recordings.
+                let recordings = {
+                    let mut conn = self.ctx.get_conn().await?;
 
-            q.execute(&mut txn).await?;
+                    let mut txn = conn
+                        .begin()
+                        .await
+                        .context("Failed to begin sqlx db transaction")?;
 
-            let recordings =
-                crate::db::recording::AdjustMinigroupUpdateQuery::new(self.minigroup.id())
-                    .execute(&mut txn)
-                    .await?;
+                    let q = crate::db::class::UpdateQuery::new(
+                        self.minigroup.id(),
+                        original_room_id,
+                        modified_room_id,
+                    );
 
-            txn.commit().await?;
-            recordings
-        };
+                    q.execute(&mut txn).await?;
 
-        // Find the earliest recording.
-        let earliest_recording = recordings
-            .iter()
-            .min_by(|a, b| a.started_at().cmp(&b.started_at()))
-            .ok_or_else(|| anyhow!("No recordings"))?;
+                    let recordings =
+                        crate::db::recording::AdjustMinigroupUpdateQuery::new(self.minigroup.id())
+                            .execute(&mut txn)
+                            .await?;
 
-        // Fetch event room opening time for events' offset calculation.
-        let modified_event_room = self
-            .ctx
-            .event_client()
-            .read_room(modified_room_id)
-            .await
-            .context("Failed to read modified event room")?;
+                    txn.commit().await?;
+                    recordings
+                };
 
-        let modified_event_room_opened_at = match modified_event_room.time {
-            (Bound::Included(opened_at), _) => opened_at,
-            _ => bail!("Wrong event room opening time"),
-        };
+                // Find the earliest recording.
+                let earliest_recording = recordings
+                    .iter()
+                    .min_by(|a, b| a.started_at().cmp(&b.started_at()))
+                    .ok_or_else(|| anyhow!("No recordings"))?;
 
-        // Fetch pin events for building pin segments.
-        let pin_events = self
-            .ctx
-            .event_client()
-            .list_events(modified_room_id, PIN_EVENT_TYPE)
-            .await
-            .context("Failed to get pin events for room")?;
+                // Fetch event room opening time for events' offset calculation.
+                let modified_event_room = self
+                    .ctx
+                    .event_client()
+                    .read_room(modified_room_id)
+                    .await
+                    .context("Failed to read modified event room")?;
 
-        // Build streams for template bindings.
-        let streams = recordings
-            .iter()
-            .map(|recording| {
-                let event_room_offset = recording.started_at() - modified_event_room_opened_at;
-                let recording_offset = recording.started_at() - earliest_recording.started_at();
-                build_stream(recording, &pin_events, event_room_offset, recording_offset)
-            })
-            .collect::<Vec<_>>();
+                let modified_event_room_opened_at = match modified_event_room.time {
+                    (Bound::Included(opened_at), _) => opened_at,
+                    _ => bail!("Wrong event room opening time"),
+                };
 
-        // Create a tq task.
-        self.ctx
-            .tq_client()
-            .create_task(&self.minigroup, TqTask::TranscodeMinigroupToHls { streams })
-            .await
-            .context("TqClient create task failed")
+                // Fetch pin events for building pin segments.
+                let pin_events = self
+                    .ctx
+                    .event_client()
+                    .list_events(modified_room_id, PIN_EVENT_TYPE)
+                    .await
+                    .context("Failed to get pin events for room")?;
+
+                // Build streams for template bindings.
+                let streams = recordings
+                    .iter()
+                    .map(|recording| {
+                        let event_room_offset =
+                            recording.started_at() - modified_event_room_opened_at;
+                        let recording_offset =
+                            recording.started_at() - earliest_recording.started_at();
+                        build_stream(recording, &pin_events, event_room_offset, recording_offset)
+                    })
+                    .collect::<Vec<_>>();
+
+                // Create a tq task.
+                self.ctx
+                    .tq_client()
+                    .create_task(&self.minigroup, TqTask::TranscodeMinigroupToHls { streams })
+                    .await
+                    .context("TqClient create task failed")
+            }
+            RoomAdjustResult::Error { error } => {
+                bail!("Adjust failed, err = {:?}", error);
+            }
+        }
+    }
+
+    async fn handle_transcoding_completion(
+        &self,
+        completion_result: TaskCompleteResult,
+    ) -> Result<()> {
+        // TODO
+        Ok(())
     }
 }
 

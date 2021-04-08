@@ -12,7 +12,9 @@ use uuid::Uuid;
 
 use super::AppContext;
 use crate::app::postprocessing_strategy;
-use crate::db::recording::Segments;
+use crate::clients::event::RoomAdjust;
+use crate::clients::tq::TaskComplete;
+use crate::db::class::Object as Class;
 
 pub struct MessageHandler {
     ctx: Arc<dyn AppContext>,
@@ -59,7 +61,7 @@ impl MessageHandler {
             Some("room.close") => self.handle_close(data, topic).await,
             Some("room.upload") => self.handle_upload(data).await,
             Some("room.adjust") => self.handle_adjust(data, audience).await,
-            Some("task.complete") => self.handle_transcoding(data).await,
+            Some("task.complete") => self.handle_transcoding_completion(data, audience).await,
             val => {
                 debug!(
                     crate::LOG,
@@ -114,7 +116,7 @@ impl MessageHandler {
         if let Err(err) = publisher.publish(e) {
             error!(
                 crate::LOG,
-                "Failed to publish rollback event, reason = {:?}", err
+                "Failed to publish webinar.stop event, reason = {:?}", err
             );
         }
         Ok(())
@@ -144,100 +146,45 @@ impl MessageHandler {
         let payload = data.extract_payload();
         let room_adjust: RoomAdjust = serde_json::from_str(&payload)?;
 
-        match room_adjust.result {
-            RoomAdjustResult::Success {
-                original_room_id,
-                modified_room_id,
-                modified_segments,
-            } => {
-                if let Some(scope) = room_adjust.tags.and_then(|v| {
-                    v.get("scope")
-                        .and_then(|s| s.as_str().map(|s| s.to_owned()))
-                }) {
-                    let class = {
-                        let mut conn = self.ctx.get_conn().await?;
+        let class = self
+            .get_class_from_tags(&audience, room_adjust.tags())
+            .await?;
 
-                        crate::db::class::ReadQuery::by_scope(audience, scope.clone())
-                            .execute(&mut conn)
-                            .await?
-                            .ok_or_else(|| anyhow!("Class not found by scope = {}", scope))?
-                    };
-
-                    postprocessing_strategy::get(self.ctx.clone(), class)?
-                        .handle_adjust(original_room_id, modified_room_id, modified_segments)
-                        .await?;
-                } else {
-                    bail!("No scope specified in tags, payload = {:?}", payload);
-                }
-            }
-            RoomAdjustResult::Error { error } => {
-                bail!("Adjust failed, err = {:?}", error);
-            }
-        }
-
-        Ok(())
+        postprocessing_strategy::get(self.ctx.clone(), class)?
+            .handle_adjust(room_adjust.into())
+            .await
     }
 
-    async fn handle_transcoding(&self, data: IncomingEvent<String>) -> Result<()> {
+    async fn handle_transcoding_completion(
+        &self,
+        data: IncomingEvent<String>,
+        audience: String,
+    ) -> Result<()> {
         let payload = data.extract_payload();
         let task: TaskComplete = serde_json::from_str(&payload)?;
-        match task.result {
-            TaskCompleteResult::Success {
-                stream_duration,
-                stream_id,
-                stream_uri,
-                event_room_id,
-                ..
-            } => {
-                let stream_duration = stream_duration.parse::<f64>()?.round() as u64;
+        let class = self.get_class_from_tags(&audience, task.tags()).await?;
 
-                let mut conn = self.ctx.get_conn().await?;
-                let webinar =
-                    crate::db::class::WebinarReadQuery::by_modified_event_room(event_room_id)
-                        .execute(&mut conn)
-                        .await?
-                        .ok_or_else(|| {
-                            anyhow!(
-                                "Room not found by modified event room = {:?}",
-                                event_room_id
-                            )
-                        })?;
+        postprocessing_strategy::get(self.ctx.clone(), class)?
+            .handle_transcoding_completion(task.into())
+            .await
+    }
 
-                crate::db::recording::TranscodingUpdateQuery::new(webinar.id())
-                    .execute(&mut conn)
-                    .await?;
+    async fn get_class_from_tags(&self, audience: &str, tags: Option<&JsonValue>) -> Result<Class> {
+        let maybe_scope = tags.and_then(|tags| {
+            tags.get("scope")
+                .and_then(|s| s.as_str().map(|s| s.to_owned()))
+        });
 
-                let publisher = self.ctx.publisher();
-                let timing = ShortTermTimingProperties::new(chrono::Utc::now());
-                let props = OutgoingEventProperties::new("webinar.ready", timing);
-                let path = format!("audiences/{}/events", webinar.audience());
-                let payload = WebinarReady {
-                    tags: webinar.tags(),
-                    stream_duration,
-                    stream_uri,
-                    stream_id,
-                    status: "success",
-                    scope: webinar.scope(),
-                    id: webinar.id(),
-                    event_room_id,
-                };
-                let event = OutgoingEvent::broadcast(payload, props, &path);
+        if let Some(ref scope) = maybe_scope {
+            let mut conn = self.ctx.get_conn().await?;
 
-                let e = Box::new(event) as Box<dyn IntoPublishableMessage + Send>;
-
-                if let Err(err) = publisher.publish(e) {
-                    error!(
-                        crate::LOG,
-                        "Failed to publish rollback event, reason = {:?}", err
-                    );
-                }
-            }
-            TaskCompleteResult::Failure { error } => {
-                bail!("Transcoding failed, err = {:?}", error);
-            }
+            crate::db::class::ReadQuery::by_scope(audience, scope)
+                .execute(&mut conn)
+                .await?
+                .ok_or_else(|| anyhow!("Class not found by scope = {}", scope))
+        } else {
+            bail!("No scope specified in tags = {:?}", tags);
         }
-
-        Ok(())
     }
 }
 
@@ -253,59 +200,6 @@ struct RoomClose {
 struct RoomUpload {
     id: Uuid,
     rtcs: Vec<postprocessing_strategy::RtcUploadResult>,
-}
-
-#[derive(Deserialize)]
-struct RoomAdjust {
-    tags: Option<JsonValue>,
-    #[serde(flatten)]
-    result: RoomAdjustResult,
-}
-
-#[derive(Deserialize)]
-#[serde(untagged)]
-enum RoomAdjustResult {
-    Success {
-        original_room_id: Uuid,
-        modified_room_id: Uuid,
-        #[serde(with = "crate::db::recording::serde::segments")]
-        modified_segments: Segments,
-    },
-    Error {
-        error: JsonValue,
-    },
-}
-#[derive(Deserialize)]
-struct TaskComplete {
-    tags: Option<JsonValue>,
-    #[serde(flatten)]
-    result: TaskCompleteResult,
-}
-
-#[derive(Deserialize)]
-#[serde(tag = "status")]
-enum TaskCompleteResult {
-    #[serde(rename = "success")]
-    Success {
-        stream_id: Uuid,
-        stream_uri: String,
-        stream_duration: String,
-        event_room_id: Uuid,
-    },
-    #[serde(rename = "failure")]
-    Failure { error: JsonValue },
-}
-
-#[derive(Serialize)]
-struct WebinarReady {
-    tags: Option<JsonValue>,
-    status: &'static str,
-    stream_duration: u64,
-    stream_id: Uuid,
-    stream_uri: String,
-    scope: String,
-    id: Uuid,
-    event_room_id: Uuid,
 }
 
 #[derive(Serialize)]

@@ -6,7 +6,7 @@ use futures::AsyncReadExt;
 use isahc::config::Configurable;
 #[cfg(test)]
 use mockall::{automock, predicate::*};
-use serde_derive::Serialize;
+use serde_derive::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use uuid::Uuid;
 
@@ -82,6 +82,56 @@ impl TranscodeMinigroupToHlsStream {
             ..self
         }
     }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct TaskComplete {
+    tags: Option<JsonValue>,
+    #[serde(flatten)]
+    result: TaskCompleteResult,
+}
+
+impl TaskComplete {
+    pub fn tags(&self) -> Option<&JsonValue> {
+        self.tags.as_ref()
+    }
+}
+
+impl Into<TaskCompleteResult> for TaskComplete {
+    fn into(self) -> TaskCompleteResult {
+        self.result
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(tag = "status")]
+pub enum TaskCompleteResult {
+    #[serde(rename = "success")]
+    Success(TaskCompleteSuccess),
+    #[serde(rename = "failure")]
+    Failure { error: JsonValue },
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(tag = "template")]
+pub enum TaskCompleteSuccess {
+    #[serde(rename = "transcode-stream-to-hls")]
+    TranscodeStreamToHls(TranscodeStreamToHlsSuccess),
+    #[serde(rename = "transcode-minigroup-to-hls")]
+    TranscodeMinigroupToHls(TranscodeMinigroupToHlsSuccess),
+}
+
+#[derive(Debug, Deserialize)]
+pub struct TranscodeStreamToHlsSuccess {
+    pub stream_id: Uuid,
+    pub stream_uri: String,
+    pub stream_duration: String,
+    pub event_room_id: Uuid,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct TranscodeMinigroupToHlsSuccess {
+    pub recording_duration: String,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
