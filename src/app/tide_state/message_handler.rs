@@ -11,6 +11,7 @@ use svc_agent::request::Dispatcher;
 use uuid::Uuid;
 
 use super::AppContext;
+use crate::app::error::{ErrorKind as AppErrorKind, ErrorExt};
 use crate::app::postprocessing_strategy;
 use crate::clients::event::RoomAdjust;
 use crate::clients::tq::TaskComplete;
@@ -58,10 +59,22 @@ impl MessageHandler {
         let data_ = data.clone();
 
         let result = match data.properties().label() {
-            Some("room.close") => self.handle_close(data, topic).await,
-            Some("room.upload") => self.handle_upload(data).await,
-            Some("room.adjust") => self.handle_adjust(data, audience).await,
-            Some("task.complete") => self.handle_transcoding_completion(data, audience).await,
+            Some("room.close") => self
+                .handle_close(data, topic)
+                .await
+                .error(AppErrorKind::ClassClosingFailed),
+            Some("room.upload") => self
+                .handle_upload(data)
+                .await
+                .error(AppErrorKind::TranscodingFlowFailed),
+            Some("room.adjust") => self
+                .handle_adjust(data, audience)
+                .await
+                .error(AppErrorKind::TranscodingFlowFailed),
+            Some("task.complete") => self
+                .handle_transcoding_completion(data, audience)
+                .await
+                .error(AppErrorKind::TranscodingFlowFailed),
             val => {
                 debug!(
                     crate::LOG,
@@ -79,6 +92,8 @@ impl MessageHandler {
                 data_.payload(),
                 e
             );
+
+            e.notify_sentry(&crate::LOG);
         }
     }
 
