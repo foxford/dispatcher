@@ -39,7 +39,7 @@ impl MinigroupPostprocessingStrategy {
 #[async_trait]
 impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
     async fn handle_upload(&self, rtcs: Vec<RtcUploadResult>) -> Result<()> {
-        if rtcs.len() < 1 {
+        if rtcs.is_empty() {
             bail!("Expected at least 1 RTC");
         }
 

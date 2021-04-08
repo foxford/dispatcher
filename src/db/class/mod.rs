@@ -99,15 +99,15 @@ impl From<BoundedDateTimeTuple> for Time {
     }
 }
 
-impl Into<PgRange<DateTime<Utc>>> for Time {
-    fn into(self) -> PgRange<DateTime<Utc>> {
-        self.0
+impl From<Time> for PgRange<DateTime<Utc>> {
+    fn from(time: Time) -> Self {
+        time.0
     }
 }
 
-impl Into<PgRange<DateTime<Utc>>> for &Time {
-    fn into(self) -> PgRange<DateTime<Utc>> {
-        self.0.clone()
+impl From<&Time> for PgRange<DateTime<Utc>> {
+    fn from(time: &Time) -> PgRange<DateTime<Utc>> {
+        time.0.clone()
     }
 }
 

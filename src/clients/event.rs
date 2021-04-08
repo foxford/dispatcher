@@ -85,12 +85,6 @@ impl RoomAdjust {
     }
 }
 
-impl Into<RoomAdjustResult> for RoomAdjust {
-    fn into(self) -> RoomAdjustResult {
-        self.result
-    }
-}
-
 #[derive(Deserialize)]
 #[serde(untagged)]
 pub enum RoomAdjustResult {
@@ -103,6 +97,12 @@ pub enum RoomAdjustResult {
     Error {
         error: JsonValue,
     },
+}
+
+impl From<RoomAdjust> for RoomAdjustResult {
+    fn from(room_adjust: RoomAdjust) -> Self {
+        room_adjust.result
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -349,7 +349,7 @@ impl EventClient for MqttEventClient {
 
         let payload = EventAdjustPayload {
             id: event_room_id,
-            started_at: started_at,
+            started_at,
             segments,
             offset,
         };
