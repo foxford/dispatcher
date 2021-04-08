@@ -26,6 +26,8 @@ pub enum ErrorKind {
     Unauthorized,
     WebinarNotFound,
     RecordingNotFound,
+    ClassClosingFailed,
+    TranscodingFlowFailed,
 }
 
 impl ErrorKind {
@@ -104,6 +106,18 @@ impl From<ErrorKind> for ErrorKindProperties {
                 kind: "recording_not_found",
                 title: "Recording not found",
                 is_notify_sentry: false,
+            },
+            ErrorKind::ClassClosingFailed => ErrorKindProperties {
+                status: ResponseStatus::UNPROCESSABLE_ENTITY,
+                kind: "class_closing_failed",
+                title: "Class closing failed",
+                is_notify_sentry: true,
+            },
+            ErrorKind::TranscodingFlowFailed => ErrorKindProperties {
+                status: ResponseStatus::UNPROCESSABLE_ENTITY,
+                kind: "transcoding_flow_failed",
+                title: "Transcoding flow failed",
+                is_notify_sentry: true,
             },
         }
     }
