@@ -13,16 +13,86 @@ use uuid::Uuid;
 use super::ClientError;
 use crate::db::recording::Segments;
 
+const PRIORITY: &str = "normal";
+
+////////////////////////////////////////////////////////////////////////////////
+
+#[derive(Debug, Serialize)]
+pub enum Task {
+    TranscodeStreamToHls {
+        stream_id: Uuid,
+        stream_uri: String,
+        event_room_id: Option<Uuid>,
+        #[serde(serialize_with = "crate::db::recording::serde::segments_option")]
+        segments: Option<Segments>,
+    },
+    TranscodeMinigroupToHls {
+        streams: Vec<TranscodeMinigroupToHlsStream>,
+    },
+}
+
+impl Task {
+    fn template(&self) -> &'static str {
+        match self {
+            Self::TranscodeStreamToHls { .. } => "transcode-stream-to-hls",
+            Self::TranscodeMinigroupToHls { .. } => "transcode-minigroup-to-hls",
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct TranscodeMinigroupToHlsStream {
+    id: Uuid,
+    uri: String,
+    offset: Option<u64>,
+    #[serde(serialize_with = "crate::db::recording::serde::segments_option")]
+    segments: Option<Segments>,
+    #[serde(serialize_with = "crate::db::recording::serde::segments_option")]
+    pin_segments: Option<Segments>,
+}
+
+impl TranscodeMinigroupToHlsStream {
+    pub fn new(id: Uuid, uri: String) -> Self {
+        Self {
+            id,
+            uri,
+            offset: None,
+            segments: None,
+            pin_segments: None,
+        }
+    }
+
+    pub fn offset(self, offset: u64) -> Self {
+        Self {
+            offset: Some(offset),
+            ..self
+        }
+    }
+
+    pub fn segments(self, segments: Segments) -> Self {
+        Self {
+            segments: Some(segments),
+            ..self
+        }
+    }
+
+    pub fn pin_segments(self, pin_segments: Segments) -> Self {
+        Self {
+            pin_segments: Some(pin_segments),
+            ..self
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 #[cfg_attr(test, automock)]
 #[async_trait]
 pub trait TqClient: Sync + Send {
     async fn create_task(
         &self,
-        webinar: &crate::db::class::Object,
-        stream_id: Uuid,
-        stream_uri: String,
-        event_room_id: Uuid,
-        segments: Segments,
+        class: &crate::db::class::Object,
+        task: Task,
     ) -> Result<(), ClientError>;
 }
 
@@ -59,46 +129,28 @@ struct TaskPayload {
     tags: Option<JsonValue>,
     priority: String,
     template: String,
-    bindings: TaskBinding,
-}
-
-#[derive(Serialize)]
-struct TaskBinding {
-    stream_id: Uuid,
-    stream_uri: String,
-    event_room_id: Uuid,
-    #[serde(with = "crate::db::recording::serde::segments")]
-    segments: crate::db::recording::Segments,
+    bindings: Task,
 }
 
 #[async_trait]
 impl TqClient for HttpTqClient {
     async fn create_task(
         &self,
-        webinar: &crate::db::class::Object,
-        stream_id: Uuid,
-        stream_uri: String,
-        event_room_id: Uuid,
-        segments: Segments,
+        class: &crate::db::class::Object,
+        task: Task,
     ) -> Result<(), ClientError> {
-        let bindings = TaskBinding {
-            stream_id,
-            stream_uri,
-            event_room_id,
-            segments,
-        };
         let task = TaskPayload {
-            bindings,
-            audience: webinar.audience(),
-            tags: webinar.tags(),
-            priority: "normal".into(),
-            template: "transcode-stream-to-hls".into(),
+            audience: class.audience(),
+            tags: class.tags(),
+            priority: PRIORITY.into(),
+            template: task.template().into(),
+            bindings: task,
         };
 
         let route = format!(
             "/api/v1/audiences/{}/tasks/{}",
-            webinar.audience(),
-            webinar.scope()
+            class.audience(),
+            class.scope()
         );
 
         let url = self.base_url.join(&route).map_err(|e| {

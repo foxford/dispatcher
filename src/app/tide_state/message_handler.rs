@@ -1,9 +1,8 @@
 use std::sync::Arc;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use serde_derive::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
-use sqlx::Acquire;
 use svc_agent::mqtt::{
     IncomingEvent, IncomingResponse, IntoPublishableMessage, OutgoingEvent,
     OutgoingEventProperties, ShortTermTimingProperties,
@@ -128,14 +127,12 @@ impl MessageHandler {
         let class = {
             let mut conn = self.ctx.get_conn().await?;
 
-            let maybe_class = crate::db::class::ReadQuery::by_conference_room(room_upload.id)
+            crate::db::class::ReadQuery::by_conference_room(room_upload.id)
                 .execute(&mut conn)
-                .await?;
-
-            match maybe_class {
-                Some(class) => class,
-                None => return Ok(()),
-            }
+                .await?
+                .ok_or_else(|| {
+                    anyhow!("Class not found by conference room id = {}", room_upload.id)
+                })?
         };
 
         postprocessing_strategy::get(self.ctx.clone(), class)?
@@ -146,6 +143,7 @@ impl MessageHandler {
     async fn handle_adjust(&self, data: IncomingEvent<String>, audience: String) -> Result<()> {
         let payload = data.extract_payload();
         let room_adjust: RoomAdjust = serde_json::from_str(&payload)?;
+
         match room_adjust.result {
             RoomAdjustResult::Success {
                 original_room_id,
@@ -156,41 +154,18 @@ impl MessageHandler {
                     v.get("scope")
                         .and_then(|s| s.as_str().map(|s| s.to_owned()))
                 }) {
-                    let mut conn = self.ctx.get_conn().await?;
-                    let webinar =
-                        crate::db::class::WebinarReadQuery::by_scope(audience, scope.clone())
+                    let class = {
+                        let mut conn = self.ctx.get_conn().await?;
+
+                        crate::db::class::ReadQuery::by_scope(audience, scope.clone())
                             .execute(&mut conn)
                             .await?
-                            .ok_or_else(|| anyhow!("Room not found by scope = {:?}", scope))?;
+                            .ok_or_else(|| anyhow!("Class not found by scope = {}", scope))?
+                    };
 
-                    let mut txn = conn
-                        .begin()
-                        .await
-                        .context("Failed to begin sqlx db transaction")?;
-                    let q = crate::db::class::WebinarUpdateQuery::new(
-                        webinar.id(),
-                        original_room_id,
-                        modified_room_id,
-                    );
-                    q.execute(&mut txn).await?;
-
-                    let q = crate::db::recording::AdjustUpdateQuery::new(
-                        webinar.id(),
-                        modified_segments.clone(),
-                    );
-                    let recording = q.execute(&mut txn).await?;
-                    txn.commit().await?;
-                    self.ctx
-                        .tq_client()
-                        .create_task(
-                            &webinar,
-                            recording.rtc_id(),
-                            recording.stream_uri().to_string(),
-                            modified_room_id,
-                            modified_segments,
-                        )
-                        .await
-                        .map_err(|e| anyhow!("TqClient create task failed, reason = {:?}", e))?;
+                    postprocessing_strategy::get(self.ctx.clone(), class)?
+                        .handle_adjust(original_room_id, modified_room_id, modified_segments)
+                        .await?;
                 } else {
                     bail!("No scope specified in tags, payload = {:?}", payload);
                 }

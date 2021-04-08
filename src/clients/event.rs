@@ -12,8 +12,8 @@ use serde_json::Value as JsonValue;
 use svc_agent::{
     error::Error as AgentError,
     mqtt::{
-        OutgoingMessage, OutgoingRequest, OutgoingRequestProperties, ShortTermTimingProperties,
-        SubscriptionTopic,
+        OutgoingMessage, OutgoingRequest, OutgoingRequestProperties, ResponseStatus,
+        ShortTermTimingProperties, SubscriptionTopic,
     },
     request::Dispatcher,
     AccountId, AgentId, Subscription,
@@ -23,6 +23,56 @@ use uuid::Uuid;
 use super::{generate_correlation_data, ClientError};
 use crate::db::class::BoundedDateTimeTuple;
 use crate::db::recording::Segments;
+
+const MAX_EVENT_LIST_PAGES: u64 = 10;
+const EVENT_LIST_LIMIT: u64 = 100;
+
+////////////////////////////////////////////////////////////////////////////////
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct Event {
+    id: Uuid,
+    room_id: Uuid,
+    #[serde(rename = "type")]
+    kind: String,
+    set: String,
+    label: Option<String>,
+    attribute: Option<String>,
+    data: EventData,
+    occurred_at: u64,
+    original_occurred_at: u64,
+    created_by: AgentId,
+    #[serde(with = "chrono::serde::ts_milliseconds")]
+    created_at: DateTime<Utc>,
+}
+
+impl Event {
+    pub fn data(&self) -> &EventData {
+        &self.data
+    }
+
+    pub fn occurred_at(&self) -> u64 {
+        self.occurred_at
+    }
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub enum EventData {
+    Pin(PinEventData),
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct PinEventData {
+    agent_id: AgentId,
+}
+
+impl PinEventData {
+    pub fn agent_id(&self) -> &AgentId {
+        &self.agent_id
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 #[cfg_attr(test, automock)]
 #[async_trait]
@@ -48,6 +98,7 @@ pub trait EventClient: Sync + Send {
     ) -> Result<(), ClientError>;
 
     async fn lock_chat(&self, room_id: Uuid) -> Result<(), ClientError>;
+    async fn list_events(&self, room_id: Uuid, kind: &str) -> Result<Vec<Event>, ClientError>;
 }
 
 pub struct MqttEventClient {
@@ -95,7 +146,7 @@ impl MqttEventClient {
     }
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 struct EventRoomPayload {
     audience: String,
     #[serde(with = "crate::serde::ts_seconds_bound_tuple")]
@@ -104,7 +155,7 @@ struct EventRoomPayload {
     tags: Option<JsonValue>,
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 struct EventRoomUpdatePayload {
     id: Uuid,
     #[serde(with = "crate::serde::ts_seconds_bound_tuple")]
@@ -121,7 +172,7 @@ struct EventAdjustPayload {
     offset: i64,
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 struct ChatLockPayload {
     room_id: Uuid,
     #[serde(rename(serialize = "type"))]
@@ -130,12 +181,22 @@ struct ChatLockPayload {
     data: JsonValue,
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 struct EventRoomReadPayload {
     id: Uuid,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Serialize)]
+struct EventListPayload {
+    room_id: Uuid,
+    #[serde(rename = "type")]
+    kind: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    last_occurred_at: Option<u64>,
+    limit: u64,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct EventRoomResponse {
     pub id: Uuid,
     #[serde(with = "crate::serde::ts_seconds_bound_tuple")]
@@ -236,8 +297,8 @@ impl EventClient for MqttEventClient {
             request.await
         };
         let payload = payload_result.map_err(|e| ClientError::PayloadError(e.to_string()))?;
-        match payload.properties().status().as_u16() {
-            200 => Ok(()),
+        match payload.properties().status() {
+            ResponseStatus::OK => Ok(()),
             _ => Err(ClientError::PayloadError(
                 "Event room update returned non 200 status".into(),
             )),
@@ -278,8 +339,8 @@ impl EventClient for MqttEventClient {
 
         let payload = payload_result.map_err(|e| ClientError::PayloadError(e.to_string()))?;
 
-        match payload.properties().status().as_u16() {
-            202 => Ok(()),
+        match payload.properties().status() {
+            ResponseStatus::ACCEPTED => Ok(()),
             status => {
                 let e = format!("Wrong status, expected 202, got {:?}", status);
                 Err(ClientError::PayloadError(e))
@@ -315,12 +376,65 @@ impl EventClient for MqttEventClient {
 
         let payload = payload_result.map_err(|e| ClientError::PayloadError(e.to_string()))?;
 
-        match payload.properties().status().as_u16() {
-            201 => Ok(()),
+        match payload.properties().status() {
+            ResponseStatus::CREATED => Ok(()),
             status => {
                 let e = format!("Wrong status, expected 201, got {:?}", status);
                 Err(ClientError::PayloadError(e))
             }
         }
+    }
+
+    async fn list_events(&self, room_id: Uuid, kind: &str) -> Result<Vec<Event>, ClientError> {
+        let mut events = vec![];
+        let mut last_occurred_at = None;
+
+        for _ in 0..MAX_EVENT_LIST_PAGES {
+            let reqp = self.build_reqp("event.list")?;
+
+            let payload = EventListPayload {
+                room_id,
+                kind: kind.to_owned(),
+                last_occurred_at,
+                limit: EVENT_LIST_LIMIT,
+            };
+
+            let msg = if let OutgoingMessage::Request(msg) =
+                OutgoingRequest::multicast(payload, reqp, &self.event_account_id, &self.api_version)
+            {
+                msg
+            } else {
+                unreachable!()
+            };
+
+            let request = self.dispatcher.request::<_, Vec<Event>>(msg);
+
+            let response_result = if let Some(dur) = self.timeout {
+                async_std::future::timeout(dur, request)
+                    .await
+                    .map_err(|_e| ClientError::TimeoutError)?
+            } else {
+                request.await
+            };
+
+            let response = response_result.map_err(|e| ClientError::PayloadError(e.to_string()))?;
+            let status = response.properties().status();
+
+            if status != ResponseStatus::OK {
+                let e = format!("Wrong status, expected 200, got {:?}", status);
+                return Err(ClientError::PayloadError(e));
+            }
+
+            if let Some(last_event) = response.payload().last() {
+                last_occurred_at = Some(last_event.occurred_at());
+
+                let mut events_page = response.payload().to_vec();
+                events.append(&mut events_page);
+            } else {
+                break;
+            }
+        }
+
+        Ok(events)
     }
 }
