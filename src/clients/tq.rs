@@ -97,12 +97,6 @@ impl TaskComplete {
     }
 }
 
-impl Into<TaskCompleteResult> for TaskComplete {
-    fn into(self) -> TaskCompleteResult {
-        self.result
-    }
-}
-
 #[derive(Debug, Deserialize)]
 #[serde(tag = "status")]
 pub enum TaskCompleteResult {
@@ -110,6 +104,12 @@ pub enum TaskCompleteResult {
     Success(TaskCompleteSuccess),
     #[serde(rename = "failure")]
     Failure { error: JsonValue },
+}
+
+impl From<TaskComplete> for TaskCompleteResult {
+    fn from(task_complete: TaskComplete) -> Self {
+        task_complete.result
+    }
 }
 
 #[derive(Debug, Deserialize)]

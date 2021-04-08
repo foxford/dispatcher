@@ -11,7 +11,7 @@ use svc_agent::request::Dispatcher;
 use uuid::Uuid;
 
 use super::AppContext;
-use crate::app::error::{ErrorKind as AppErrorKind, ErrorExt};
+use crate::app::error::{ErrorExt, ErrorKind as AppErrorKind};
 use crate::app::postprocessing_strategy;
 use crate::clients::event::RoomAdjust;
 use crate::clients::tq::TaskComplete;
