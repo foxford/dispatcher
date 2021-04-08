@@ -134,11 +134,14 @@ impl super::PostprocessingStrategy for WebinarPostprocessingStrategy {
                 },
             )) => {
                 let stream_duration = stream_duration.parse::<f64>()?.round() as u64;
-                let mut conn = self.ctx.get_conn().await?;
 
-                crate::db::recording::TranscodingUpdateQuery::new(self.webinar.id())
-                    .execute(&mut conn)
-                    .await?;
+                {
+                    let mut conn = self.ctx.get_conn().await?;
+
+                    crate::db::recording::TranscodingUpdateQuery::new(self.webinar.id())
+                        .execute(&mut conn)
+                        .await?;
+                }
 
                 let timing = ShortTermTimingProperties::new(Utc::now());
                 let props = OutgoingEventProperties::new("webinar.ready", timing);
@@ -158,21 +161,20 @@ impl super::PostprocessingStrategy for WebinarPostprocessingStrategy {
                 let event = OutgoingEvent::broadcast(payload, props, &path);
                 let boxed_event = Box::new(event) as Box<dyn IntoPublishableMessage + Send>;
 
-                if let Err(err) = self.ctx.publisher().publish(boxed_event) {
-                    bail!("Failed to publish webinar.ready event, reason = {:?}", err);
-                }
-
-                Ok(())
+                self.ctx
+                    .publisher()
+                    .publish(boxed_event)
+                    .context("Failed to publish webinar.ready event")
             }
             TaskCompleteResult::Success(success_result) => {
                 bail!(
-                    "Got transcoding success for unexpected tq template; expected transcode-stream-to-hls for a webinar, id = {}, result = {:?}",
+                    "Got transcoding success for an unexpected tq template; expected transcode-stream-to-hls for a webinar, id = {}, result = {:?}",
                     self.webinar.id(),
                     success_result,
                 );
             }
             TaskCompleteResult::Failure { error } => {
-                bail!("Transcoding failed, err = {:?}", error);
+                bail!("Transcoding failed: {}", error);
             }
         }
     }
