@@ -11,7 +11,6 @@ enum ReadQueryPredicate {
     Scope { audience: String, scope: String },
     ConferenceRoom(Uuid),
     EventRoom(Uuid),
-    ModifiedEventRoomId(Uuid),
 }
 
 pub struct WebinarReadQuery {
@@ -43,12 +42,6 @@ impl WebinarReadQuery {
         }
     }
 
-    pub fn by_modified_event_room(id: Uuid) -> Self {
-        Self {
-            condition: ReadQueryPredicate::ModifiedEventRoomId(id),
-        }
-    }
-
     pub async fn execute(self, conn: &mut PgConnection) -> sqlx::Result<Option<Object>> {
         use quaint::ast::{Comparable, Select};
         use quaint::visitor::{Postgres, Visitor};
@@ -66,9 +59,6 @@ impl WebinarReadQuery {
             ReadQueryPredicate::EventRoom(_) => {
                 q.and_where("event_room_id".equals("_placeholder_"))
             }
-            ReadQueryPredicate::ModifiedEventRoomId(_) => {
-                q.and_where("modified_event_room_id".equals("_placeholder_"))
-            }
         };
 
         let q = q.and_where("kind".equals("_placeholder_"));
@@ -82,7 +72,6 @@ impl WebinarReadQuery {
             ReadQueryPredicate::Scope { audience, scope } => query.bind(audience).bind(scope),
             ReadQueryPredicate::ConferenceRoom(id) => query.bind(id),
             ReadQueryPredicate::EventRoom(id) => query.bind(id),
-            ReadQueryPredicate::ModifiedEventRoomId(id) => query.bind(id),
         };
 
         let query = query.bind(ClassType::Webinar);

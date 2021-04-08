@@ -3,13 +3,21 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
-use chrono::Duration;
+use chrono::{Duration, Utc};
+use serde_derive::Serialize;
+use serde_json::Value as JsonValue;
 use sqlx::{postgres::PgConnection, Acquire};
+use svc_agent::mqtt::{
+    IntoPublishableMessage, OutgoingEvent, OutgoingEventProperties, ShortTermTimingProperties,
+};
 use uuid::Uuid;
 
 use crate::app::AppContext;
 use crate::clients::event::{Event, EventData, RoomAdjustResult};
-use crate::clients::tq::{Task as TqTask, TaskCompleteResult, TranscodeMinigroupToHlsStream};
+use crate::clients::tq::{
+    Task as TqTask, TaskCompleteResult, TaskCompleteSuccess, TranscodeMinigroupToHlsStream,
+    TranscodeMinigroupToHlsSuccess,
+};
 use crate::db::class::Object as Class;
 use crate::db::recording::{BoundedOffsetTuples, Object as Recording, Segments};
 
@@ -117,8 +125,10 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
                     .map(|recording| {
                         let event_room_offset =
                             recording.started_at() - modified_event_room_opened_at;
+
                         let recording_offset =
                             recording.started_at() - earliest_recording.started_at();
+
                         build_stream(recording, &pin_events, event_room_offset, recording_offset)
                     })
                     .collect::<Vec<_>>();
@@ -140,8 +150,51 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
         &self,
         completion_result: TaskCompleteResult,
     ) -> Result<()> {
-        // TODO
-        Ok(())
+        match completion_result {
+            TaskCompleteResult::Success(TaskCompleteSuccess::TranscodeMinigroupToHls(
+                TranscodeMinigroupToHlsSuccess { recording_duration },
+            )) => {
+                let recording_duration = recording_duration.parse::<f64>()?.round() as u64;
+
+                {
+                    let mut conn = self.ctx.get_conn().await?;
+
+                    crate::db::recording::TranscodingUpdateQuery::new(self.minigroup.id())
+                        .execute(&mut conn)
+                        .await?;
+                }
+
+                let timing = ShortTermTimingProperties::new(Utc::now());
+                let props = OutgoingEventProperties::new("minigroup.ready", timing);
+                let path = format!("audiences/{}/events", self.minigroup.audience());
+
+                let payload = MinigroupReady {
+                    tags: self.minigroup.tags(),
+                    recording_duration,
+                    status: "success",
+                    scope: self.minigroup.scope(),
+                    id: self.minigroup.id(),
+                };
+
+                let event = OutgoingEvent::broadcast(payload, props, &path);
+                let boxed_event = Box::new(event) as Box<dyn IntoPublishableMessage + Send>;
+
+                self.ctx
+                    .publisher()
+                    .publish(boxed_event)
+                    .context("Failed to publish minigroup.ready event")
+            }
+            TaskCompleteResult::Success(success_result) => {
+                bail!(
+                    "Got transcoding success for an unexpected tq template; expected transcode-minigroup-to-hls for a minigroup, id = {}, result = {:?}",
+                    self.minigroup.id(),
+                    success_result,
+                );
+            }
+            TaskCompleteResult::Failure { error } => {
+                bail!("Transcoding failed: {}", error);
+            }
+        }
     }
 }
 
@@ -270,4 +323,13 @@ fn build_stream(
         .offset(recording_offset.num_milliseconds() as u64)
         .segments(recording.segments().to_owned())
         .pin_segments(pin_segments.into())
+}
+
+#[derive(Serialize)]
+struct MinigroupReady {
+    tags: Option<JsonValue>,
+    status: &'static str,
+    recording_duration: u64,
+    scope: String,
+    id: Uuid,
 }
