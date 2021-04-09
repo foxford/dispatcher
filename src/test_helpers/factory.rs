@@ -1,7 +1,7 @@
 use chrono::{DateTime, Utc};
 use serde_json::Value as JsonValue;
 use sqlx::postgres::PgConnection;
-use svc_agent::AccountId;
+use svc_agent::{AccountId, AgentId};
 use uuid::Uuid;
 
 use crate::db;
@@ -40,7 +40,7 @@ impl Classroom {
         }
     }
 
-    async fn insert(self, conn: &mut PgConnection) -> db::class::Object {
+    pub async fn insert(self, conn: &mut PgConnection) -> db::class::Object {
         let mut q = db::class::ClassroomInsertQuery::new(
             self.scope,
             self.audience,
@@ -114,7 +114,7 @@ impl Minigroup {
         }
     }
 
-    async fn insert(self, conn: &mut PgConnection) -> db::class::Object {
+    pub async fn insert(self, conn: &mut PgConnection) -> db::class::Object {
         let mut q = db::class::MinigroupInsertQuery::new(
             self.scope,
             self.audience,
@@ -195,7 +195,7 @@ impl Webinar {
         }
     }
 
-    async fn insert(self, conn: &mut PgConnection) -> db::class::Object {
+    pub async fn insert(self, conn: &mut PgConnection) -> db::class::Object {
         let mut q = db::class::WebinarInsertQuery::new(
             self.scope,
             self.audience,
@@ -247,7 +247,7 @@ impl Chat {
         }
     }
 
-    async fn insert(self, conn: &mut PgConnection) -> db::chat::Object {
+    pub async fn insert(self, conn: &mut PgConnection) -> db::chat::Object {
         let mut q = db::chat::ChatInsertQuery::new(self.scope, self.audience, self.event_room_id);
 
         if let Some(tags) = self.tags {
@@ -270,6 +270,7 @@ pub struct Recording {
     started_at: DateTime<Utc>,
     adjusted_at: Option<DateTime<Utc>>,
     transcoded_at: Option<DateTime<Utc>>,
+    created_by: AgentId,
 }
 
 impl Recording {
@@ -279,6 +280,7 @@ impl Recording {
         stream_uri: String,
         segments: db::recording::Segments,
         started_at: DateTime<Utc>,
+        created_by: AgentId,
     ) -> Self {
         Self {
             class_id,
@@ -289,6 +291,7 @@ impl Recording {
             started_at,
             adjusted_at: None,
             transcoded_at: None,
+            created_by,
         }
     }
 
@@ -313,13 +316,14 @@ impl Recording {
         }
     }
 
-    async fn insert(self, conn: &mut PgConnection) -> db::recording::Object {
+    pub async fn insert(self, conn: &mut PgConnection) -> db::recording::Object {
         let mut q = db::recording::RecordingInsertQuery::new(
             self.class_id,
             self.rtc_id,
             self.segments,
             self.started_at,
             self.stream_uri,
+            self.created_by,
         );
 
         if let Some(modified_segments) = self.modified_segments {
@@ -368,14 +372,14 @@ impl Frontend {
 ////////////////////////////////////////////////////////////////////////////////
 
 #[derive(Debug)]
-pub(crate) struct Scope {
+pub struct Scope {
     scope: String,
     frontend_id: i64,
     app: String,
 }
 
 impl Scope {
-    pub(crate) fn new(scope: String, frontend_id: i64, app: String) -> Self {
+    pub fn new(scope: String, frontend_id: i64, app: String) -> Self {
         Self {
             scope,
             frontend_id,
@@ -383,7 +387,7 @@ impl Scope {
         }
     }
 
-    pub(crate) async fn execute(self, conn: &mut PgConnection) -> sqlx::Result<db::scope::Object> {
+    pub async fn execute(self, conn: &mut PgConnection) -> sqlx::Result<db::scope::Object> {
         sqlx::query_as!(
             db::scope::Object,
             r#"

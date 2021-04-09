@@ -46,9 +46,10 @@ impl super::PostprocessingStrategy for WebinarPostprocessingStrategy {
             crate::db::recording::RecordingInsertQuery::new(
                 self.webinar.id(),
                 rtc.id,
-                rtc.segments.clone(),
+                rtc.segments.to_owned(),
                 rtc.started_at,
-                rtc.uri.clone(),
+                rtc.uri.to_owned(),
+                rtc.created_by.to_owned(),
             )
             .execute(&mut conn)
             .await?;

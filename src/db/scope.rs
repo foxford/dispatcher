@@ -5,7 +5,7 @@ use sqlx::postgres::PgConnection;
 ///////////////////////////////////////////////////////////////////////////////
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
-pub(crate) struct Object {
+pub struct Object {
     pub id: i64,
     pub scope: String,
     pub app: String,

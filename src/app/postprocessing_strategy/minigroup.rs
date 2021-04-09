@@ -212,9 +212,10 @@ async fn insert_recordings(
         let q = crate::db::recording::RecordingInsertQuery::new(
             class_id,
             rtc.id,
-            rtc.segments.clone(),
+            rtc.segments.to_owned(),
             rtc.started_at,
-            rtc.uri.clone(),
+            rtc.uri.to_owned(),
+            rtc.created_by.to_owned(),
         );
 
         q.execute(&mut txn).await?;
@@ -332,4 +333,151 @@ struct MinigroupReady {
     recording_duration: u64,
     scope: String,
     id: Uuid,
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+#[cfg(test)]
+mod tests {
+    mod handle_upload {
+        use std::ops::Bound;
+        use std::sync::Arc;
+
+        use chrono::{DateTime, Duration, Utc};
+        use svc_agent::AccountId;
+        use uuid::Uuid;
+
+        use crate::app::AppContext;
+        use crate::db::recording::{RecordingListQuery, Segments};
+        use crate::test_helpers::prelude::*;
+
+        use super::super::super::{PostprocessingStrategy, RtcUploadReadyData, RtcUploadResult};
+        use super::super::*;
+
+        #[async_std::test]
+        async fn handle_upload() {
+            let now = Utc::now();
+            let conference = TestAgent::new("conference-0", "conference", SVC_AUDIENCE);
+            let mut state = TestState::new(conference, TestAuthz::new()).await;
+            let conference_room_id = Uuid::new_v4();
+            let event_room_id = Uuid::new_v4();
+
+            // Insert a minigroup.
+            let minigroup = {
+                let mut conn = state.get_conn().await.expect("Failed to get conn");
+
+                let time = (
+                    Bound::Included(now - Duration::hours(1)),
+                    Bound::Excluded(now - Duration::minutes(10)),
+                );
+
+                factory::Minigroup::new(
+                    "minigroup123".to_string(),
+                    USR_AUDIENCE.to_string(),
+                    time.into(),
+                    AccountId::new("host", USR_AUDIENCE),
+                    conference_room_id,
+                    event_room_id,
+                )
+                .insert(&mut conn)
+                .await
+            };
+
+            let minigroup_id = minigroup.id();
+
+            // Set up event client mock.
+            let expected_started_at = now - Duration::hours(1);
+            let expected_segments = vec![(Bound::Included(0), Bound::Excluded(3000000))].into();
+
+            state
+                .event_client_mock()
+                .expect_adjust_room()
+                .withf(
+                    move |room_id: &Uuid,
+                          started_at: &DateTime<Utc>,
+                          segments: &Segments,
+                          offset: &i64| {
+                        assert_eq!(*room_id, event_room_id);
+                        assert_eq!(*started_at, expected_started_at);
+                        assert_eq!(segments, &expected_segments);
+                        assert_eq!(*offset, 4018);
+                        true
+                    },
+                )
+                .returning(|_, _, _, _| Ok(()));
+
+            // Handle uploading two RTCs.
+            let rtc1_id = Uuid::new_v4();
+            let uri1 = "s3://minigroup.origin.dev.example.com/rtc1.webm";
+            let started_at1 = now - Duration::hours(1);
+            let agent1 = TestAgent::new("web", "user1", USR_AUDIENCE);
+
+            let segments1: Segments = vec![
+                (Bound::Included(0), Bound::Excluded(1500000)),
+                (Bound::Included(1800000), Bound::Excluded(3000000)),
+            ]
+            .into();
+
+            let rtc1 = RtcUploadResult::Ready(RtcUploadReadyData {
+                id: rtc1_id,
+                uri: uri1.to_string(),
+                started_at: started_at1,
+                segments: segments1.clone(),
+                created_by: agent1.agent_id().to_owned(),
+            });
+
+            let rtc2_id = Uuid::new_v4();
+            let uri2 = "s3://minigroup.origin.dev.example.com/rtc2.webm";
+            let started_at2 = now - Duration::minutes(50);
+            let segments2: Segments = vec![(Bound::Included(0), Bound::Excluded(2700000))].into();
+            let agent2 = TestAgent::new("web", "user2", USR_AUDIENCE);
+
+            let rtc2 = RtcUploadResult::Ready(RtcUploadReadyData {
+                id: rtc2_id,
+                uri: uri2.to_string(),
+                started_at: started_at2,
+                segments: segments2.clone(),
+                created_by: agent2.agent_id().to_owned(),
+            });
+
+            let state = Arc::new(state);
+
+            MinigroupPostprocessingStrategy::new(state.clone(), minigroup)
+                .handle_upload(vec![rtc1, rtc2])
+                .await
+                .expect("Failed to handle upload");
+
+            // Assert recordings in the DB.
+            let recordings = {
+                let mut conn = state.get_conn().await.expect("Failed to get conn");
+
+                RecordingListQuery::new(minigroup_id)
+                    .execute(&mut conn)
+                    .await
+                    .expect("Failed to list recordings")
+            };
+
+            assert_eq!(recordings.len(), 2);
+
+            let recording1 = recordings
+                .iter()
+                .find(|recording| recording.rtc_id() == rtc1_id)
+                .expect("Recording 1 not found");
+
+            assert_eq!(recording1.stream_uri(), uri1);
+            assert_eq!(recording1.started_at(), started_at1);
+            assert_eq!(recording1.segments(), &segments1);
+            assert_eq!(recording1.created_by(), agent1.agent_id());
+
+            let recording2 = recordings
+                .iter()
+                .find(|recording| recording.rtc_id() == rtc2_id)
+                .expect("Recording 2 not found");
+
+            assert_eq!(recording2.stream_uri(), uri2);
+            assert_eq!(recording2.started_at(), now - Duration::minutes(50));
+            assert_eq!(recording2.segments(), &segments2);
+            assert_eq!(recording2.created_by(), agent2.agent_id());
+        }
+    }
 }
