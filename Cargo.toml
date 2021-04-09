@@ -42,5 +42,8 @@ signal-hook = "0.3.6"
 signal-hook-async-std = "0.2.1"
 pin-utils = "0.1.0"
 
+[dev-dependencies]
+mockall = "0.9.1"
+
 [patch.crates-io]
 svc-authz = { git = "https://github.com/netology-group/svc-authz-rs", branch = "master" }

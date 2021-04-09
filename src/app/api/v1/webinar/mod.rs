@@ -13,10 +13,8 @@ use uuid::Uuid;
 use crate::app::authz::AuthzObject;
 use crate::app::error::ErrorExt;
 use crate::app::error::ErrorKind as AppErrorKind;
-use crate::app::tide_state::{
-    conference_client::ConferenceRoomResponse, event_client::EventRoomResponse,
-};
 use crate::app::AppContext;
+use crate::clients::{conference::ConferenceRoomResponse, event::EventRoomResponse};
 use crate::db::class::BoundedDateTimeTuple;
 use crate::db::class::Object as Class;
 use crate::db::recording::Segments;
