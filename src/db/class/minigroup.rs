@@ -67,6 +67,8 @@ pub struct MinigroupInsertQuery {
     preserve_history: bool,
     conference_room_id: Uuid,
     event_room_id: Uuid,
+    original_event_room_id: Option<Uuid>,
+    modified_event_room_id: Option<Uuid>,
 }
 
 impl MinigroupInsertQuery {
@@ -87,12 +89,30 @@ impl MinigroupInsertQuery {
             preserve_history: true,
             conference_room_id,
             event_room_id,
+            original_event_room_id: None,
+            modified_event_room_id: None,
         }
     }
 
     pub fn tags(self, tags: JsonValue) -> Self {
         Self {
             tags: Some(tags),
+            ..self
+        }
+    }
+
+    #[cfg(test)]
+    pub fn original_event_room_id(self, id: Uuid) -> Self {
+        Self {
+            original_event_room_id: Some(id),
+            ..self
+        }
+    }
+
+    #[cfg(test)]
+    pub fn modified_event_room_id(self, id: Uuid) -> Self {
+        Self {
+            modified_event_room_id: Some(id),
             ..self
         }
     }
@@ -104,10 +124,10 @@ impl MinigroupInsertQuery {
             Object,
             r#"
             INSERT INTO class (
-                scope, audience, time, tags, preserve_history, kind,
-                conference_room_id, event_room_id, host
+                scope, audience, time, tags, preserve_history, kind, conference_room_id,
+                event_room_id, host, original_event_room_id, modified_event_room_id
             )
-            VALUES ($1, $2, $3, $4, $5, $6::class_type, $7, $8, $9)
+            VALUES ($1, $2, $3, $4, $5, $6::class_type, $7, $8, $9, $10, $11)
             RETURNING
                 id,
                 scope,
@@ -131,7 +151,9 @@ impl MinigroupInsertQuery {
             ClassType::Minigroup as ClassType,
             self.conference_room_id,
             self.event_room_id,
-            self.host as AccountId
+            self.host as AccountId,
+            self.original_event_room_id,
+            self.modified_event_room_id,
         )
         .fetch_one(conn)
         .await

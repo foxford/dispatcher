@@ -1,8 +1,6 @@
 use tide::http::{Method, Request, Url};
 
 use super::*;
-use crate::db::frontend::tests::InsertQuery as FrontendInsertQuery;
-use crate::db::scope::tests::InsertQuery as ScopeInsertQuery;
 use crate::test_helpers::prelude::*;
 
 #[async_std::test]
@@ -40,12 +38,12 @@ async fn test_api_rollback() {
     {
         let mut conn = state.get_conn().await.expect("Failed to get conn");
 
-        let frontend = FrontendInsertQuery::new("http://v2.testing00.foxford.ru".into())
+        let frontend = factory::Frontend::new("http://v2.testing00.foxford.ru".into())
             .execute(&mut conn)
             .await
             .expect("Failed to seed frontend");
 
-        ScopeInsertQuery::new(scope.clone(), frontend.id, "webinar".into())
+        factory::Scope::new(scope.clone(), frontend.id, "webinar".into())
             .execute(&mut conn)
             .await
             .expect("Failed to seed scope");
