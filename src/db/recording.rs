@@ -112,6 +112,9 @@ pub struct RecordingInsertQuery {
     segments: Segments,
     started_at: DateTime<Utc>,
     stream_uri: String,
+    modified_segments: Option<Segments>,
+    adjusted_at: Option<DateTime<Utc>>,
+    transcoded_at: Option<DateTime<Utc>>,
 }
 
 impl RecordingInsertQuery {
@@ -128,6 +131,33 @@ impl RecordingInsertQuery {
             segments,
             started_at,
             stream_uri,
+            modified_segments: None,
+            adjusted_at: None,
+            transcoded_at: None,
+        }
+    }
+
+    #[cfg(test)]
+    pub fn modified_segments(self, modified_segments: Segments) -> Self {
+        Self {
+            modified_segments: Some(modified_segments),
+            ..self
+        }
+    }
+
+    #[cfg(test)]
+    pub fn adjusted_at(self, adjusted_at: DateTime<Utc>) -> Self {
+        Self {
+            adjusted_at: Some(adjusted_at),
+            ..self
+        }
+    }
+
+    #[cfg(test)]
+    pub fn transcoded_at(self, transcoded_at: DateTime<Utc>) -> Self {
+        Self {
+            transcoded_at: Some(transcoded_at),
+            ..self
         }
     }
 
@@ -135,8 +165,11 @@ impl RecordingInsertQuery {
         sqlx::query_as!(
             Object,
             r#"
-            INSERT INTO recording (class_id, rtc_id, segments, started_at, stream_uri)
-            VALUES ($1, $2, $3, $4, $5)
+            INSERT INTO recording (
+                class_id, rtc_id, stream_uri, segments, modified_segments, started_at, adjusted_at,
+                transcoded_at
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
             RETURNING
                 id,
                 class_id,
@@ -151,9 +184,12 @@ impl RecordingInsertQuery {
             "#,
             self.class_id,
             self.rtc_id,
-            self.segments as Segments,
-            self.started_at,
             self.stream_uri,
+            self.segments as Segments,
+            self.modified_segments as Option<Segments>,
+            self.started_at,
+            self.adjusted_at,
+            self.transcoded_at
         )
         .fetch_one(conn)
         .await
@@ -284,6 +320,7 @@ impl RecordingConvertInsertQuery {
             self.segments as Segments,
             self.modified_segments as Segments,
             self.stream_uri,
+
         )
         .fetch_one(conn)
         .await
