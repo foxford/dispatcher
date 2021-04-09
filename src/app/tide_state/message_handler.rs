@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use serde_derive::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use svc_agent::mqtt::{
@@ -15,7 +15,7 @@ use crate::app::error::{ErrorExt, ErrorKind as AppErrorKind};
 use crate::app::postprocessing_strategy;
 use crate::clients::event::RoomAdjust;
 use crate::clients::tq::TaskComplete;
-use crate::db::class::Object as Class;
+use crate::db::class::{ClassType, Object as Class};
 
 pub struct MessageHandler {
     ctx: Arc<dyn AppContext>,
@@ -100,41 +100,45 @@ impl MessageHandler {
     async fn handle_close(&self, data: IncomingEvent<String>, topic: Vec<&str>) -> Result<()> {
         let payload = serde_json::from_str::<RoomClose>(&data.extract_payload())?;
         let mut conn = self.ctx.get_conn().await?;
+
         let query = match topic.get(1) {
             Some(app) if app.starts_with("event.") => {
-                crate::db::class::WebinarReadQuery::by_event_room(payload.id)
+                crate::db::class::ReadQuery::by_event_room(payload.id)
             }
             Some(app) if app.starts_with("conference.") => {
-                crate::db::class::WebinarReadQuery::by_conference_room(payload.id)
+                crate::db::class::ReadQuery::by_conference_room(payload.id)
             }
             _ => return Ok(()),
         };
 
-        let webinar = query
+        let class = query
             .execute(&mut conn)
             .await?
-            .ok_or_else(|| anyhow!("Webinar not found by id from payload = {:?}", payload,))?;
+            .ok_or_else(|| anyhow!("Class not found by id from payload = {:?}", payload,))?;
 
-        let publisher = self.ctx.publisher();
-        let timing = ShortTermTimingProperties::new(chrono::Utc::now());
-        let props = OutgoingEventProperties::new("webinar.stop", timing);
-        let path = format!("audiences/{}/events", webinar.audience());
-        let payload = WebinarStop {
-            tags: webinar.tags(),
-            scope: webinar.scope(),
-            id: webinar.id(),
+        let label = match class.kind() {
+            ClassType::Classroom => "classroom.close",
+            ClassType::Minigroup => "minigroup.close",
+            ClassType::Webinar => "webinar.close",
         };
+
+        let timing = ShortTermTimingProperties::new(chrono::Utc::now());
+        let props = OutgoingEventProperties::new(label, timing);
+        let path = format!("audiences/{}/events", class.audience());
+
+        let payload = ClassStop {
+            tags: class.tags(),
+            scope: class.scope(),
+            id: class.id(),
+        };
+
         let event = OutgoingEvent::broadcast(payload, props, &path);
+        let boxed_event = Box::new(event) as Box<dyn IntoPublishableMessage + Send>;
 
-        let e = Box::new(event) as Box<dyn IntoPublishableMessage + Send>;
-
-        if let Err(err) = publisher.publish(e) {
-            error!(
-                crate::LOG,
-                "Failed to publish webinar.stop event, reason = {:?}", err
-            );
-        }
-        Ok(())
+        self.ctx
+            .publisher()
+            .publish(boxed_event)
+            .with_context(|| format!("Failed to publish {} event", label))
     }
 
     async fn handle_upload(&self, data: IncomingEvent<String>) -> Result<()> {
@@ -218,7 +222,7 @@ struct RoomUpload {
 }
 
 #[derive(Serialize)]
-struct WebinarStop {
+struct ClassStop {
     tags: Option<JsonValue>,
     scope: String,
     id: Uuid,
