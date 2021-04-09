@@ -4,6 +4,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use serde_derive::Deserialize;
+use svc_agent::AgentId;
 use uuid::Uuid;
 
 use crate::app::AppContext;
@@ -57,6 +58,7 @@ pub(crate) struct RtcUploadReadyData {
     pub(self) started_at: DateTime<Utc>,
     #[serde(deserialize_with = "crate::db::recording::serde::segments::deserialize")]
     pub(self) segments: Segments,
+    pub(self) created_by: AgentId,
 }
 
 #[derive(Debug, Deserialize)]

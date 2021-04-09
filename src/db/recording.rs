@@ -7,6 +7,8 @@ use uuid::Uuid;
 
 use serde_derive::{Deserialize, Serialize};
 
+////////////////////////////////////////////////////////////////////////////////
+
 #[derive(Clone, Debug)]
 pub struct Object {
     id: Uuid,
@@ -52,9 +54,11 @@ impl Object {
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 pub type BoundedOffsetTuples = Vec<(Bound<i64>, Bound<i64>)>;
 
-#[derive(Clone, Debug, Deserialize, Serialize, sqlx::Type)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize, sqlx::Type)]
 #[sqlx(transparent)]
 #[serde(from = "BoundedOffsetTuples")]
 #[serde(into = "BoundedOffsetTuples")]
@@ -78,16 +82,18 @@ impl From<Segments> for Vec<PgRange<i64>> {
     }
 }
 
-pub struct RecordingReadQuery {
+////////////////////////////////////////////////////////////////////////////////
+
+pub struct RecordingListQuery {
     class_id: Uuid,
 }
 
-impl RecordingReadQuery {
+impl RecordingListQuery {
     pub fn new(class_id: Uuid) -> Self {
         Self { class_id }
     }
 
-    pub async fn execute(self, conn: &mut PgConnection) -> sqlx::Result<Option<Object>> {
+    pub async fn execute(self, conn: &mut PgConnection) -> sqlx::Result<Vec<Object>> {
         sqlx::query_as!(
             Object,
             r#"
@@ -108,10 +114,12 @@ impl RecordingReadQuery {
             "#,
             self.class_id
         )
-        .fetch_optional(conn)
+        .fetch_all(conn)
         .await
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 pub struct RecordingInsertQuery {
     class_id: Uuid,
@@ -122,6 +130,7 @@ pub struct RecordingInsertQuery {
     modified_segments: Option<Segments>,
     adjusted_at: Option<DateTime<Utc>>,
     transcoded_at: Option<DateTime<Utc>>,
+    created_by: AgentId,
 }
 
 impl RecordingInsertQuery {
@@ -131,6 +140,7 @@ impl RecordingInsertQuery {
         segments: Segments,
         started_at: DateTime<Utc>,
         stream_uri: String,
+        created_by: AgentId,
     ) -> Self {
         Self {
             class_id,
@@ -141,6 +151,7 @@ impl RecordingInsertQuery {
             modified_segments: None,
             adjusted_at: None,
             transcoded_at: None,
+            created_by,
         }
     }
 
@@ -174,9 +185,9 @@ impl RecordingInsertQuery {
             r#"
             INSERT INTO recording (
                 class_id, rtc_id, stream_uri, segments, modified_segments, started_at, adjusted_at,
-                transcoded_at
+                transcoded_at, created_by
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
             RETURNING
                 id,
                 class_id,
@@ -197,12 +208,15 @@ impl RecordingInsertQuery {
             self.modified_segments as Option<Segments>,
             self.started_at,
             self.adjusted_at,
-            self.transcoded_at
+            self.transcoded_at,
+            self.created_by as AgentId,
         )
         .fetch_one(conn)
         .await
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 pub struct AdjustWebinarUpdateQuery {
     webinar_id: Uuid,
@@ -246,6 +260,8 @@ impl AdjustWebinarUpdateQuery {
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 pub struct AdjustMinigroupUpdateQuery {
     minigroup_id: Uuid,
 }
@@ -283,6 +299,8 @@ impl AdjustMinigroupUpdateQuery {
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 pub struct TranscodingUpdateQuery {
     class_id: Uuid,
 }
@@ -318,6 +336,8 @@ impl TranscodingUpdateQuery {
         .await
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 pub struct RecordingConvertInsertQuery {
     class_id: Uuid,
@@ -374,6 +394,8 @@ impl RecordingConvertInsertQuery {
         .await
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 pub(crate) mod serde {
     pub(crate) mod segments {

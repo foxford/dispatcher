@@ -55,6 +55,20 @@ impl TestState {
     }
 }
 
+impl TestState {
+    pub fn conference_client_mock(&mut self) -> &mut MockConferenceClient {
+        Arc::get_mut(&mut self.conference_client).expect("Failed to get conference client mock")
+    }
+
+    pub fn event_client_mock(&mut self) -> &mut MockEventClient {
+        Arc::get_mut(&mut self.event_client).expect("Failed to get event client mock")
+    }
+
+    pub fn tq_client_mock(&mut self) -> &mut MockTqClient {
+        Arc::get_mut(&mut self.tq_client).expect("Failed to get tq client mock")
+    }
+}
+
 #[async_trait]
 impl AppContext for TestState {
     async fn get_conn(&self) -> Result<PoolConnection<Postgres>> {

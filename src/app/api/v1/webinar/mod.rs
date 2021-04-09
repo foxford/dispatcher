@@ -112,7 +112,8 @@ async fn read_inner(req: Request<Arc<dyn AppContext>>) -> AppResult {
         .get_conn()
         .await
         .error(AppErrorKind::DbConnAcquisitionFailed)?;
-    let recording = crate::db::recording::RecordingReadQuery::new(webinar.id())
+
+    let recordings = crate::db::recording::RecordingListQuery::new(webinar.id())
         .execute(&mut conn)
         .await
         .context("Failed to find recording")
@@ -120,7 +121,7 @@ async fn read_inner(req: Request<Arc<dyn AppContext>>) -> AppResult {
 
     let mut webinar_obj: WebinarObject = webinar.clone().into();
 
-    if let Some(recording) = recording {
+    if let Some(recording) = recordings.first() {
         if let Some(og_event_id) = webinar.original_event_room_id() {
             webinar_obj.add_version(WebinarVersion {
                 version: "original",
@@ -191,7 +192,8 @@ async fn read_by_scope_inner(req: Request<Arc<dyn AppContext>>) -> AppResult {
         .get_conn()
         .await
         .error(AppErrorKind::DbConnAcquisitionFailed)?;
-    let recording = crate::db::recording::RecordingReadQuery::new(webinar.id())
+
+    let recordings = crate::db::recording::RecordingListQuery::new(webinar.id())
         .execute(&mut conn)
         .await
         .context("Failed to find recording")
@@ -199,7 +201,7 @@ async fn read_by_scope_inner(req: Request<Arc<dyn AppContext>>) -> AppResult {
 
     let mut webinar_obj: WebinarObject = webinar.clone().into();
 
-    if let Some(recording) = recording {
+    if let Some(recording) = recordings.first() {
         if let Some(og_event_id) = webinar.original_event_room_id() {
             webinar_obj.add_version(WebinarVersion {
                 version: "original",

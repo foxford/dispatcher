@@ -34,11 +34,15 @@ async fn download_inner(req: Request<Arc<dyn AppContext>>) -> AppResult {
         .get_conn()
         .await
         .error(AppErrorKind::DbConnAcquisitionFailed)?;
-    let recording = crate::db::recording::RecordingReadQuery::new(webinar.id())
+
+    let recordings = crate::db::recording::RecordingListQuery::new(webinar.id())
         .execute(&mut conn)
         .await
         .context("Failed to find recording")
-        .error(AppErrorKind::DbQueryFailed)?
+        .error(AppErrorKind::DbQueryFailed)?;
+
+    let recording = recordings
+        .first()
         .ok_or_else(|| anyhow!("Failed to find recording"))
         .error(AppErrorKind::RecordingNotFound)?;
 
