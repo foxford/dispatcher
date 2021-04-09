@@ -2,10 +2,12 @@ use std::sync::Arc;
 
 use percent_encoding::{percent_encode, NON_ALPHANUMERIC};
 use serde_derive::Deserialize;
-use svc_agent::mqtt::{
-    IntoPublishableMessage, OutgoingEvent, OutgoingEventProperties, ShortTermTimingProperties,
+use svc_agent::{
+    mqtt::{
+        IntoPublishableMessage, OutgoingEvent, OutgoingEventProperties, ShortTermTimingProperties,
+    },
+    Authenticable,
 };
-use svc_agent::Authenticable;
 use tide::http::url::Url;
 use tide::{Request, Response};
 
@@ -117,7 +119,7 @@ pub async fn rollback(req: Request<Arc<dyn AppContext>>) -> tide::Result {
             if let Err(err) = state
                 .authz()
                 .authorize(
-                    state.agent().id().as_account_id().audience().to_string(),
+                    state.agent_id().as_account_id().audience().to_string(),
                     account_id.clone(),
                     object,
                     "rollback".into(),
@@ -156,11 +158,9 @@ pub async fn rollback(req: Request<Arc<dyn AppContext>>) -> tide::Result {
                     let props = OutgoingEventProperties::new("scope.frontend.rollback", timing);
                     let path = format!("scopes/{}/events", scope);
                     let event = OutgoingEvent::broadcast("", props, &path);
-
                     let e = Box::new(event) as Box<dyn IntoPublishableMessage + Send>;
 
-                    let mut agent = state.agent();
-                    if let Err(err) = agent.publish_publishable(e) {
+                    if let Err(err) = state.publisher().publish(e) {
                         error!(
                             crate::LOG,
                             "Failed to publish rollback event, reason = {:?}", err

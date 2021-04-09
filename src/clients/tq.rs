@@ -4,6 +4,8 @@ use anyhow::Result;
 use async_trait::async_trait;
 use futures::AsyncReadExt;
 use isahc::config::Configurable;
+#[cfg(test)]
+use mockall::{automock, predicate::*};
 use serde_derive::Serialize;
 use serde_json::Value as JsonValue;
 use uuid::Uuid;
@@ -11,6 +13,7 @@ use uuid::Uuid;
 use super::ClientError;
 use crate::db::recording::Segments;
 
+#[cfg_attr(test, automock)]
 #[async_trait]
 pub trait TqClient: Sync + Send {
     async fn create_task(

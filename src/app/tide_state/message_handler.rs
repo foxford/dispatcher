@@ -99,7 +99,7 @@ impl MessageHandler {
             .await?
             .ok_or_else(|| anyhow!("Webinar not found by id from payload = {:?}", payload,))?;
 
-        let mut agent = self.ctx.agent();
+        let publisher = self.ctx.publisher();
         let timing = ShortTermTimingProperties::new(chrono::Utc::now());
         let props = OutgoingEventProperties::new("webinar.stop", timing);
         let path = format!("audiences/{}/events", webinar.audience());
@@ -112,7 +112,7 @@ impl MessageHandler {
 
         let e = Box::new(event) as Box<dyn IntoPublishableMessage + Send>;
 
-        if let Err(err) = agent.publish_publishable(e) {
+        if let Err(err) = publisher.publish(e) {
             error!(
                 crate::LOG,
                 "Failed to publish rollback event, reason = {:?}", err
@@ -247,7 +247,7 @@ impl MessageHandler {
                     .execute(&mut conn)
                     .await?;
 
-                let mut agent = self.ctx.agent();
+                let publisher = self.ctx.publisher();
                 let timing = ShortTermTimingProperties::new(chrono::Utc::now());
                 let props = OutgoingEventProperties::new("webinar.ready", timing);
                 let path = format!("audiences/{}/events", webinar.audience());
@@ -265,7 +265,7 @@ impl MessageHandler {
 
                 let e = Box::new(event) as Box<dyn IntoPublishableMessage + Send>;
 
-                if let Err(err) = agent.publish_publishable(e) {
+                if let Err(err) = publisher.publish(e) {
                     error!(
                         crate::LOG,
                         "Failed to publish rollback event, reason = {:?}", err

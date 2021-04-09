@@ -1,36 +1,45 @@
-use std::error::Error as StdError;
-use std::fmt;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
-use rand::{distributions::Alphanumeric, thread_rng, Rng};
 use sqlx::pool::PoolConnection;
 use sqlx::postgres::{PgPool, Postgres};
-use svc_agent::{error::Error as AgentError, mqtt::Agent};
+use svc_agent::error::Error as AgentError;
+use svc_agent::mqtt::{Agent, IntoPublishableMessage};
+use svc_agent::AgentId;
 use svc_authn::token::jws_compact::extract::decode_jws_compact_with_config;
 use svc_authn::{AccountId, Error};
 use svc_authz::ClientMap as Authz;
 use tide::http::url::Url;
 
+use crate::clients::conference::ConferenceClient;
+use crate::clients::event::EventClient;
+use crate::clients::tq::TqClient;
 use crate::config::Config;
 use crate::config::StorageConfig;
-
-use conference_client::ConferenceClient;
-use event_client::EventClient;
-use tq_client::TqClient;
 
 #[async_trait]
 pub trait AppContext: Sync + Send {
     async fn get_conn(&self) -> Result<PoolConnection<Postgres>>;
     fn default_frontend_base(&self) -> Url;
     fn validate_token(&self, token: Option<&str>) -> Result<AccountId, Error>;
-    fn agent(&self) -> Agent;
+    fn agent_id(&self) -> &AgentId;
+    fn publisher(&self) -> &dyn Publisher;
     fn conference_client(&self) -> &dyn ConferenceClient;
     fn event_client(&self) -> &dyn EventClient;
     fn tq_client(&self) -> &dyn TqClient;
     fn authz(&self) -> &Authz;
     fn storage_config(&self) -> &StorageConfig;
+}
+
+pub trait Publisher {
+    fn publish(&self, message: Box<dyn IntoPublishableMessage>) -> Result<(), AgentError>;
+}
+
+impl Publisher for Agent {
+    fn publish(&self, message: Box<dyn IntoPublishableMessage>) -> Result<(), AgentError> {
+        self.clone().publish_publishable(message)
+    }
 }
 
 #[derive(Clone)]
@@ -90,8 +99,12 @@ impl AppContext for TideState {
         Ok(account)
     }
 
-    fn agent(&self) -> Agent {
-        self.agent.clone()
+    fn agent_id(&self) -> &AgentId {
+        self.agent.id()
+    }
+
+    fn publisher(&self) -> &dyn Publisher {
+        &self.agent
     }
 
     fn conference_client(&self) -> &dyn ConferenceClient {
@@ -115,47 +128,4 @@ impl AppContext for TideState {
     }
 }
 
-#[derive(Debug)]
-pub enum ClientError {
-    AgentError(AgentError),
-    PayloadError(String),
-    TimeoutError,
-    HttpError(String),
-}
-
-impl From<AgentError> for ClientError {
-    fn from(e: AgentError) -> Self {
-        Self::AgentError(e)
-    }
-}
-
-impl fmt::Display for ClientError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            ClientError::AgentError(ae) => write!(f, "Agent inner error: {}", ae),
-            ClientError::PayloadError(s) => write!(f, "Payload error: {}", s),
-            ClientError::TimeoutError => write!(f, "Timeout"),
-            ClientError::HttpError(s) => write!(f, "Http error: {}", s),
-        }
-    }
-}
-
-impl StdError for ClientError {
-    fn source(&self) -> Option<&(dyn StdError + 'static)> {
-        None
-    }
-}
-
-const CORRELATION_DATA_LENGTH: usize = 16;
-
-fn generate_correlation_data() -> String {
-    thread_rng()
-        .sample_iter(&Alphanumeric)
-        .take(CORRELATION_DATA_LENGTH)
-        .collect()
-}
-
-pub mod conference_client;
-pub mod event_client;
 pub mod message_handler;
-pub mod tq_client;

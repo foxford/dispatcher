@@ -5,6 +5,8 @@ use std::time::Duration;
 use anyhow::Result;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
+#[cfg(test)]
+use mockall::{automock, predicate::*};
 use serde_derive::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use svc_agent::{
@@ -22,6 +24,7 @@ use super::{generate_correlation_data, ClientError};
 use crate::db::class::BoundedDateTimeTuple;
 use crate::db::recording::Object as Recording;
 
+#[cfg_attr(test, automock)]
 #[async_trait]
 pub trait EventClient: Sync + Send {
     async fn read_room(&self, id: Uuid) -> Result<EventRoomResponse, ClientError>;

@@ -108,6 +108,7 @@ fn create_redis() -> Option<Box<dyn AuthzCache>> {
 }
 
 mod app;
+mod clients;
 mod config;
 mod db;
 #[allow(unused_imports)]

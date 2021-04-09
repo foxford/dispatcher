@@ -15,6 +15,9 @@ use svc_authz::ClientMap as Authz;
 use tide::http::headers::HeaderValue;
 use tide::security::{CorsMiddleware, Origin};
 
+use crate::clients::conference::{ConferenceClient, MqttConferenceClient};
+use crate::clients::event::{EventClient, MqttEventClient};
+use crate::clients::tq::{HttpTqClient, TqClient};
 use crate::config::{self, Config};
 use api::v1::chat::{
     convert as convert_chat, create as create_chat, read_by_scope as read_chat_by_scope,
@@ -35,14 +38,12 @@ use api::v1::webinar::{
 use api::{
     redirect_to_frontend, rollback, v1::healthz, v1::redirect_to_frontend as redirect_to_frontend2,
 };
+pub use authz::AuthzObject;
 use info::{list_frontends, list_scopes};
-use tide_state::conference_client::{ConferenceClient, MqttConferenceClient};
-use tide_state::event_client::{EventClient, MqttEventClient};
 use tide_state::message_handler::MessageHandler;
-use tide_state::tq_client::{HttpTqClient, TqClient};
-pub use tide_state::{AppContext, TideState};
+pub use tide_state::{AppContext, Publisher, TideState};
 
-const API_VERSION: &str = "v1";
+pub const API_VERSION: &str = "v1";
 
 pub async fn run(db: PgPool, authz_cache: Option<Box<dyn AuthzCache>>) -> Result<()> {
     let config = config::load().context("Failed to load config")?;

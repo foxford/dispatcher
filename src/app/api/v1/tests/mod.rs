@@ -1,10 +1,14 @@
-use super::*;
-
 use tide::http::{Method, Request, Url};
+
+use super::*;
+use crate::db::frontend::tests::InsertQuery as FrontendInsertQuery;
+use crate::db::scope::tests::InsertQuery as ScopeInsertQuery;
+use crate::test_helpers::prelude::*;
 
 #[async_std::test]
 async fn test_healthz() {
-    let state = crate::test_helpers::TestState::new().await;
+    let agent = TestAgent::new("web", "user123", USR_AUDIENCE);
+    let state = TestState::new(agent, TestAuthz::new()).await;
     let state = Arc::new(state) as Arc<dyn AppContext>;
     let mut app = tide::with_state(state);
     app.at("/test/healthz").get(healthz);
@@ -20,33 +24,42 @@ async fn test_healthz() {
     assert_eq!(body, "Ok");
 }
 
-use crate::db::frontend::tests::InsertQuery as FrontendInsertQuery;
-use crate::db::scope::tests::InsertQuery as ScopeInsertQuery;
 #[async_std::test]
 async fn test_api_rollback() {
-    let state = crate::test_helpers::TestState::new().await;
+    let agent = TestAgent::new("web", "user123", USR_AUDIENCE);
+    let token = agent.token();
+    let mut authz = TestAuthz::new();
+    authz.allow(agent.account_id(), vec!["scopes"], "rollback");
+
+    let state = TestState::new(agent, authz).await;
     let state = Arc::new(state) as Arc<dyn AppContext>;
     let mut app = tide::with_state(state.clone());
 
-    let scope = crate::test_helpers::random_string();
-    let mut conn = state.get_conn().await.expect("Failed to get conn");
-    let frontend = FrontendInsertQuery::new("http://v2.testing00.foxford.ru".into())
-        .execute(&mut conn)
-        .await
-        .expect("Failed to seed frontend");
-    ScopeInsertQuery::new(scope.clone(), frontend.id, "webinar".into())
-        .execute(&mut conn)
-        .await
-        .expect("Failed to seed scope");
+    let scope = shared_helpers::random_string();
 
-    drop(conn);
+    {
+        let mut conn = state.get_conn().await.expect("Failed to get conn");
+
+        let frontend = FrontendInsertQuery::new("http://v2.testing00.foxford.ru".into())
+            .execute(&mut conn)
+            .await
+            .expect("Failed to seed frontend");
+
+        ScopeInsertQuery::new(scope.clone(), frontend.id, "webinar".into())
+            .execute(&mut conn)
+            .await
+            .expect("Failed to seed scope");
+    }
 
     let path = format!("test/api/scopes/{}/rollback", scope);
+
     app.at("test/api/scopes/:scope/rollback")
         .post(super::super::rollback);
 
-    let req = Request::new(Method::Post, url(&path));
+    let mut req = Request::new(Method::Post, url(&path));
+    req.append_header("Authorization", format!("Bearer {}", token));
     let mut resp: Response = app.respond(req).await.expect("Failed to get response");
+
     let body = resp
         .take_body()
         .into_string()

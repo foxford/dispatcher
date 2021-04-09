@@ -39,5 +39,8 @@ isahc = "1.1.0"
 http = "0.2"
 url = "2.2.1"
 
+[dev-dependencies]
+mockall = "0.9.1"
+
 [patch.crates-io]
 svc-authz = { git = "https://github.com/netology-group/svc-authz-rs", branch = "master" }
