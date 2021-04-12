@@ -20,6 +20,9 @@ use crate::db::class::Object as Class;
 
 use super::{shared_helpers, RtcUploadResult};
 
+// TODO: make configurable for each audience.
+const PREROLL_OFFSET: i64 = 4018;
+
 pub(super) struct WebinarPostprocessingStrategy {
     ctx: Arc<dyn AppContext>,
     webinar: Class,
@@ -57,12 +60,11 @@ impl super::PostprocessingStrategy for WebinarPostprocessingStrategy {
 
         self.ctx
             .event_client()
-            // TODO FIX OFFSET
             .adjust_room(
                 self.webinar.event_room_id(),
                 rtc.started_at,
                 rtc.segments.clone(),
-                4018,
+                PREROLL_OFFSET,
             )
             .await
             .context("Failed to adjust room")
@@ -149,12 +151,12 @@ impl super::PostprocessingStrategy for WebinarPostprocessingStrategy {
                 let path = format!("audiences/{}/events", self.webinar.audience());
 
                 let payload = WebinarReady {
-                    tags: self.webinar.tags(),
+                    tags: self.webinar.tags().map(ToOwned::to_owned),
                     stream_duration,
                     stream_uri,
                     stream_id,
                     status: "success",
-                    scope: self.webinar.scope(),
+                    scope: self.webinar.scope().to_owned(),
                     id: self.webinar.id(),
                     event_room_id,
                 };
@@ -183,6 +185,7 @@ impl super::PostprocessingStrategy for WebinarPostprocessingStrategy {
 
 #[derive(Serialize)]
 struct WebinarReady {
+    #[serde(skip_serializing_if = "Option::is_none")]
     tags: Option<JsonValue>,
     status: &'static str,
     stream_duration: u64,

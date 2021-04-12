@@ -18,11 +18,14 @@ const PRIORITY: &str = "normal";
 ////////////////////////////////////////////////////////////////////////////////
 
 #[derive(Debug, Serialize)]
+#[serde(untagged)]
 pub enum Task {
     TranscodeStreamToHls {
         stream_id: Uuid,
         stream_uri: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
         event_room_id: Option<Uuid>,
+        #[serde(skip_serializing_if = "Option::is_none")]
         #[serde(serialize_with = "crate::db::recording::serde::segments_option")]
         segments: Option<Segments>,
     },
@@ -44,9 +47,12 @@ impl Task {
 pub struct TranscodeMinigroupToHlsStream {
     id: Uuid,
     uri: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     offset: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(serialize_with = "crate::db::recording::serde::segments_option")]
     segments: Option<Segments>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(serialize_with = "crate::db::recording::serde::segments_option")]
     pin_segments: Option<Segments>,
 }
@@ -176,6 +182,7 @@ impl HttpTqClient {
 #[derive(Serialize)]
 struct TaskPayload {
     audience: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     tags: Option<JsonValue>,
     priority: String,
     template: String,
@@ -190,8 +197,8 @@ impl TqClient for HttpTqClient {
         task: Task,
     ) -> Result<(), ClientError> {
         let task = TaskPayload {
-            audience: class.audience(),
-            tags: class.tags(),
+            audience: class.audience().to_owned(),
+            tags: class.tags().map(ToOwned::to_owned),
             priority: PRIORITY.into(),
             template: task.template().into(),
             bindings: task,

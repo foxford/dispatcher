@@ -57,6 +57,7 @@ impl Event {
 }
 
 #[derive(Clone, Debug, Deserialize)]
+#[serde(untagged)]
 pub enum EventData {
     Pin(PinEventData),
 }
@@ -184,7 +185,9 @@ struct EventRoomPayload {
     audience: String,
     #[serde(with = "crate::serde::ts_seconds_bound_tuple")]
     time: BoundedDateTimeTuple,
+    #[serde(skip_serializing_if = "Option::is_none")]
     preserve_history: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     tags: Option<JsonValue>,
 }
 

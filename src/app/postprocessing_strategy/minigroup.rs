@@ -23,7 +23,10 @@ use crate::db::recording::{BoundedOffsetTuples, Object as Recording, Segments};
 
 use super::{shared_helpers, RtcUploadReadyData, RtcUploadResult};
 
+const NS_IN_MS: i64 = 1000000;
 const PIN_EVENT_TYPE: &str = "pin";
+// TODO: make configurable for each audience.
+const PREROLL_OFFSET: i64 = 4018;
 
 pub(super) struct MinigroupPostprocessingStrategy {
     ctx: Arc<dyn AppContext>,
@@ -123,8 +126,9 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
                 let streams = recordings
                     .iter()
                     .map(|recording| {
-                        let event_room_offset =
-                            recording.started_at() - modified_event_room_opened_at;
+                        let event_room_offset = recording.started_at()
+                            - modified_event_room_opened_at
+                            + Duration::milliseconds(PREROLL_OFFSET);
 
                         let recording_offset =
                             recording.started_at() - earliest_recording.started_at();
@@ -141,7 +145,7 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
                     .context("TqClient create task failed")
             }
             RoomAdjustResult::Error { error } => {
-                bail!("Adjust failed, err = {:?}", error);
+                bail!("Adjust failed, err = {:#?}", error);
             }
         }
     }
@@ -152,7 +156,9 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
     ) -> Result<()> {
         match completion_result {
             TaskCompleteResult::Success(TaskCompleteSuccess::TranscodeMinigroupToHls(
-                TranscodeMinigroupToHlsSuccess { recording_duration },
+                TranscodeMinigroupToHlsSuccess {
+                    recording_duration, ..
+                },
             )) => {
                 let recording_duration = recording_duration.parse::<f64>()?.round() as u64;
 
@@ -169,11 +175,11 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
                 let path = format!("audiences/{}/events", self.minigroup.audience());
 
                 let payload = MinigroupReady {
-                    tags: self.minigroup.tags(),
-                    recording_duration,
-                    status: "success",
-                    scope: self.minigroup.scope(),
                     id: self.minigroup.id(),
+                    scope: self.minigroup.scope().to_owned(),
+                    tags: self.minigroup.tags().map(ToOwned::to_owned),
+                    status: "success",
+                    recording_duration,
                 };
 
                 let event = OutgoingEvent::broadcast(payload, props, &path);
@@ -186,7 +192,7 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
             }
             TaskCompleteResult::Success(success_result) => {
                 bail!(
-                    "Got transcoding success for an unexpected tq template; expected transcode-minigroup-to-hls for a minigroup, id = {}, result = {:?}",
+                    "Got transcoding success for an unexpected tq template; expected transcode-minigroup-to-hls for a minigroup, id = {}, result = {:#?}",
                     self.minigroup.id(),
                     success_result,
                 );
@@ -239,8 +245,7 @@ async fn call_adjust(
     let segments = build_adjust_segments(&rtcs)?;
 
     ctx.event_client()
-        // TODO FIX OFFSET
-        .adjust_room(room_id, started_at, segments, 4018)
+        .adjust_room(room_id, started_at, segments, PREROLL_OFFSET)
         .await
         .map_err(|err| anyhow!("Failed to adjust room, id = {}: {}", room_id, err))?;
 
@@ -288,7 +293,7 @@ fn build_stream(
     event_room_offset: Duration,
     recording_offset: Duration,
 ) -> TranscodeMinigroupToHlsStream {
-    let event_room_offset = event_room_offset.num_nanoseconds().unwrap_or(i64::MAX);
+    let event_room_offset = event_room_offset.num_milliseconds();
     let mut pin_segments = vec![];
     let mut pin_start = None;
 
@@ -296,7 +301,7 @@ fn build_stream(
         match event.data() {
             EventData::Pin(data) => {
                 // Shift from the event room's dimension to the recording's dimension.
-                let occurred_at = event.occurred_at() as i64 - event_room_offset;
+                let occurred_at = event.occurred_at() as i64 / NS_IN_MS - event_room_offset;
 
                 if data.agent_id() == recording.created_by() && pin_start.is_none() {
                     // Stream has got pinned.
@@ -328,11 +333,12 @@ fn build_stream(
 
 #[derive(Serialize)]
 struct MinigroupReady {
+    id: Uuid,
+    scope: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     tags: Option<JsonValue>,
     status: &'static str,
     recording_duration: u64,
-    scope: String,
-    id: Uuid,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -400,7 +406,7 @@ mod tests {
                         assert_eq!(*room_id, event_room_id);
                         assert_eq!(*started_at, expected_started_at);
                         assert_eq!(segments, &expected_segments);
-                        assert_eq!(*offset, 4018);
+                        assert_eq!(*offset, PREROLL_OFFSET);
                         true
                     },
                 )
