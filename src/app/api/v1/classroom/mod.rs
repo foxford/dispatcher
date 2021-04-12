@@ -25,13 +25,14 @@ struct ClassroomObject {
 struct RealTimeObject {
     conference_room_id: Uuid,
     event_room_id: Uuid,
+    #[serde(skip_serializing_if = "Option::is_none")]
     fallback_uri: Option<String>,
 }
 
 impl From<Class> for ClassroomObject {
     fn from(obj: Class) -> ClassroomObject {
         ClassroomObject {
-            id: obj.scope(),
+            id: obj.scope().to_owned(),
             real_time: RealTimeObject {
                 fallback_uri: None,
                 conference_room_id: obj.conference_room_id(),
@@ -63,7 +64,7 @@ async fn read_by_scope_inner(req: Request<Arc<dyn AppContext>>) -> AppResult {
     state
         .authz()
         .authorize(
-            classroom.audience(),
+            classroom.audience().to_owned(),
             account_id.clone(),
             object,
             "read".into(),

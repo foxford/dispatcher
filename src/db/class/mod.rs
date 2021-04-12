@@ -32,12 +32,16 @@ pub struct Object {
     audience: String,
     #[serde(with = "ts_seconds")]
     created_at: DateTime<Utc>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     tags: Option<JsonValue>,
     conference_room_id: Uuid,
     event_room_id: Uuid,
+    #[serde(skip_serializing_if = "Option::is_none")]
     original_event_room_id: Option<Uuid>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     modified_event_room_id: Option<Uuid>,
     preserve_history: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
     host: Option<AccountId>,
 }
 
@@ -50,8 +54,8 @@ impl Object {
         self.kind
     }
 
-    pub fn scope(&self) -> String {
-        self.scope.clone()
+    pub fn scope(&self) -> &str {
+        &self.scope
     }
 
     pub fn event_room_id(&self) -> Uuid {
@@ -62,12 +66,12 @@ impl Object {
         self.conference_room_id
     }
 
-    pub fn audience(&self) -> String {
-        self.audience.clone()
+    pub fn audience(&self) -> &str {
+        &self.audience
     }
 
-    pub fn tags(&self) -> Option<JsonValue> {
-        self.tags.clone()
+    pub fn tags(&self) -> Option<&JsonValue> {
+        self.tags.as_ref()
     }
 
     pub fn original_event_room_id(&self) -> Option<Uuid> {

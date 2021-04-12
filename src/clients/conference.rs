@@ -90,8 +90,11 @@ struct ConferenceRoomPayload {
     audience: String,
     #[serde(with = "crate::serde::ts_seconds_bound_tuple")]
     time: BoundedDateTimeTuple,
+    #[serde(skip_serializing_if = "Option::is_none")]
     rtc_sharing_policy: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     reserve: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     tags: Option<JsonValue>,
 }
 

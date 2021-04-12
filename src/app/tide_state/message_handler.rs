@@ -127,8 +127,8 @@ impl MessageHandler {
         let path = format!("audiences/{}/events", class.audience());
 
         let payload = ClassStop {
-            tags: class.tags(),
-            scope: class.scope(),
+            tags: class.tags().map(ToOwned::to_owned),
+            scope: class.scope().to_owned(),
             id: class.id(),
         };
 
@@ -223,6 +223,7 @@ struct RoomUpload {
 
 #[derive(Serialize)]
 struct ClassStop {
+    #[serde(skip_serializing_if = "Option::is_none")]
     tags: Option<JsonValue>,
     scope: String,
     id: Uuid,

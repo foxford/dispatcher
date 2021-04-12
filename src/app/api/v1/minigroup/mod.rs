@@ -28,13 +28,14 @@ struct MinigroupObject {
 struct RealTimeObject {
     conference_room_id: Uuid,
     event_room_id: Uuid,
+    #[serde(skip_serializing_if = "Option::is_none")]
     rtc_id: Option<Uuid>,
 }
 
 impl From<Class> for MinigroupObject {
     fn from(obj: Class) -> Self {
         Self {
-            id: obj.scope(),
+            id: obj.scope().to_owned(),
             real_time: RealTimeObject {
                 conference_room_id: obj.conference_room_id(),
                 event_room_id: obj.event_room_id(),
@@ -59,7 +60,7 @@ async fn read_inner(req: Request<Arc<dyn AppContext>>) -> AppResult {
     state
         .authz()
         .authorize(
-            minigroup.audience(),
+            minigroup.audience().to_owned(),
             account_id.clone(),
             object,
             "read".into(),
@@ -97,7 +98,7 @@ async fn read_by_scope_inner(req: Request<Arc<dyn AppContext>>) -> AppResult {
     state
         .authz()
         .authorize(
-            minigroup.audience(),
+            minigroup.audience().to_owned(),
             account_id.clone(),
             object,
             "read".into(),
@@ -247,7 +248,7 @@ async fn update_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
     state
         .authz()
         .authorize(
-            minigroup.audience(),
+            minigroup.audience().to_owned(),
             account_id.clone(),
             object,
             "update".into(),

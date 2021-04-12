@@ -22,7 +22,7 @@ async fn download_inner(req: Request<Arc<dyn AppContext>>) -> AppResult {
     state
         .authz()
         .authorize(
-            webinar.audience(),
+            webinar.audience().to_owned(),
             account_id.clone(),
             object,
             "download".into(),

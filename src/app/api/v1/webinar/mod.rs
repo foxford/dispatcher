@@ -52,6 +52,7 @@ struct WebinarVersion {
     // TODO: this is deprecated and should be removed eventually
     // right now its necessary to generate HLS links
     stream_id: Uuid,
+    #[serde(skip_serializing_if = "Option::is_none")]
     tags: Option<JsonValue>,
 }
 
@@ -59,7 +60,9 @@ struct WebinarVersion {
 struct RealTimeObject {
     conference_room_id: Uuid,
     event_room_id: Uuid,
+    #[serde(skip_serializing_if = "Option::is_none")]
     fallback_uri: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     rtc_id: Option<Uuid>,
 }
 
@@ -72,7 +75,7 @@ impl RealTimeObject {
 impl From<Class> for WebinarObject {
     fn from(obj: Class) -> WebinarObject {
         WebinarObject {
-            id: obj.scope(),
+            id: obj.scope().to_owned(),
             real_time: RealTimeObject {
                 fallback_uri: None,
                 conference_room_id: obj.conference_room_id(),
@@ -100,7 +103,7 @@ async fn read_inner(req: Request<Arc<dyn AppContext>>) -> AppResult {
     state
         .authz()
         .authorize(
-            webinar.audience(),
+            webinar.audience().to_owned(),
             account_id.clone(),
             object,
             "read".into(),
@@ -127,7 +130,7 @@ async fn read_inner(req: Request<Arc<dyn AppContext>>) -> AppResult {
                 version: "original",
                 stream_id: recording.rtc_id(),
                 event_room_id: og_event_id,
-                tags: webinar.tags(),
+                tags: webinar.tags().map(ToOwned::to_owned),
             });
         }
 
@@ -137,7 +140,7 @@ async fn read_inner(req: Request<Arc<dyn AppContext>>) -> AppResult {
                     version: "modified",
                     stream_id: recording.rtc_id(),
                     event_room_id: md_event_id,
-                    tags: webinar.tags(),
+                    tags: webinar.tags().map(ToOwned::to_owned),
                 });
             }
 
@@ -180,7 +183,7 @@ async fn read_by_scope_inner(req: Request<Arc<dyn AppContext>>) -> AppResult {
     state
         .authz()
         .authorize(
-            webinar.audience(),
+            webinar.audience().to_owned(),
             account_id.clone(),
             object,
             "read".into(),
@@ -207,7 +210,7 @@ async fn read_by_scope_inner(req: Request<Arc<dyn AppContext>>) -> AppResult {
                 version: "original",
                 stream_id: recording.rtc_id(),
                 event_room_id: og_event_id,
-                tags: webinar.tags(),
+                tags: webinar.tags().map(ToOwned::to_owned),
             });
         }
 
@@ -216,7 +219,7 @@ async fn read_by_scope_inner(req: Request<Arc<dyn AppContext>>) -> AppResult {
                 version: "modified",
                 stream_id: recording.rtc_id(),
                 event_room_id: md_event_id,
-                tags: webinar.tags(),
+                tags: webinar.tags().map(ToOwned::to_owned),
             });
         }
 
@@ -375,7 +378,7 @@ async fn update_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
     state
         .authz()
         .authorize(
-            webinar.audience(),
+            webinar.audience().to_owned(),
             account_id.clone(),
             object,
             "update".into(),

@@ -81,13 +81,10 @@ impl AppContext for TestState {
     }
 
     fn validate_token(&self, token: Option<&str>) -> StdResult<AccountId, AuthnError> {
-        println!("TOKEN 1: {:?}", token);
-
         let token = token
             .map(|s| s.replace("Bearer ", ""))
             .unwrap_or_else(|| "".to_string());
 
-        println!("TOKEN 2: {}", token);
         // Parse but skip key verification.
         let claims = parse_jws_compact::<String>(&token)?.claims;
         Ok(AccountId::new(claims.subject(), claims.audience()))

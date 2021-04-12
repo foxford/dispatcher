@@ -13,6 +13,7 @@ pub struct Object {
     audience: String,
     #[serde(with = "ts_seconds")]
     created_at: DateTime<Utc>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     tags: Option<JsonValue>,
     event_room_id: Uuid,
 }
