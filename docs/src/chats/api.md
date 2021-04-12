@@ -5,6 +5,7 @@ All routes expect json payloads.
 ### Routes
 Route                                     | Method | Short description
 ----------------------------------------- | ------ | ----------
+/api/v1/chats/:chat_id                    | GET    | [Reads](#read-chat) chat.
 /api/v1/audiences/:audience/chats/:scope  | GET    | [Reads](#read-chat) chat.
 /api/v1/chats                             | POST   | [Creates](#create-chat) chat and corresponding room in event.
 /api/v1/chats/convert                     | POST   | [Creates](#convert-chat) chat with already existing event room.
@@ -22,6 +23,14 @@ tags                   | json object | +        | Arbitrary tags.
 Response: status 201 and chat object as payload.
 
 ### Read chat
+
+Parameters either
+
+Attribute            | Type        | Optional | Description
+-------------------- | ----------- | -------- | --------------
+chat_id              | uuid        |          | Chat id
+
+Or:
 
 Attribute            | Type        | Optional | Description
 -------------------- | ----------- | -------- | ------------------

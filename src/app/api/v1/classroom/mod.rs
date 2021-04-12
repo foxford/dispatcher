@@ -1,7 +1,8 @@
+use std::future::Future;
 use std::ops::Bound;
 use std::sync::Arc;
 
-use anyhow::Context;
+use anyhow::{Context, Result as AnyResult};
 use async_std::prelude::FutureExt;
 use serde_derive::{Deserialize, Serialize};
 use tide::{Request, Response};
@@ -13,7 +14,7 @@ use crate::app::error::ErrorKind as AppErrorKind;
 use crate::app::AppContext;
 use crate::db::class::Object as Class;
 
-use super::{extract_param, validate_token, AppResult};
+use super::{extract_id, extract_param, validate_token, AppResult};
 
 #[derive(Serialize)]
 struct ClassroomObject {
@@ -42,16 +43,26 @@ impl From<Class> for ClassroomObject {
     }
 }
 
-pub async fn read_by_scope(req: Request<Arc<dyn AppContext>>) -> tide::Result {
-    read_by_scope_inner(req)
+pub async fn read(req: Request<Arc<dyn AppContext>>) -> tide::Result {
+    read_inner(&req, find_classroom(&req))
         .await
         .or_else(|e| Ok(e.to_tide_response()))
 }
-async fn read_by_scope_inner(req: Request<Arc<dyn AppContext>>) -> AppResult {
+
+pub async fn read_by_scope(req: Request<Arc<dyn AppContext>>) -> tide::Result {
+    read_inner(&req, find_classroom_by_scope(&req))
+        .await
+        .or_else(|e| Ok(e.to_tide_response()))
+}
+
+async fn read_inner(
+    req: &Request<Arc<dyn AppContext>>,
+    finder: impl Future<Output = AnyResult<Class>>,
+) -> AppResult {
     let state = req.state();
     let account_id = validate_token(&req).error(AppErrorKind::Unauthorized)?;
 
-    let classroom = match find_classroom_by_scope(&req).await {
+    let classroom = match finder.await {
         Ok(classroom) => classroom,
         Err(e) => {
             error!(crate::LOG, "Failed to find a classroom, err = {:?}", e);
@@ -238,9 +249,22 @@ async fn convert_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
     Ok(response)
 }
 
+async fn find_classroom(req: &Request<Arc<dyn AppContext>>) -> AnyResult<crate::db::class::Object> {
+    let id = extract_id(req)?;
+
+    let classroom = {
+        let mut conn = req.state().get_conn().await?;
+        crate::db::class::ClassroomReadQuery::by_id(id)
+            .execute(&mut conn)
+            .await?
+            .ok_or_else(|| anyhow!("Failed to find classroom by scope"))?
+    };
+    Ok(classroom)
+}
+
 async fn find_classroom_by_scope(
     req: &Request<Arc<dyn AppContext>>,
-) -> anyhow::Result<crate::db::class::Object> {
+) -> AnyResult<crate::db::class::Object> {
     let audience = extract_param(req, "audience")?.to_owned();
     let scope = extract_param(req, "scope")?.to_owned();
 

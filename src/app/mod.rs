@@ -22,10 +22,11 @@ use crate::clients::tq::{HttpTqClient, TqClient};
 use crate::config::{self, Config};
 use api::v1::authz::proxy as proxy_authz;
 use api::v1::chat::{
-    convert as convert_chat, create as create_chat, read_by_scope as read_chat_by_scope,
+    convert as convert_chat, create as create_chat, read as read_chat,
+    read_by_scope as read_chat_by_scope,
 };
 use api::v1::classroom::{
-    convert as convert_classroom, create as create_classroom,
+    convert as convert_classroom, create as create_classroom, read as read_classroom,
     read_by_scope as read_classroom_by_scope,
 };
 use api::v1::minigroup::{
@@ -240,6 +241,12 @@ fn bind_webinars_routes(app: &mut tide::Server<Arc<dyn AppContext>>) {
 }
 
 fn bind_classroom_routes(app: &mut tide::Server<Arc<dyn AppContext>>) {
+    app.at("/api/v1/classrooms/:id")
+        .with(cors())
+        .options(read_options);
+    app.at("/api/v1/classrooms/:id")
+        .with(cors())
+        .get(read_classroom);
     app.at("/api/v1/audiences/:audience/classrooms/:scope")
         .with(cors())
         .options(read_options);
@@ -271,6 +278,10 @@ fn bind_minigroups_routes(app: &mut tide::Server<Arc<dyn AppContext>>) {
 }
 
 fn bind_chat_routes(app: &mut tide::Server<Arc<dyn AppContext>>) {
+    app.at("/api/v1/chats/:id")
+        .with(cors())
+        .options(read_options);
+    app.at("/api/v1/chats/:id").with(cors()).get(read_chat);
     app.at("/api/v1/audiences/:audience/chats/:scope")
         .with(cors())
         .options(read_options);
