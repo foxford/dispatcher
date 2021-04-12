@@ -5,6 +5,7 @@ All routes expect json payloads.
 ### Routes
 Route                                          | Method | Short description
 ---------------------------------------------- | ------ | ----------
+/api/v1/classrooms/:classroom_id               | GET    | [Reads](#read-classroom) classroom.
 /api/v1/audiences/:audience/classrooms/:scope  | GET    | [Reads](#read-classroom) classroom.
 /api/v1/classrooms                             | POST   | [Creates](#create-classroom) classroom and required rooms in other services.
 /api/v1/classrooms/convert                     | POST   | [Creates](#convert-classroom) classroom with already existing event and conference rooms.
@@ -22,6 +23,14 @@ tags                   | json object | +        | Arbitrary tags.
 Response: status 201 and classroom object as payload.
 
 ### Read classroom
+
+Parameters either
+
+Attribute            | Type        | Optional | Description
+-------------------- | ----------- | -------- | --------------
+classroom_id         | uuid        |          | Classroom id
+
+Or:
 
 Attribute            | Type        | Optional | Description
 -------------------- | ----------- | -------- | ------------------

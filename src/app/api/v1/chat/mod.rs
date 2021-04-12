@@ -1,7 +1,8 @@
+use std::future::Future;
 use std::ops::Bound;
 use std::sync::Arc;
 
-use anyhow::Context;
+use anyhow::{Context, Result as AnyResult};
 use serde_derive::{Deserialize, Serialize};
 use tide::{Request, Response};
 use uuid::Uuid;
@@ -12,7 +13,7 @@ use crate::app::error::ErrorKind as AppErrorKind;
 use crate::app::AppContext;
 use crate::db::chat::Object as Chat;
 
-use super::{extract_param, validate_token, AppResult};
+use super::{extract_id, extract_param, validate_token, AppResult};
 
 #[derive(Serialize)]
 struct ChatObject {
@@ -38,16 +39,26 @@ impl From<Chat> for ChatObject {
     }
 }
 
-pub async fn read_by_scope(req: Request<Arc<dyn AppContext>>) -> tide::Result {
-    read_by_scope_inner(req)
+pub async fn read(req: Request<Arc<dyn AppContext>>) -> tide::Result {
+    read_inner(&req, find_chat(&req))
         .await
         .or_else(|e| Ok(e.to_tide_response()))
 }
-async fn read_by_scope_inner(req: Request<Arc<dyn AppContext>>) -> AppResult {
+
+pub async fn read_by_scope(req: Request<Arc<dyn AppContext>>) -> tide::Result {
+    read_inner(&req, find_chat_by_scope(&req))
+        .await
+        .or_else(|e| Ok(e.to_tide_response()))
+}
+
+async fn read_inner(
+    req: &Request<Arc<dyn AppContext>>,
+    finder: impl Future<Output = AnyResult<Chat>>,
+) -> AppResult {
     let state = req.state();
     let account_id = validate_token(&req).error(AppErrorKind::Unauthorized)?;
 
-    let chat = match find_chat_by_scope(&req).await {
+    let chat = match finder.await {
         Ok(chat) => chat,
         Err(e) => {
             error!(crate::LOG, "Failed to find a chat, err = {:?}", e);
@@ -209,6 +220,19 @@ async fn convert_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
     let response = Response::builder(201).body(body).build();
 
     Ok(response)
+}
+
+async fn find_chat(req: &Request<Arc<dyn AppContext>>) -> anyhow::Result<Chat> {
+    let id = extract_id(req)?;
+
+    let chat = {
+        let mut conn = req.state().get_conn().await?;
+        crate::db::chat::ChatReadQuery::by_id(id)
+            .execute(&mut conn)
+            .await?
+            .ok_or_else(|| anyhow!("Failed to find chat by scope"))?
+    };
+    Ok(chat)
 }
 
 async fn find_chat_by_scope(req: &Request<Arc<dyn AppContext>>) -> anyhow::Result<Chat> {

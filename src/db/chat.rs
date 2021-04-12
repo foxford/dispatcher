@@ -35,15 +35,26 @@ impl Object {
         self.audience.clone()
     }
 }
+enum ReadQueryPredicate {
+    Id(Uuid),
+    Scope { audience: String, scope: String },
+}
 
 pub struct ChatReadQuery {
-    audience: String,
-    scope: String,
+    condition: ReadQueryPredicate,
 }
 
 impl ChatReadQuery {
+    pub fn by_id(id: Uuid) -> Self {
+        Self {
+            condition: ReadQueryPredicate::Id(id),
+        }
+    }
+
     pub fn by_scope(audience: String, scope: String) -> Self {
-        Self { audience, scope }
+        Self {
+            condition: ReadQueryPredicate::Scope { audience, scope },
+        }
     }
 
     pub async fn execute(self, conn: &mut PgConnection) -> sqlx::Result<Option<Object>> {
@@ -52,15 +63,21 @@ impl ChatReadQuery {
 
         let q = Select::from_table("chat");
 
-        let q = q
-            .and_where("audience".equals("_placeholder_"))
-            .and_where("scope".equals("_placeholder_"));
+        let q = match self.condition {
+            ReadQueryPredicate::Id(_) => q.and_where("id".equals("_placeholder_")),
+            ReadQueryPredicate::Scope { .. } => q
+                .and_where("audience".equals("_placeholder_"))
+                .and_where("scope".equals("_placeholder_")),
+        };
 
         let (sql, _bindings) = Postgres::build(q);
 
         let query = sqlx::query_as(&sql);
 
-        let query = query.bind(self.audience).bind(self.scope);
+        let query = match self.condition {
+            ReadQueryPredicate::Id(id) => query.bind(id),
+            ReadQueryPredicate::Scope { audience, scope } => query.bind(audience).bind(scope),
+        };
 
         query.fetch_optional(conn).await
     }
