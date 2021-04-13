@@ -5,8 +5,7 @@ use crate::test_helpers::prelude::*;
 
 #[async_std::test]
 async fn test_healthz() {
-    let agent = TestAgent::new("web", "user123", USR_AUDIENCE);
-    let state = TestState::new(agent, TestAuthz::new()).await;
+    let state = TestState::new(TestAuthz::new()).await;
     let state = Arc::new(state) as Arc<dyn AppContext>;
     let mut app = tide::with_state(state);
     app.at("/test/healthz").get(healthz);
@@ -27,9 +26,10 @@ async fn test_api_rollback() {
     let agent = TestAgent::new("web", "user123", USR_AUDIENCE);
     let token = agent.token();
     let mut authz = TestAuthz::new();
+    authz.set_audience(SVC_AUDIENCE);
     authz.allow(agent.account_id(), vec!["scopes"], "rollback");
 
-    let state = TestState::new(agent, authz).await;
+    let state = TestState::new(authz).await;
     let state = Arc::new(state) as Arc<dyn AppContext>;
     let mut app = tide::with_state(state.clone());
 
