@@ -27,7 +27,7 @@ Object                          | Action      | New object      | New action
 ["rooms", ROOM_ID, "rtcs"]      | `list`      | [TYPE, ROOM_ID] | `read`
 ["rooms", ROOM_ID, "events"]    | `subscribe` | [TYPE, ROOM_ID] | `read`
 ["rooms", ROOM_ID, ..]          | *           | [TYPE, ROOM_ID] | no change[^2]
-\                               | *           | no change       | no change[^3]
+\*                              | *           | no change       | no change[^3]
 
 [^1]: `["rooms", ROOM_ID, ..]` means an array containing at least 2 elements, you can read `, ..` as "0 or more elements". `TYPE` is placeholder for `"webinars"`, `"classrooms"`, `"chats"` etc, depending on results of search by room id.
 
