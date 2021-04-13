@@ -17,7 +17,7 @@ const PRIORITY: &str = "normal";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, PartialEq, Serialize)]
 #[serde(untagged)]
 pub enum Task {
     TranscodeStreamToHls {
@@ -43,7 +43,7 @@ impl Task {
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, PartialEq, Serialize)]
 pub struct TranscodeMinigroupToHlsStream {
     id: Uuid,
     uri: String,

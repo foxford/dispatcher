@@ -474,3 +474,72 @@ impl EventClient for MqttEventClient {
         Ok(events)
     }
 }
+
+#[cfg(test)]
+pub mod test_helpers {
+    use super::*;
+    use crate::test_helpers::prelude::*;
+
+    #[derive(Debug, Default)]
+    pub struct EventBuilder {
+        room_id: Option<Uuid>,
+        kind: Option<String>,
+        data: Option<EventData>,
+        occurred_at: Option<u64>,
+    }
+
+    impl EventBuilder {
+        pub fn new() -> Self {
+            Default::default()
+        }
+
+        pub fn room_id(self, room_id: Uuid) -> Self {
+            Self {
+                room_id: Some(room_id),
+                ..self
+            }
+        }
+
+        pub fn kind(self, kind: String) -> Self {
+            Self {
+                kind: Some(kind),
+                ..self
+            }
+        }
+
+        pub fn data(self, json_data: JsonValue) -> Self {
+            let data =
+                serde_json::from_value::<EventData>(json_data).expect("Failed to parse data");
+
+            Self {
+                data: Some(data),
+                ..self
+            }
+        }
+
+        pub fn occurred_at(self, occurred_at: u64) -> Self {
+            Self {
+                occurred_at: Some(occurred_at),
+                ..self
+            }
+        }
+
+        pub fn build(self) -> Event {
+            let created_by = TestAgent::new("web", "admin", USR_AUDIENCE);
+
+            Event {
+                id: Uuid::new_v4(),
+                room_id: self.room_id.unwrap(),
+                kind: self.kind.clone().unwrap(),
+                set: self.kind.unwrap(),
+                label: None,
+                attribute: None,
+                data: self.data.unwrap(),
+                occurred_at: self.occurred_at.unwrap(),
+                original_occurred_at: self.occurred_at.unwrap(),
+                created_by: created_by.agent_id().to_owned(),
+                created_at: Utc::now(),
+            }
+        }
+    }
+}
