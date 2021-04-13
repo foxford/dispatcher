@@ -17,7 +17,7 @@ Object                          | Action      | New object      | New action
 ["rooms", ROOM_ID, "events"]    | `list`      | [TYPE, ROOM_ID] | `read`
 ["rooms", ROOM_ID, "events"]    | `subscribe` | [TYPE, ROOM_ID] | `read`
 ["rooms", ROOM_ID, ..]          | *           | [TYPE, ROOM_ID] | no change[^2]
-*                               | *           | no change       | no change[^3]
+\*                              | *           | no change       | no change[^3]
 
 * if request comes from `conference`:
 
