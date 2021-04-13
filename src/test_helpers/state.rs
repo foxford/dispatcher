@@ -7,7 +7,7 @@ use sqlx::pool::PoolConnection;
 use sqlx::postgres::Postgres;
 use svc_agent::error::Error as AgentError;
 use svc_agent::{
-    mqtt::{Address, IntoPublishableMessage, PublishableMessage},
+    mqtt::{Address, IntoPublishableMessage},
     AccountId, AgentId,
 };
 use svc_authn::{token::jws_compact::extract::parse_jws_compact, Error as AuthnError};
@@ -23,6 +23,7 @@ use crate::config::{Config, StorageConfig};
 use super::agent::TestAgent;
 use super::authz::TestAuthz;
 use super::db::TestDb;
+use super::outgoing_envelope::OutgoingEnvelope;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,12 +40,16 @@ pub struct TestState {
 }
 
 impl TestState {
-    pub async fn new(agent: TestAgent, authz: TestAuthz) -> Self {
+    pub async fn new(authz: TestAuthz) -> Self {
+        let config = crate::config::load().expect("Failed to load config");
+
+        let agent = TestAgent::new(&config.agent_label, config.id.label(), config.id.audience());
+
         let address = agent.address().to_owned();
 
         Self {
             db_pool: TestDb::new().await,
-            config: crate::config::load().expect("Failed to load config"),
+            config,
             agent,
             publisher: Arc::new(TestPublisher::new(address)),
             conference_client: Arc::new(MockConferenceClient::new()),
@@ -56,6 +61,14 @@ impl TestState {
 }
 
 impl TestState {
+    pub fn config(&self) -> &Config {
+        &self.config
+    }
+
+    pub fn test_publisher(&self) -> &TestPublisher {
+        self.publisher.as_ref()
+    }
+
     pub fn conference_client_mock(&mut self) -> &mut MockConferenceClient {
         Arc::get_mut(&mut self.conference_client).expect("Failed to get conference client mock")
     }
@@ -123,7 +136,7 @@ impl AppContext for TestState {
 
 pub struct TestPublisher {
     address: Address,
-    messages: Mutex<Vec<PublishableMessage>>,
+    messages: Mutex<Vec<OutgoingEnvelope>>,
 }
 
 impl TestPublisher {
@@ -134,7 +147,7 @@ impl TestPublisher {
         }
     }
 
-    pub fn flush(&self) -> Vec<PublishableMessage> {
+    pub fn flush(&self) -> Vec<OutgoingEnvelope> {
         let mut messages_lock = self
             .messages
             .lock()
@@ -148,12 +161,17 @@ impl Publisher for TestPublisher {
     fn publish(&self, message: Box<dyn IntoPublishableMessage>) -> Result<(), AgentError> {
         let dump = message.into_dump(&self.address)?;
 
+        let mut parsed_message = serde_json::from_str::<OutgoingEnvelope>(dump.payload())
+            .expect("Failed to parse dumped message");
+
+        parsed_message.set_topic(dump.topic());
+
         let mut messages_lock = self
             .messages
             .lock()
             .expect("Failed to obtain messages lock");
 
-        (*messages_lock).push(dump);
+        (*messages_lock).push(parsed_message);
         Ok(())
     }
 }

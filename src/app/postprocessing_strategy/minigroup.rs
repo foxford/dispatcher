@@ -4,7 +4,7 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use chrono::{Duration, Utc};
-use serde_derive::Serialize;
+use serde_derive::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use sqlx::{postgres::PgConnection, Acquire};
 use svc_agent::mqtt::{
@@ -177,7 +177,7 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
                     id: self.minigroup.id(),
                     scope: self.minigroup.scope().to_owned(),
                     tags: self.minigroup.tags().map(ToOwned::to_owned),
-                    status: "success",
+                    status: "success".to_string(),
                     recording_duration,
                 };
 
@@ -330,13 +330,13 @@ fn build_stream(
         .pin_segments(pin_segments.into())
 }
 
-#[derive(Serialize)]
+#[derive(Debug, PartialEq, Deserialize, Serialize)]
 struct MinigroupReady {
     id: Uuid,
     scope: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     tags: Option<JsonValue>,
-    status: &'static str,
+    status: String,
     recording_duration: u64,
 }
 
@@ -362,8 +362,7 @@ mod tests {
         #[async_std::test]
         async fn handle_upload() {
             let now = Utc::now();
-            let conference = TestAgent::new("conference-0", "conference", SVC_AUDIENCE);
-            let mut state = TestState::new(conference, TestAuthz::new()).await;
+            let mut state = TestState::new(TestAuthz::new()).await;
             let conference_room_id = Uuid::new_v4();
             let event_room_id = Uuid::new_v4();
 
@@ -508,10 +507,9 @@ mod tests {
         #[async_std::test]
         async fn handle_adjust() {
             let now = Utc::now();
-            let event = TestAgent::new("event-0", "event", SVC_AUDIENCE);
             let agent1 = TestAgent::new("web", "user1", USR_AUDIENCE);
             let agent2 = TestAgent::new("web", "user2", USR_AUDIENCE);
-            let mut state = TestState::new(event, TestAuthz::new()).await;
+            let mut state = TestState::new(TestAuthz::new()).await;
             let event_room_id = Uuid::new_v4();
             let original_event_room_id = Uuid::new_v4();
             let modified_event_room_id = Uuid::new_v4();
@@ -700,6 +698,146 @@ mod tests {
                     Some(recording.segments())
                 );
             }
+        }
+    }
+
+    mod handle_transcoding_completion {
+        use std::ops::Bound;
+        use std::sync::Arc;
+
+        use chrono::{Duration, Utc};
+        use serde_json::json;
+        use svc_agent::AccountId;
+        use uuid::Uuid;
+
+        use crate::app::{AppContext, API_VERSION};
+        use crate::db::recording::{RecordingListQuery, Segments};
+        use crate::test_helpers::prelude::*;
+
+        use super::super::super::PostprocessingStrategy;
+        use super::super::*;
+
+        #[async_std::test]
+        async fn handle_transcoding_completion() {
+            let now = Utc::now();
+            let agent1 = TestAgent::new("web", "user1", USR_AUDIENCE);
+            let agent2 = TestAgent::new("web", "user2", USR_AUDIENCE);
+            let state = TestState::new(TestAuthz::new()).await;
+
+            // Insert a minigroup with recordings.
+            let (minigroup, recording1, recording2) = {
+                let mut conn = state.get_conn().await.expect("Failed to get conn");
+
+                let time = (
+                    Bound::Included(now - Duration::hours(1)),
+                    Bound::Excluded(now - Duration::minutes(10)),
+                );
+
+                let minigroup = factory::Minigroup::new(
+                    "minigroup123".to_string(),
+                    USR_AUDIENCE.to_string(),
+                    time.into(),
+                    AccountId::new("host", USR_AUDIENCE),
+                    Uuid::new_v4(),
+                    Uuid::new_v4(),
+                )
+                .original_event_room_id(Uuid::new_v4())
+                .modified_event_room_id(Uuid::new_v4())
+                .tags(json!({ "foo": "bar" }))
+                .insert(&mut conn)
+                .await;
+
+                let segments1: Segments = vec![
+                    (Bound::Included(0), Bound::Excluded(1500000)),
+                    (Bound::Included(1800000), Bound::Excluded(3000000)),
+                ]
+                .into();
+
+                let recording1 = factory::Recording::new(
+                    minigroup.id(),
+                    Uuid::new_v4(),
+                    "s3://minigroup.origin.dev.example.com/rtc1.webm".to_string(),
+                    segments1,
+                    now - Duration::hours(1),
+                    agent1.agent_id().to_owned(),
+                )
+                .insert(&mut conn)
+                .await;
+
+                let recording2 = factory::Recording::new(
+                    minigroup.id(),
+                    Uuid::new_v4(),
+                    "s3://minigroup.origin.dev.example.com/rtc2.webm".to_string(),
+                    vec![(Bound::Included(0), Bound::Excluded(2700000))].into(),
+                    now - Duration::minutes(50),
+                    agent2.agent_id().to_owned(),
+                )
+                .insert(&mut conn)
+                .await;
+
+                (minigroup, recording1, recording2)
+            };
+
+            // Handle event room adjustment.
+            let state = Arc::new(state);
+
+            MinigroupPostprocessingStrategy::new(state.clone(), minigroup.clone())
+                .handle_transcoding_completion(TaskCompleteResult::Success(
+                    TaskCompleteSuccess::TranscodeMinigroupToHls(TranscodeMinigroupToHlsSuccess {
+                        recording_duration: "3000.0".to_string(),
+                    }),
+                ))
+                .await
+                .expect("Failed to handle tq transcoding completion");
+
+            // Assert DB changes.
+            let mut conn = state.get_conn().await.expect("Failed to get conn");
+
+            let updated_recordings = RecordingListQuery::new(minigroup.id())
+                .execute(&mut conn)
+                .await
+                .expect("Failed to list recordings");
+
+            for recording in &[recording1, recording2] {
+                let updated_recording = updated_recordings
+                    .iter()
+                    .find(|r| r.id() == recording.id())
+                    .expect("Recording not found");
+
+                assert!(updated_recording.transcoded_at().is_some());
+            }
+
+            // Assert outgoing audience-level event.
+            let messages = state.test_publisher().flush();
+            let message = messages.first().expect("No event published");
+
+            assert_eq!(
+                message.topic(),
+                format!(
+                    "apps/{}/api/{}/audiences/{}/events",
+                    state.config().id,
+                    API_VERSION,
+                    USR_AUDIENCE
+                ),
+            );
+
+            match message.properties() {
+                OutgoingEnvelopeProperties::Event(evp) => {
+                    assert_eq!(evp.label(), "minigroup.ready");
+                }
+                props => panic!("Unexpected message properties: {:?}", props),
+            }
+
+            assert_eq!(
+                message.payload::<MinigroupReady>(),
+                MinigroupReady {
+                    id: minigroup.id(),
+                    scope: minigroup.scope().to_owned(),
+                    tags: minigroup.tags().map(ToOwned::to_owned),
+                    status: "success".to_string(),
+                    recording_duration: 3000,
+                }
+            );
         }
     }
 }
