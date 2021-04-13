@@ -25,6 +25,11 @@ pub struct Object {
 }
 
 impl Object {
+    #[cfg(test)]
+    pub fn id(&self) -> Uuid {
+        self.id
+    }
+
     pub fn stream_uri(&self) -> &str {
         &self.stream_uri
     }
@@ -39,6 +44,11 @@ impl Object {
 
     pub fn segments(&self) -> &Segments {
         &self.segments
+    }
+
+    #[cfg(test)]
+    pub fn modified_segments(&self) -> Option<&Segments> {
+        self.modified_segments.as_ref()
     }
 
     pub fn adjusted_at(&self) -> Option<DateTime<Utc>> {

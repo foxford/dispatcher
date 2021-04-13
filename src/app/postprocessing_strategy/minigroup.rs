@@ -126,9 +126,8 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
                 let streams = recordings
                     .iter()
                     .map(|recording| {
-                        let event_room_offset = recording.started_at()
-                            - modified_event_room_opened_at
-                            + Duration::milliseconds(PREROLL_OFFSET);
+                        let event_room_offset =
+                            recording.started_at() - modified_event_room_opened_at;
 
                         let recording_offset =
                             recording.started_at() - earliest_recording.started_at();
@@ -484,6 +483,223 @@ mod tests {
             assert_eq!(recording2.started_at(), now - Duration::minutes(50));
             assert_eq!(recording2.segments(), &segments2);
             assert_eq!(recording2.created_by(), agent2.agent_id());
+        }
+    }
+
+    mod handle_adjust {
+        use std::ops::Bound;
+        use std::sync::Arc;
+
+        use chrono::{Duration, Utc};
+        use serde_json::json;
+        use svc_agent::AccountId;
+        use uuid::Uuid;
+
+        use crate::app::AppContext;
+        use crate::clients::event::test_helpers::EventBuilder;
+        use crate::clients::event::EventRoomResponse;
+        use crate::db::class::MinigroupReadQuery;
+        use crate::db::recording::{RecordingListQuery, Segments};
+        use crate::test_helpers::prelude::*;
+
+        use super::super::super::PostprocessingStrategy;
+        use super::super::*;
+
+        #[async_std::test]
+        async fn handle_adjust() {
+            let now = Utc::now();
+            let event = TestAgent::new("event-0", "event", SVC_AUDIENCE);
+            let agent1 = TestAgent::new("web", "user1", USR_AUDIENCE);
+            let agent2 = TestAgent::new("web", "user2", USR_AUDIENCE);
+            let mut state = TestState::new(event, TestAuthz::new()).await;
+            let event_room_id = Uuid::new_v4();
+            let original_event_room_id = Uuid::new_v4();
+            let modified_event_room_id = Uuid::new_v4();
+
+            // Insert a minigroup with recordings.
+            let (minigroup, recording1, recording2) = {
+                let mut conn = state.get_conn().await.expect("Failed to get conn");
+
+                let time = (
+                    Bound::Included(now - Duration::hours(1)),
+                    Bound::Excluded(now - Duration::minutes(10)),
+                );
+
+                let minigroup = factory::Minigroup::new(
+                    "minigroup123".to_string(),
+                    USR_AUDIENCE.to_string(),
+                    time.into(),
+                    AccountId::new("host", USR_AUDIENCE),
+                    Uuid::new_v4(),
+                    event_room_id,
+                )
+                .insert(&mut conn)
+                .await;
+
+                let segments1: Segments = vec![
+                    (Bound::Included(0), Bound::Excluded(1500000)),
+                    (Bound::Included(1800000), Bound::Excluded(3000000)),
+                ]
+                .into();
+
+                let recording1 = factory::Recording::new(
+                    minigroup.id(),
+                    Uuid::new_v4(),
+                    "s3://minigroup.origin.dev.example.com/rtc1.webm".to_string(),
+                    segments1,
+                    now - Duration::hours(1),
+                    agent1.agent_id().to_owned(),
+                )
+                .insert(&mut conn)
+                .await;
+
+                let recording2 = factory::Recording::new(
+                    minigroup.id(),
+                    Uuid::new_v4(),
+                    "s3://minigroup.origin.dev.example.com/rtc2.webm".to_string(),
+                    vec![(Bound::Included(0), Bound::Excluded(2700000))].into(),
+                    now - Duration::minutes(50),
+                    agent2.agent_id().to_owned(),
+                )
+                .insert(&mut conn)
+                .await;
+
+                (minigroup, recording1, recording2)
+            };
+
+            let minigroup_id = minigroup.id();
+
+            // Set up event client mock.
+            state
+                .event_client_mock()
+                .expect_read_room()
+                .with(mockall::predicate::eq(modified_event_room_id))
+                .returning(move |room_id| {
+                    Ok(EventRoomResponse {
+                        id: room_id,
+                        time: (
+                            Bound::Included(now - Duration::hours(1)),
+                            Bound::Excluded(now - Duration::minutes(10)),
+                        ),
+                        tags: None,
+                    })
+                });
+
+            state
+                .event_client_mock()
+                .expect_list_events()
+                .withf(move |room_id: &Uuid, kind: &str| {
+                    assert_eq!(*room_id, modified_event_room_id);
+                    assert_eq!(kind, PIN_EVENT_TYPE);
+                    true
+                })
+                .returning(move |_, _| {
+                    Ok(vec![
+                        EventBuilder::new()
+                            .room_id(modified_event_room_id)
+                            .kind(PIN_EVENT_TYPE.to_string())
+                            .data(json!({ "agent_id": agent1.agent_id().to_string() }))
+                            .occurred_at(0)
+                            .build(),
+                        EventBuilder::new()
+                            .room_id(modified_event_room_id)
+                            .kind(PIN_EVENT_TYPE.to_string())
+                            .data(json!({ "agent_id": agent2.agent_id().to_string() }))
+                            .occurred_at(1200000000000)
+                            .build(),
+                        EventBuilder::new()
+                            .room_id(modified_event_room_id)
+                            .kind(PIN_EVENT_TYPE.to_string())
+                            .data(json!({ "agent_id": agent1.agent_id().to_string() }))
+                            .occurred_at(1500000000000)
+                            .build(),
+                    ])
+                });
+
+            // Set up tq client mock.
+            let uri1 = recording1.stream_uri().to_string();
+            let uri2 = recording2.stream_uri().to_string();
+
+            let expected_task = TqTask::TranscodeMinigroupToHls {
+                streams: vec![
+                    TranscodeMinigroupToHlsStream::new(recording1.rtc_id(), uri1)
+                        .offset(0)
+                        .segments(recording1.segments().to_owned())
+                        .pin_segments(
+                            vec![
+                                (Bound::Included(0), Bound::Excluded(1200000)),
+                                (Bound::Included(1500000), Bound::Excluded(3000000)),
+                            ]
+                            .into(),
+                        ),
+                    TranscodeMinigroupToHlsStream::new(recording2.rtc_id(), uri2)
+                        .offset(600000)
+                        .segments(recording2.segments().to_owned())
+                        .pin_segments(
+                            vec![(Bound::Included(600000), Bound::Excluded(900000))].into(),
+                        ),
+                ],
+            };
+
+            state
+                .tq_client_mock()
+                .expect_create_task()
+                .withf(move |class: &Class, task: &TqTask| {
+                    assert_eq!(class.id(), minigroup_id);
+                    assert_eq!(task, &expected_task);
+                    true
+                })
+                .returning(|_, _| Ok(()));
+
+            // Handle event room adjustment.
+            let state = Arc::new(state);
+
+            MinigroupPostprocessingStrategy::new(state.clone(), minigroup)
+                .handle_adjust(RoomAdjustResult::Success {
+                    original_room_id: original_event_room_id,
+                    modified_room_id: modified_event_room_id,
+                    modified_segments: vec![(Bound::Included(0), Bound::Excluded(3000000))].into(),
+                })
+                .await
+                .expect("Failed to handle event room adjustment");
+
+            // Assert DB changes.
+            let mut conn = state.get_conn().await.expect("Failed to get conn");
+
+            let updated_minigroup = MinigroupReadQuery::by_id(minigroup_id)
+                .execute(&mut conn)
+                .await
+                .expect("Failed to fetch minigroup")
+                .expect("Minigroup not found");
+
+            assert_eq!(
+                updated_minigroup.original_event_room_id(),
+                Some(original_event_room_id),
+            );
+
+            assert_eq!(
+                updated_minigroup.modified_event_room_id(),
+                Some(modified_event_room_id),
+            );
+
+            let recordings = RecordingListQuery::new(minigroup_id)
+                .execute(&mut conn)
+                .await
+                .expect("Failed to fetch recordings");
+
+            for recording in &[recording1, recording2] {
+                let updated_recording = recordings
+                    .iter()
+                    .find(|r| r.id() == recording.id())
+                    .expect("Missing recording");
+
+                assert!(updated_recording.adjusted_at().is_some());
+
+                assert_eq!(
+                    updated_recording.modified_segments(),
+                    Some(recording.segments())
+                );
+            }
         }
     }
 }
