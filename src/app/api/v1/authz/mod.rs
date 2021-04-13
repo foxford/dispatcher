@@ -49,7 +49,7 @@ async fn proxy_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
 
     let mut authz_req: AuthzRequest = req.body_json().await.error(AppErrorKind::InvalidPayload)?;
 
-    debug!(crate::LOG, "Authz proxy: raw request {:?}", authz_req);
+    info!(crate::LOG, "Authz proxy: raw request {:?}", authz_req);
     let old_action = authz_req.action.clone();
 
     transform_authz_request(&mut authz_req, &account_id);
@@ -103,7 +103,7 @@ async fn proxy_request(
             .context("Authz proxied request body fetch failed")
             .error(AppErrorKind::AuthorizationFailed)?;
 
-        debug!(
+        info!(
             crate::LOG,
             "Authz proxy: adjusted request {:?}, response = {}", authz_req, body
         );
