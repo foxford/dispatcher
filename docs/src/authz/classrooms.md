@@ -8,5 +8,8 @@ Object                                                               | Action  |
 ["classrooms", CLASSROOM_ID, "events", TYPE, "authors", ACCOUNT_ID]  | create  | User creates a new event [^1] in the classroom
 ["classrooms", CLASSROOM_ID, "claims", TYPE, "authors", ACCOUNT_ID]  | create  | User creates a new claim [^1] in the classroom
 ["classrooms", CLASSROOM_ID, ATTRIBUTE, TYPE, "authors", ACCOUNT_ID] | create  | User alter an event [^1] somehow
+["classrooms", CLASSROOM_ID, "sets", "content"]                      | read    | User wants to read a file from storage
+["classrooms", CLASSROOM_ID, "sets", "content"]                      | create  | User wants to upload a file to storage
+["classrooms", CLASSROOM_ID, "sets", "content"]                      | delete  | User wants to delete a file from storage
 
 [^1]: Types, claims and attributes are documented [separately](./events.md)

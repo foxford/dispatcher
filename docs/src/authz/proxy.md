@@ -13,26 +13,35 @@ The rules for this modification are[^1]:
 
 * if request comes from `event`:
 
-Object                          | Action      | New object      | New action
-------------------------------- | ----------- | --------------- | ------------
-["rooms", ROOM_ID, "agents"]    | `list`      | [TYPE, TYPE_ID] | `read`
-["rooms", ROOM_ID, "events"]    | `list`      | [TYPE, TYPE_ID] | `read`
-["rooms", ROOM_ID, "events"]    | `subscribe` | [TYPE, TYPE_ID] | `read`
-["rooms", ROOM_ID, ..]          | *           | [TYPE, TYPE_ID] | no change[^2]
-\*                              | *           | no change       | no change[^3]
+Object                          | Action      | New object             | New action
+------------------------------- | ----------- | ---------------------- | ------------
+["rooms", ROOM_ID, "agents"]    | `list`      | [CLASS_TYPE, CLASS_ID] | `read`
+["rooms", ROOM_ID, "events"]    | `list`      | [CLASS_TYPE, CLASS_ID] | `read`
+["rooms", ROOM_ID, "events"]    | `subscribe` | [CLASS_TYPE, CLASS_ID] | `read`
+["rooms", ROOM_ID, ..]          | *           | [CLASS_TYPE, CLASS_ID] | no change[^2]
+\*                              | *           | no change              | no change[^3]
 
 * if request comes from `conference`:
 
-Object                          | Action      | New object      | New action
-------------------------------- | ----------- | --------------- | ------------
-["rooms", ROOM_ID, "agents"]    | `list`      | [TYPE, TYPE_ID] | `read`
-["rooms", ROOM_ID, "rtcs"]      | `list`      | [TYPE, TYPE_ID] | `read`
-["rooms", ROOM_ID, "events"]    | `subscribe` | [TYPE, TYPE_ID] | `read`
-["rooms", ROOM_ID, ..]          | *           | [TYPE, TYPE_ID] | no change[^2]
-\*                              | *           | no change       | no change[^3]
+Object                          | Action      | New object             | New action
+------------------------------- | ----------- | ---------------------- | ------------
+["rooms", ROOM_ID, "agents"]    | `list`      | [CLASS_TYPE, CLASS_ID] | `read`
+["rooms", ROOM_ID, "rtcs"]      | `list`      | [CLASS_TYPE, CLASS_ID] | `read`
+["rooms", ROOM_ID, "events"]    | `subscribe` | [CLASS_TYPE, CLASS_ID] | `read`
+["rooms", ROOM_ID, ..]          | *           | [CLASS_TYPE, CLASS_ID] | no change[^2]
+\*                              | *           | no change              | no change[^3]
+
+* if request comes from `storage (v2)`:
+
+Object                          | Action      | New object                                          | New action
+------------------------------- | ----------- | --------------------------------------------------- | ------------
+["sets", SET]                   | *           | [CLASS_TYPE, CLASS_ID, "sets", BUCKET_PREFIX][^4]   | no change[^2]
+\*                              | *           | no change                                           | no change[^3]
 
 [^1]: `["rooms", ROOM_ID, ..]` means an array containing at least 2 elements, you can read `, ..` as "0 or more elements". `TYPE` is placeholder for `"webinars"`, `"classrooms"`, `"chats"` etc, depending on results of search by room id.
 
 [^2]: If a class corresponding to the room is found action is left as is, only object is altered.
 
-[^3]: if a class corresponding to the room is not found everything stays the same.
+[^3]: if a class corresponding to the room or set is not found everything stays the same.
+
+[^4]: set has format like `#{bucket_prefix.audience}::#{set_id}`
