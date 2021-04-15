@@ -35,6 +35,12 @@ Object                          | Action      | New object             | New act
 
 Object                          | Action      | New object                                          | New action
 ------------------------------- | ----------- | --------------------------------------------------- | ------------
+["sets", "origin" <> _]         | *           | [CLASS_TYPE, CLASS_ID]                              | upload
+["sets", "ms" <> _]             | *           | [CLASS_TYPE, CLASS_ID]                              | download
+["sets", "meta" <> _]           | read        | [CLASS_TYPE, CLASS_ID]                              | read
+["sets", "hls" <> _]            | read        | [CLASS_TYPE, CLASS_ID]                              | read
+["sets", "content" <> _]        | create      | [CLASS_TYPE, CLASS_ID, content]                     | update
+["sets", "content" <> _]        | delete      | [CLASS_TYPE, CLASS_ID, content]                     | update
 ["sets", SET]                   | *           | [CLASS_TYPE, CLASS_ID, "sets", BUCKET_PREFIX][^4]   | no change[^2]
 \*                              | *           | no change                                           | no change[^3]
 
