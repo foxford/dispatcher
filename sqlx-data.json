@@ -366,6 +366,66 @@
       "nullable": []
     }
   },
+  "26072e580cd07dd59f8217b5619c8f890ed0faeaa3c18629d016090eed219297": {
+    "query": "\n                        SELECT\n                            class.id as \"id!: Uuid\"\n                        FROM class\n                        INNER JOIN recording\n                        ON recording.class_id = class.id\n                        WHERE recording.rtc_id = $1\n                    ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id!: Uuid",
+          "type_info": "Uuid"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Uuid"
+        ]
+      },
+      "nullable": [
+        false
+      ]
+    }
+  },
+  "2c2a1050c52e5a2175d9959cfde499e547475fb3d181e23dacf4b9e9225382ac": {
+    "query": "\n                        SELECT\n                            id as \"id!: Uuid\"\n                        FROM class\n                        WHERE event_room_id = $1\n                            OR original_event_room_id = $1\n                            OR modified_event_room_id = $1\n                        UNION ALL\n                        SELECT\n                            id as \"id!: Uuid\"\n                        FROM chat\n                        WHERE event_room_id = $1\n                    ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id!: Uuid",
+          "type_info": "Uuid"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Uuid"
+        ]
+      },
+      "nullable": [
+        null
+      ]
+    }
+  },
+  "316207221b6bcf3222736d9abcba60b95a7873695f2f1678028501b8df788abd": {
+    "query": "\n                        SELECT\n                            id as \"id!: Uuid\"\n                        FROM class\n                        WHERE conference_room_id = $1\n                    ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id!: Uuid",
+          "type_info": "Uuid"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Uuid"
+        ]
+      },
+      "nullable": [
+        false
+      ]
+    }
+  },
   "37284eda5490188734b0ee1a9877aa205948f693260376a8e326bb88b08bab85": {
     "query": "\n            SELECT *\n            FROM scope\n            ",
     "describe": {
@@ -404,6 +464,27 @@
         false,
         false,
         false,
+        false
+      ]
+    }
+  },
+  "4b2ae060992cdd7b8aa16655dcc25a8e10fbe7126056fccf77de998fc117f263": {
+    "query": "\n                        SELECT\n                            id\n                        FROM class\n                        WHERE audience = $1\n                            AND scope = $2\n                    ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Uuid"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Text"
+        ]
+      },
+      "nullable": [
         false
       ]
     }
@@ -735,6 +816,27 @@
       ]
     }
   },
+  "975d2d2496383a1f344ae20c7f550166ac657654e4e6b9f2d75a47e3cea92506": {
+    "query": "\n                        SELECT\n                            id as \"id!: Uuid\"\n                        FROM class\n                        WHERE audience = $1\n                            AND scope = $2\n                    ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id!: Uuid",
+          "type_info": "Uuid"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Text"
+        ]
+      },
+      "nullable": [
+        false
+      ]
+    }
+  },
   "a673dd5ac9d0ed4ea5359f22c3ac9294cdd9a5d680a433f91ffb2853e1a00a03": {
     "query": "\n                        SELECT\n                            id::text AS \"id!: String\",\n                            (\n                                CASE kind\n                                    WHEN 'webinar' THEN 'webinars'\n                                    WHEN 'classroom' THEN 'classrooms'\n                                    ELSE ''\n                                END\n                            ) AS \"kind!: String\"\n                        FROM class\n                        WHERE event_room_id = $1\n                            OR original_event_room_id = $1\n                            OR modified_event_room_id = $1\n                        UNION ALL\n                        SELECT\n                            id::text AS \"id!: String\",\n                            'chats' AS kind\n                        FROM chat\n                        WHERE event_room_id = $1\n                    ",
     "describe": {
@@ -758,6 +860,26 @@
       "nullable": [
         null,
         null
+      ]
+    }
+  },
+  "a74c46b35bca94e8d13e869c0f50821a17cdf7fc77904c77df4f43ad485c9359": {
+    "query": "\n                        SELECT\n                            class.id\n                        FROM class\n                        INNER JOIN recording\n                        ON recording.class_id = class.id\n                        WHERE recording.rtc_id = $1\n                    ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Uuid"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Uuid"
+        ]
+      },
+      "nullable": [
+        false
       ]
     }
   },
@@ -832,6 +954,52 @@
         false,
         true,
         true
+      ]
+    }
+  },
+  "b7767308ad0a5eff8b98a918b57a7b9011168a86c953e2ba2181b37b5905666f": {
+    "query": "\n                        SELECT\n                            class.id::text AS \"id!: String\",\n                            (\n                                CASE kind\n                                    WHEN 'webinar' THEN 'webinars'\n                                    WHEN 'classroom' THEN 'classrooms'\n                                    ELSE ''\n                                END\n                            ) AS \"kind!: String\"\n                        FROM class\n                        INNER JOIN recording r\n                        ON r.class_id = class.id\n                        WHERE rtc_id = $1\n                    ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id!: String",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 1,
+          "name": "kind!: String",
+          "type_info": "Text"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Uuid"
+        ]
+      },
+      "nullable": [
+        null,
+        null
+      ]
+    }
+  },
+  "bb80a9ac316ba887111abe533ea4053eaf228951ca4ad47ec1c093206c47aff1": {
+    "query": "\n                        SELECT\n                            id\n                        FROM class\n                        WHERE conference_room_id = $1\n                    ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Uuid"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Uuid"
+        ]
+      },
+      "nullable": [
+        false
       ]
     }
   },
@@ -913,6 +1081,26 @@
         false,
         true,
         true
+      ]
+    }
+  },
+  "dce6f39174dd3dd6c6492ae1bf25b274173d232c268fced7cfae1c6d210783d6": {
+    "query": "\n                        SELECT\n                            id\n                        FROM class\n                        WHERE event_room_id = $1\n                            OR original_event_room_id = $1\n                            OR modified_event_room_id = $1\n                        UNION ALL\n                        SELECT\n                            id\n                        FROM chat\n                        WHERE event_room_id = $1\n                    ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Uuid"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Uuid"
+        ]
+      },
+      "nullable": [
+        null
       ]
     }
   },
@@ -1073,6 +1261,33 @@
       "parameters": {
         "Left": [
           "Uuid"
+        ]
+      },
+      "nullable": [
+        null,
+        null
+      ]
+    }
+  },
+  "ed668e73b12310ec525552d9bfb526a96090d20fd4fd2539ec574b8b10581fdb": {
+    "query": "\n                        SELECT\n                            id::text AS \"id!: String\",\n                            (\n                                CASE kind\n                                    WHEN 'webinar' THEN 'webinars'\n                                    WHEN 'classroom' THEN 'classrooms'\n                                    ELSE ''\n                                END\n                            ) AS \"kind!: String\"\n                        FROM class\n                        WHERE audience = $1\n                        AND scope = $2\n                    ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id!: String",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 1,
+          "name": "kind!: String",
+          "type_info": "Text"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Text"
         ]
       },
       "nullable": [
