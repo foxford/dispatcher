@@ -4,6 +4,8 @@ use uuid::Uuid;
 enum AuthzClassQueryState {
     Event(Uuid),
     Conference(Uuid),
+    RecordingRtcId(Uuid),
+    Scope { audience: String, scope: String },
 }
 
 #[derive(Clone, Debug, sqlx::FromRow)]
@@ -25,6 +27,18 @@ impl AuthzReadQuery {
     pub fn by_conference(id: Uuid) -> Self {
         Self {
             state: AuthzClassQueryState::Conference(id),
+        }
+    }
+
+    pub fn by_rtc_id(id: Uuid) -> Self {
+        Self {
+            state: AuthzClassQueryState::RecordingRtcId(id),
+        }
+    }
+
+    pub fn by_scope(audience: String, scope: String) -> Self {
+        Self {
+            state: AuthzClassQueryState::Scope { audience, scope },
         }
     }
 
@@ -76,6 +90,52 @@ impl AuthzReadQuery {
                         WHERE conference_room_id = $1
                     "#,
                     id,
+                )
+                .fetch_optional(conn)
+                .await
+            }
+            AuthzClassQueryState::RecordingRtcId(id) => {
+                sqlx::query_as!(
+                    AuthzClass,
+                    r#"
+                        SELECT
+                            class.id::text AS "id!: String",
+                            (
+                                CASE kind
+                                    WHEN 'webinar' THEN 'webinars'
+                                    WHEN 'classroom' THEN 'classrooms'
+                                    ELSE ''
+                                END
+                            ) AS "kind!: String"
+                        FROM class
+                        INNER JOIN recording r
+                        ON r.class_id = class.id
+                        WHERE rtc_id = $1
+                    "#,
+                    id,
+                )
+                .fetch_optional(conn)
+                .await
+            }
+            AuthzClassQueryState::Scope { scope, audience } => {
+                sqlx::query_as!(
+                    AuthzClass,
+                    r#"
+                        SELECT
+                            id::text AS "id!: String",
+                            (
+                                CASE kind
+                                    WHEN 'webinar' THEN 'webinars'
+                                    WHEN 'classroom' THEN 'classrooms'
+                                    ELSE ''
+                                END
+                            ) AS "kind!: String"
+                        FROM class
+                        WHERE audience = $1
+                        AND scope = $2
+                    "#,
+                    audience,
+                    scope
                 )
                 .fetch_optional(conn)
                 .await

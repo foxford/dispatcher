@@ -26,7 +26,14 @@ struct AuthzRequest {
 #[derive(Deserialize, Debug, Serialize)]
 struct Subject {
     namespace: String,
-    value: String,
+    value: SubjectValue,
+}
+
+#[derive(Deserialize, Debug, Serialize)]
+#[serde(untagged)]
+enum SubjectValue {
+    New(String),
+    Old(Vec<String>),
 }
 
 #[derive(Deserialize, Debug, Serialize)]
@@ -64,16 +71,42 @@ async fn proxy_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
     Ok(response)
 }
 
+const BUCKETS: [&str; 4] = ["hls.", "origin.", "ms.", "meta."];
+
 fn validate_client(
     account_id: &AccountId,
     state: &dyn AppContext,
-) -> Result<impl Fn(Uuid) -> AuthzReadQuery, AppError> {
+) -> Result<impl Fn(&str) -> Result<AuthzReadQuery, anyhow::Error>, AppError> {
     let audience = state.agent_id().as_account_id().audience().to_owned();
 
     let account_audience = account_id.audience().split(':').next().unwrap();
     let q = match account_id.label() {
-        "event" if account_audience == audience => |id| AuthzReadQuery::by_event(id),
-        "conference" if account_audience == audience => |id| AuthzReadQuery::by_conference(id),
+        "event" if account_audience == audience => |id: &str| {
+            let id = Uuid::from_str(&id)?;
+            Ok(AuthzReadQuery::by_event(id))
+        },
+        "conference" if account_audience == audience => |id: &str| {
+            let id = Uuid::from_str(&id)?;
+            Ok(AuthzReadQuery::by_conference(id))
+        },
+        "storage" if account_audience == audience => |id: &str| {
+            if id.starts_with("content.") {
+                let audience = "".to_owned();
+                let scope = "".to_owned();
+                Ok(AuthzReadQuery::by_scope(audience, scope))
+            } else if BUCKETS.iter().any(|prefix| id.starts_with(prefix)) {
+                match id.find("::") {
+                    Some(idx) => {
+                        let id = &id[idx + 1..];
+                        let id = Uuid::from_str(id)?;
+                        Ok(AuthzReadQuery::by_rtc_id(id))
+                    }
+                    None => Err(anyhow!("Access to bucket {:?} isnt proxied", id)),
+                }
+            } else {
+                Err(anyhow!("Access to bucket {:?} isnt proxied", id))
+            }
+        },
         _ => Err(anyhow!("Not allowed")).error(AppErrorKind::Unauthorized)?,
     };
 
@@ -130,6 +163,11 @@ fn transform_authz_request(authz_req: &mut AuthzRequest, account_id: &AccountId)
     match account_id.label() {
         "event" => transform_event_authz_request(authz_req),
         "conference" => transform_conference_authz_request(authz_req),
+        // Storage authz is passed as is since tenant yet not implements some of new actions
+        // (like upload/download on a "webinars/:webinar_id")
+        // and only altered if matching class is found
+        //
+        // "storage" => transform_storage_authz_request(authz_req),
         _ => {}
     }
 }
@@ -137,20 +175,25 @@ fn transform_authz_request(authz_req: &mut AuthzRequest, account_id: &AccountId)
 fn transform_event_authz_request(authz_req: &mut AuthzRequest) {
     let act = &mut authz_req.action;
 
+    // only transform rooms/* objects
+    if authz_req.object.value.get(0).map(|s| s.as_ref()) != Some("rooms") {
+        return;
+    }
+
     // ["rooms", ROOM_ID, "agents"]::list       => ["rooms", ROOM_ID]::read
     // ["rooms", ROOM_ID, "events"]::list       => ["rooms", ROOM_ID]::read
     // ["rooms", ROOM_ID, "events"]::subscribe  => ["rooms", ROOM_ID]::read
     match authz_req.object.value.get_mut(0..) {
         None => {}
-        Some([obj, _, v]) if act == "list" && obj == "rooms" && v == "agents" => {
+        Some([_rooms, _room_id, v]) if act == "list" && v == "agents" => {
             *act = "read".into();
             authz_req.object.value.truncate(2);
         }
-        Some([obj, _, v]) if act == "list" && obj == "rooms" && v == "events" => {
+        Some([_rooms, _room_id, v]) if act == "list" && v == "events" => {
             *act = "read".into();
             authz_req.object.value.truncate(2);
         }
-        Some([obj, _, v]) if act == "subscribe" && obj == "rooms" && v == "events" => {
+        Some([_rooms, _room_id, v]) if act == "subscribe" && v == "events" => {
             *act = "read".into();
             authz_req.object.value.truncate(2);
         }
@@ -161,25 +204,72 @@ fn transform_event_authz_request(authz_req: &mut AuthzRequest) {
 fn transform_conference_authz_request(authz_req: &mut AuthzRequest) {
     let act = &mut authz_req.action;
 
+    // only transform rooms/* objects
+    if authz_req.object.value.get(0).map(|s| s.as_ref()) != Some("rooms") {
+        return;
+    }
+
     // ["rooms", ROOM_ID, "agents"]::list       => ["rooms", ROOM_ID]::read
     // ["rooms", ROOM_ID, "rtcs"]::list         => ["rooms", ROOM_ID]::read
     // ["rooms", ROOM_ID, "events"]::subscribe  => ["rooms", ROOM_ID]::read
     match authz_req.object.value.get_mut(0..) {
         None => {}
-        Some([obj, _, v]) if act == "list" && obj == "rooms" && v == "agents" => {
+        Some([_rooms, _room_id, v]) if act == "list" && v == "agents" => {
             *act = "read".into();
             authz_req.object.value.truncate(2);
         }
-        Some([obj, _, v]) if act == "list" && obj == "rooms" && v == "rtcs" => {
+        Some([_rooms, _room_id, v]) if act == "list" && v == "rtcs" => {
             *act = "read".into();
             authz_req.object.value.truncate(2);
         }
-        Some([obj, _, v, _rtc_id]) if act == "read" && obj == "rooms" && v == "rtcs" => {
+        Some([_rooms, _room_id, v, _rtc_id]) if act == "read" && v == "rtcs" => {
             authz_req.object.value.truncate(2);
         }
-        Some([obj, _, v]) if act == "subscribe" && obj == "rooms" && v == "events" => {
+        Some([_rooms, _room_id, v]) if act == "subscribe" && v == "events" => {
             *act = "read".into();
             authz_req.object.value.truncate(2);
+        }
+        Some(_) => {}
+    }
+}
+
+fn transform_storage_authz_request(authz_req: &mut AuthzRequest) {
+    let act = &mut authz_req.action;
+
+    // only transform sets/* objects
+    if authz_req.object.value.get(0).map(|s| s.as_ref()) != Some("sets") {
+        return;
+    }
+
+    match authz_req.object.value.get_mut(0..) {
+        None => {}
+        // ["sets", "origin" <> _]         | *           | [CLASS_TYPE, CLASS_ID]                              | upload
+        Some([_sets, v]) if v.starts_with("origin.") => {
+            *act = "upload".into();
+            authz_req.object.value.truncate(2);
+        }
+        // ["sets", "ms" <> _]             | *           | [CLASS_TYPE, CLASS_ID]                              | download
+        Some([_sets, v]) if v.starts_with("ms.") => {
+            *act = "download".into();
+            authz_req.object.value.truncate(2);
+        }
+        // ["sets", "meta" <> _]           | read        | [CLASS_TYPE, CLASS_ID]                              | read
+        // ["sets", "hls" <> _]            | read        | [CLASS_TYPE, CLASS_ID]                              | read
+        // ["sets", "content" <> _]        | read        | [CLASS_TYPE, CLASS_ID]                              | read
+        Some([_sets, v, _rtc_id])
+            if act == "read"
+                && (v.starts_with("meta.")
+                    || v.starts_with("hls.")
+                    || v.starts_with("content.")) =>
+        {
+            authz_req.object.value.truncate(2);
+        }
+        // ["sets", "content" <> _]        | create      | [CLASS_TYPE, CLASS_ID, content]                     | update
+        // ["sets", "content" <> _]        | delete      | [CLASS_TYPE, CLASS_ID, content]                     | update
+        Some([_sets, v]) if v.starts_with("content.") && (act == "create" || act == "delete") => {
+            *act = "update".into();
+            authz_req.object.value.truncate(2);
+            authz_req.object.value.push("content".into())
         }
         Some(_) => {}
     }
@@ -188,33 +278,69 @@ fn transform_conference_authz_request(authz_req: &mut AuthzRequest) {
 async fn substitute_class(
     authz_req: &mut AuthzRequest,
     state: &dyn AppContext,
-    q: impl Fn(Uuid) -> AuthzReadQuery,
+    q: impl Fn(&str) -> Result<AuthzReadQuery, anyhow::Error>,
 ) -> Result<(), AppError> {
     match authz_req.object.value.get_mut(0..2) {
-        Some([ref mut obj, ref mut room_id]) if obj == "rooms" => match Uuid::from_str(room_id) {
-            Err(_) => Ok(()),
-            Ok(id) => {
-                let mut conn = state
-                    .get_conn()
-                    .await
-                    .error(AppErrorKind::DbConnAcquisitionFailed)?;
-                match q(id)
-                    .execute(&mut conn)
-                    .await
-                    .context("Failed to insert chat")
-                    .error(AppErrorKind::DbQueryFailed)?
-                {
-                    None => Ok(()),
-                    Some(AuthzClass { kind, id }) => {
-                        *obj = kind;
-                        *room_id = id;
-                        authz_req.object.namespace = state.agent_id().as_account_id().to_string();
+        Some([ref mut obj, ref mut room_id]) if obj == "rooms" => {
+            let query = match q(room_id) {
+                Ok(query) => query,
+                Err(_) => {
+                    return Ok(());
+                }
+            };
 
-                        Ok(())
-                    }
+            let mut conn = state
+                .get_conn()
+                .await
+                .error(AppErrorKind::DbConnAcquisitionFailed)?;
+
+            match query
+                .execute(&mut conn)
+                .await
+                .context("Failed to insert chat")
+                .error(AppErrorKind::DbQueryFailed)?
+            {
+                None => Ok(()),
+                Some(AuthzClass { kind, id }) => {
+                    *obj = kind;
+                    *room_id = id;
+                    authz_req.object.namespace = state.agent_id().as_account_id().to_string();
+
+                    Ok(())
                 }
             }
-        },
+        }
+        Some([ref mut obj, ref mut set_id]) if obj == "sets" => {
+            let query = match q(set_id) {
+                Ok(query) => query,
+                Err(_) => {
+                    return Ok(());
+                }
+            };
+
+            let mut conn = state
+                .get_conn()
+                .await
+                .error(AppErrorKind::DbConnAcquisitionFailed)?;
+
+            match query
+                .execute(&mut conn)
+                .await
+                .context("Failed to insert chat")
+                .error(AppErrorKind::DbQueryFailed)?
+            {
+                None => Ok(()),
+                Some(AuthzClass { kind, id }) => {
+                    *obj = kind;
+                    *set_id = id;
+                    authz_req.object.namespace = state.agent_id().as_account_id().to_string();
+                    // TODO: this should be done as for event and conference
+                    transform_storage_authz_request(authz_req);
+
+                    Ok(())
+                }
+            }
+        }
         _ => Ok(()),
     }
 }
