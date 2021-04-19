@@ -41,6 +41,7 @@ Object                          | Action      | New object                      
 ["sets", "hls" <> _]            | read        | [CLASS_TYPE, CLASS_ID]                              | read
 ["sets", "content" <> _]        | create      | [CLASS_TYPE, CLASS_ID, content]                     | update
 ["sets", "content" <> _]        | delete      | [CLASS_TYPE, CLASS_ID, content]                     | update
+["sets", "content" <> _]        | read        | [CLASS_TYPE, CLASS_ID]                              | read
 ["sets", SET]                   | *           | [CLASS_TYPE, CLASS_ID, "sets", BUCKET_PREFIX][^4]   | no change[^2]
 \*                              | *           | no change                                           | no change[^3]
 
