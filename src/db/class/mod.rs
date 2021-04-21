@@ -11,8 +11,6 @@ use serde_json::Value as JsonValue;
 
 pub type BoundedDateTimeTuple = (Bound<DateTime<Utc>>, Bound<DateTime<Utc>>);
 
-////////////////////////////////////////////////////////////////////////////////
-
 #[derive(Clone, Copy, Debug, sqlx::Type)]
 #[sqlx(rename = "class_type", rename_all = "lowercase")]
 pub enum ClassType {
@@ -43,6 +41,7 @@ pub struct Object {
     preserve_history: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     host: Option<AccountId>,
+    reserve: Option<i32>,
 }
 
 impl Object {
@@ -84,6 +83,10 @@ impl Object {
 
     pub fn host(&self) -> Option<&AccountId> {
         self.host.as_ref()
+    }
+
+    pub fn reserve(&self) -> Option<i32> {
+        self.reserve
     }
 }
 
@@ -222,7 +225,8 @@ impl UpdateQuery {
                 event_room_id,
                 conference_room_id,
                 original_event_room_id,
-                modified_event_room_id
+                modified_event_room_id,
+                reserve
             "#,
             self.id,
             self.original_event_room_id,

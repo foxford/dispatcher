@@ -323,6 +323,12 @@ async fn create_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
         query
     };
 
+    let query = if let Some(reserve) = body.reserve {
+        query.reserve(reserve)
+    } else {
+        query
+    };
+
     let mut conn = req
         .state()
         .get_conn()
@@ -649,5 +655,7 @@ fn times_overlap(t1: BoundedDateTimeTuple, t2: BoundedDateTimeTuple) -> BoundedD
 }
 
 pub use download::download;
+pub use recreate::recreate;
 
 mod download;
+mod recreate;

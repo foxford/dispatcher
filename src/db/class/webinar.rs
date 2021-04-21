@@ -68,6 +68,7 @@ pub struct WebinarInsertQuery {
     event_room_id: Uuid,
     original_event_room_id: Option<Uuid>,
     modified_event_room_id: Option<Uuid>,
+    reserve: Option<i32>,
 }
 
 impl WebinarInsertQuery {
@@ -88,6 +89,7 @@ impl WebinarInsertQuery {
             event_room_id,
             original_event_room_id: None,
             modified_event_room_id: None,
+            reserve: None,
         }
     }
 
@@ -112,6 +114,13 @@ impl WebinarInsertQuery {
         }
     }
 
+    pub fn reserve(self, reserve: i32) -> Self {
+        Self {
+            reserve: Some(reserve),
+            ..self
+        }
+    }
+
     pub async fn execute(self, conn: &mut PgConnection) -> sqlx::Result<Object> {
         let time: PgRange<DateTime<Utc>> = self.time.into();
 
@@ -121,9 +130,9 @@ impl WebinarInsertQuery {
             INSERT INTO class (
                 scope, audience, time, tags, preserve_history, kind,
                 conference_room_id, event_room_id,
-                original_event_room_id, modified_event_room_id
+                original_event_room_id, modified_event_room_id, reserve
             )
-            VALUES ($1, $2, $3, $4, $5, $6::class_type, $7, $8, $9, $10)
+            VALUES ($1, $2, $3, $4, $5, $6::class_type, $7, $8, $9, $10, $11)
             RETURNING
                 id,
                 scope,
@@ -137,7 +146,8 @@ impl WebinarInsertQuery {
                 event_room_id,
                 conference_room_id,
                 original_event_room_id,
-                modified_event_room_id
+                modified_event_room_id,
+                reserve
             "#,
             self.scope,
             self.audience,
@@ -149,6 +159,7 @@ impl WebinarInsertQuery {
             self.event_room_id,
             self.original_event_room_id,
             self.modified_event_room_id,
+            self.reserve,
         )
         .fetch_one(conn)
         .await
@@ -187,10 +198,63 @@ impl WebinarTimeUpdateQuery {
                 event_room_id,
                 conference_room_id,
                 original_event_room_id,
-                modified_event_room_id
+                modified_event_room_id,
+                reserve
             "#,
             self.id,
             time,
+        )
+        .fetch_one(conn)
+        .await
+    }
+}
+
+pub struct WebinarRecreateQuery {
+    id: Uuid,
+    time: Time,
+    event_room_id: Uuid,
+    conference_room_id: Uuid,
+}
+
+impl WebinarRecreateQuery {
+    pub fn new(id: Uuid, time: Time, event_room_id: Uuid, conference_room_id: Uuid) -> Self {
+        Self {
+            id,
+            time,
+            event_room_id,
+            conference_room_id,
+        }
+    }
+
+    pub async fn execute(self, conn: &mut PgConnection) -> sqlx::Result<Object> {
+        let time: PgRange<DateTime<Utc>> = self.time.into();
+
+        sqlx::query_as!(
+            Object,
+            r#"
+            UPDATE class
+            SET time = $2, event_room_id = $3, conference_room_id = $4, original_event_room_id = NULL, modified_event_room_id = NULL
+            WHERE id = $1
+            RETURNING
+                id,
+                scope,
+                kind AS "kind!: ClassType",
+                audience,
+                host AS "host?: AccountId",
+                time AS "time!: Time",
+                tags,
+                preserve_history,
+                created_at,
+                event_room_id,
+                conference_room_id,
+                original_event_room_id,
+                modified_event_room_id,
+                reserve
+            "#,
+            self.id,
+            time,
+            self.event_room_id,
+            self.conference_room_id,
         )
         .fetch_one(conn)
         .await
