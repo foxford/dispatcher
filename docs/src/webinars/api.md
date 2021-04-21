@@ -11,6 +11,7 @@ Route                                           | Method | Short description
 /api/v1/webinars/:webinar_id                    | PUT    | [Updates](#update-webinar) webinar.
 /api/v1/webinars/convert                        | POST   | [Creates](#convert-webinar) webinar with already existing event and conference rooms.
 /api/v1/webinars/:webinar_id/download           | GET    | [Downloads](#download-webinar) webinar source file.
+/api/v1/webinars/:webinar_id/recreate           | POST   | [Recreates](#move-webinar) webinar rooms.
 
 ### Create webinar
 
@@ -58,7 +59,7 @@ Response: status 200 and webinar object as payload.
 
 Parameters:
 
-Свойство               | Тип         | Optional | Description
+Attribute              | Type        | Optional | Description
 ---------------------- | ----------- | -------- | -------------------------------------------------
 time                   | [int, int]  | +        | New time
 
@@ -105,3 +106,14 @@ Response:
 Attribute              | Type        | Optional | Description
 ---------------------- | ----------- | -------- | --------------
 url                    | string      |          | Url, supplied with `access_token` this will let someone access the recording.
+
+
+### Recreate webinar
+
+Parameters:
+
+Attribute              | Type        | Optional | Description
+---------------------- | ----------- | -------- | -------------------------------------------------
+time                   | [int, int]  | +        | New time
+
+Response: status 200 and webinar object as payload.

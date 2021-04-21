@@ -2,6 +2,7 @@ use std::ops::Bound;
 
 use chrono::{DateTime, Utc};
 use sqlx::postgres::{types::PgRange, PgConnection};
+use sqlx::Done;
 use uuid::Uuid;
 
 use serde_derive::{Deserialize, Serialize};
@@ -18,6 +19,7 @@ pub struct Object {
     created_at: DateTime<Utc>,
     adjusted_at: Option<DateTime<Utc>>,
     transcoded_at: Option<DateTime<Utc>>,
+    deleted_at: Option<DateTime<Utc>>,
 }
 
 impl Object {
@@ -95,9 +97,10 @@ impl RecordingReadQuery {
                 started_at,
                 created_at,
                 adjusted_at,
-                transcoded_at
+                transcoded_at,
+                deleted_at
             FROM recording
-            WHERE class_id = $1
+            WHERE class_id = $1 AND deleted_at IS NULL
             "#,
             self.class_id
         )
@@ -180,7 +183,8 @@ impl RecordingInsertQuery {
                 modified_segments AS "modified_segments!: Option<Segments>",
                 created_at,
                 adjusted_at,
-                transcoded_at
+                transcoded_at,
+                deleted_at
             "#,
             self.class_id,
             self.rtc_id,
@@ -216,7 +220,7 @@ impl AdjustUpdateQuery {
             UPDATE recording
             SET modified_segments = $2,
                 adjusted_at = NOW()
-            WHERE class_id = $1
+            WHERE class_id = $1 AND deleted_at IS NULL
             RETURNING
                 id,
                 class_id,
@@ -227,7 +231,8 @@ impl AdjustUpdateQuery {
                 modified_segments AS "modified_segments!: Option<Segments>",
                 created_at,
                 adjusted_at,
-                transcoded_at
+                transcoded_at,
+                deleted_at
             "#,
             self.class_id,
             self.modified_segments as Segments,
@@ -252,7 +257,7 @@ impl TranscodingUpdateQuery {
             r#"
             UPDATE recording
             SET transcoded_at = NOW()
-            WHERE class_id = $1
+            WHERE class_id = $1 AND deleted_at IS NULL
             RETURNING
                 id,
                 class_id,
@@ -263,7 +268,8 @@ impl TranscodingUpdateQuery {
                 modified_segments AS "modified_segments!: Option<Segments>",
                 created_at,
                 adjusted_at,
-                transcoded_at
+                transcoded_at,
+                deleted_at
             "#,
             self.class_id,
         )
@@ -313,7 +319,8 @@ impl RecordingConvertInsertQuery {
                 modified_segments AS "modified_segments!: Option<Segments>",
                 created_at,
                 adjusted_at,
-                transcoded_at
+                transcoded_at,
+                deleted_at
             "#,
             self.class_id,
             self.rtc_id,
@@ -324,6 +331,31 @@ impl RecordingConvertInsertQuery {
         )
         .fetch_one(conn)
         .await
+    }
+}
+
+pub struct DeleteQuery {
+    class_id: Uuid,
+}
+
+impl DeleteQuery {
+    pub fn new(class_id: Uuid) -> Self {
+        Self { class_id }
+    }
+
+    pub(crate) async fn execute(self, conn: &mut PgConnection) -> sqlx::Result<usize> {
+        sqlx::query_as!(
+            Object,
+            r#"
+            UPDATE recording
+            SET deleted_at = NOW()
+            WHERE class_id = $1 AND deleted_at IS NULL
+            "#,
+            self.class_id,
+        )
+        .execute(conn)
+        .await
+        .map(|r| r.rows_affected() as usize)
     }
 }
 
