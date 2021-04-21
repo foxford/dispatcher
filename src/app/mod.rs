@@ -35,7 +35,7 @@ use api::v1::minigroup::{
 use api::v1::webinar::{
     convert as convert_webinar, create as create_webinar, download as download_webinar,
     options as read_options, read as read_webinar, read_by_scope as read_webinar_by_scope,
-    update as update_webinar,
+    recreate as recreate_webinar, update as update_webinar,
 };
 use api::{
     redirect_to_frontend, rollback, v1::healthz, v1::redirect_to_frontend as redirect_to_frontend2,
@@ -234,6 +234,9 @@ fn bind_webinars_routes(app: &mut tide::Server<Arc<dyn AppContext>>) {
 
     app.at("/api/v1/webinars/:id/download")
         .get(download_webinar);
+
+    app.at("/api/v1/webinars/:id/recreate")
+        .post(recreate_webinar);
 }
 
 fn bind_classroom_routes(app: &mut tide::Server<Arc<dyn AppContext>>) {

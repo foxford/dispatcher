@@ -37,6 +37,7 @@ pub struct Object {
     modified_event_room_id: Option<Uuid>,
     preserve_history: bool,
     host: Option<AccountId>,
+    reserve: Option<i32>,
 }
 
 impl Object {
@@ -70,6 +71,10 @@ impl Object {
 
     pub fn modified_event_room_id(&self) -> Option<Uuid> {
         self.modified_event_room_id
+    }
+
+    pub fn reserve(&self) -> Option<i32> {
+        self.reserve
     }
 }
 

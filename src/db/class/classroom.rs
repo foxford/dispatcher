@@ -96,7 +96,8 @@ impl ClassroomInsertQuery {
                 event_room_id,
                 conference_room_id,
                 original_event_room_id,
-                modified_event_room_id
+                modified_event_room_id,
+                reserve
             "#,
             self.scope,
             self.audience,
