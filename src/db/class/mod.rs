@@ -81,6 +81,10 @@ impl Object {
     pub fn modified_event_room_id(&self) -> Option<Uuid> {
         self.modified_event_room_id
     }
+
+    pub fn host(&self) -> Option<&AccountId> {
+        self.host.as_ref()
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
