@@ -10,6 +10,7 @@ use sqlx::{postgres::PgConnection, Acquire};
 use svc_agent::mqtt::{
     IntoPublishableMessage, OutgoingEvent, OutgoingEventProperties, ShortTermTimingProperties,
 };
+use svc_authz::Authenticable;
 use uuid::Uuid;
 
 use crate::app::AppContext;
@@ -70,7 +71,7 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
                 ..
             } => {
                 // Save adjust results to the DB and fetch recordings.
-                let recordings = {
+                let (minigroup, recordings) = {
                     let mut conn = self.ctx.get_conn().await?;
 
                     let mut txn = conn
@@ -84,7 +85,7 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
                         modified_room_id,
                     );
 
-                    q.execute(&mut txn).await?;
+                    let minigroup = q.execute(&mut txn).await?;
 
                     let recordings =
                         crate::db::recording::AdjustMinigroupUpdateQuery::new(self.minigroup.id())
@@ -92,7 +93,7 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
                             .await?;
 
                     txn.commit().await?;
-                    recordings
+                    (minigroup, recordings)
                 };
 
                 // Find the earliest recording.
@@ -136,10 +137,23 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
                     })
                     .collect::<Vec<_>>();
 
+                // Find host stream id.
+                let host_stream_id = minigroup.host().and_then(|host| {
+                    recordings
+                        .iter()
+                        .find(|recording| recording.created_by().as_account_id() == host)
+                        .map(|recording| recording.rtc_id())
+                });
+
                 // Create a tq task.
+                let task = TqTask::TranscodeMinigroupToHls {
+                    streams,
+                    host_stream_id,
+                };
+
                 self.ctx
                     .tq_client()
-                    .create_task(&self.minigroup, TqTask::TranscodeMinigroupToHls { streams })
+                    .create_task(&self.minigroup, task)
                     .await
                     .context("TqClient create task failed")
             }
@@ -491,7 +505,6 @@ mod tests {
 
         use chrono::{Duration, Utc};
         use serde_json::json;
-        use svc_agent::AccountId;
         use uuid::Uuid;
 
         use crate::app::AppContext;
@@ -527,7 +540,7 @@ mod tests {
                     "minigroup123".to_string(),
                     USR_AUDIENCE.to_string(),
                     time.into(),
-                    AccountId::new("host", USR_AUDIENCE),
+                    agent1.account_id().to_owned(),
                     Uuid::new_v4(),
                     event_room_id,
                 )
@@ -637,6 +650,7 @@ mod tests {
                             vec![(Bound::Included(600000), Bound::Excluded(900000))].into(),
                         ),
                 ],
+                host_stream_id: Some(recording1.rtc_id()),
             };
 
             state
