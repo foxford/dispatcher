@@ -2,6 +2,7 @@ use std::ops::Bound;
 
 use chrono::{DateTime, Utc};
 use sqlx::postgres::{types::PgRange, PgConnection};
+use sqlx::Done;
 use svc_agent::AgentId;
 use uuid::Uuid;
 
@@ -22,6 +23,7 @@ pub struct Object {
     adjusted_at: Option<DateTime<Utc>>,
     transcoded_at: Option<DateTime<Utc>>,
     created_by: AgentId,
+    deleted_at: Option<DateTime<Utc>>,
 }
 
 impl Object {
@@ -118,9 +120,10 @@ impl RecordingListQuery {
                 created_at,
                 adjusted_at,
                 transcoded_at,
-                created_by AS "created_by: AgentId"
+                created_by AS "created_by: AgentId",
+                deleted_at
             FROM recording
-            WHERE class_id = $1
+            WHERE class_id = $1 AND deleted_at IS NULL
             "#,
             self.class_id
         )
@@ -209,7 +212,8 @@ impl RecordingInsertQuery {
                 created_at,
                 adjusted_at,
                 transcoded_at,
-                created_by AS "created_by: AgentId"
+                created_by AS "created_by: AgentId",
+                deleted_at
             "#,
             self.class_id,
             self.rtc_id,
@@ -248,7 +252,7 @@ impl AdjustWebinarUpdateQuery {
             UPDATE recording
             SET modified_segments = $2,
                 adjusted_at = NOW()
-            WHERE class_id = $1
+            WHERE class_id = $1 AND deleted_at IS NULL
             RETURNING
                 id,
                 class_id,
@@ -260,7 +264,8 @@ impl AdjustWebinarUpdateQuery {
                 created_at,
                 adjusted_at,
                 transcoded_at,
-                created_by AS "created_by: AgentId"
+                created_by AS "created_by: AgentId",
+                deleted_at
             "#,
             self.webinar_id,
             self.modified_segments as Segments,
@@ -300,7 +305,8 @@ impl AdjustMinigroupUpdateQuery {
                 created_at,
                 adjusted_at,
                 transcoded_at,
-                created_by AS "created_by: AgentId"
+                created_by AS "created_by: AgentId",
+                deleted_at
             "#,
             self.minigroup_id,
         )
@@ -326,7 +332,7 @@ impl TranscodingUpdateQuery {
             r#"
             UPDATE recording
             SET transcoded_at = NOW()
-            WHERE class_id = $1
+            WHERE class_id = $1 AND deleted_at IS NULL
             RETURNING
                 id,
                 class_id,
@@ -338,7 +344,8 @@ impl TranscodingUpdateQuery {
                 created_at,
                 adjusted_at,
                 transcoded_at,
-                created_by AS "created_by: AgentId"
+                created_by AS "created_by: AgentId",
+                deleted_at
             "#,
             self.class_id,
         )
@@ -391,7 +398,8 @@ impl RecordingConvertInsertQuery {
                 created_at,
                 adjusted_at,
                 transcoded_at,
-                created_by AS "created_by: AgentId"
+                created_by AS "created_by: AgentId",
+                deleted_at
             "#,
             self.class_id,
             self.rtc_id,
@@ -402,6 +410,33 @@ impl RecordingConvertInsertQuery {
         )
         .fetch_one(conn)
         .await
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+pub struct DeleteQuery {
+    class_id: Uuid,
+}
+
+impl DeleteQuery {
+    pub fn new(class_id: Uuid) -> Self {
+        Self { class_id }
+    }
+
+    pub(crate) async fn execute(self, conn: &mut PgConnection) -> sqlx::Result<usize> {
+        sqlx::query_as!(
+            Object,
+            r#"
+            UPDATE recording
+            SET deleted_at = NOW()
+            WHERE class_id = $1 AND deleted_at IS NULL
+            "#,
+            self.class_id,
+        )
+        .execute(conn)
+        .await
+        .map(|r| r.rows_affected() as usize)
     }
 }
 
