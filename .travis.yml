@@ -11,6 +11,10 @@ addons:
       - postgresql-client-12
 
 cache: cargo
+before_cache:
+    - find ./target/debug -type f -maxdepth 1 -delete
+    - rm -rf ./target/debug/{deps,.fingerprint}/{*ra_*,*test*,*tools*,*gen_lsp*,*thread_worker*}
+    - rm -f  ./target/.rustc_info.json
 
 services:
   - docker
