@@ -1571,8 +1571,8 @@
       "nullable": []
     }
   },
-  "e6f377babc25c7f5861ae9c9c02d4003a83efb69018edc68db7e4c44a9ef8a06": {
-    "query": "\n            INSERT INTO recording (class_id, rtc_id, segments, modified_segments, stream_uri, started_at, adjusted_at, transcoded_at)\n            VALUES ($1, $2, $3, $4, $5, NOW(), NOW(), NOW())\n            RETURNING\n                id,\n                class_id,\n                rtc_id,\n                stream_uri,\n                segments AS \"segments!: Segments\",\n                started_at,\n                modified_segments AS \"modified_segments!: Option<Segments>\",\n                created_at,\n                adjusted_at,\n                transcoded_at,\n                created_by AS \"created_by: AgentId\",\n                deleted_at\n            ",
+  "eb27728f7526d50a8021b259e0fa1c2f1cd9320d5fec2e7063bf27eed0786937": {
+    "query": "\n            INSERT INTO recording (class_id, rtc_id, segments, modified_segments, stream_uri, started_at, adjusted_at, transcoded_at, created_by)\n            VALUES ($1, $2, $3, $4, $5, NOW(), NOW(), NOW(), $6)\n            RETURNING\n                id,\n                class_id,\n                rtc_id,\n                stream_uri,\n                segments AS \"segments!: Segments\",\n                started_at,\n                modified_segments AS \"modified_segments!: Option<Segments>\",\n                created_at,\n                adjusted_at,\n                transcoded_at,\n                created_by AS \"created_by: AgentId\",\n                deleted_at\n            ",
     "describe": {
       "columns": [
         {
@@ -1674,7 +1674,40 @@
           "Uuid",
           "Int8RangeArray",
           "Int8RangeArray",
-          "Text"
+          "Text",
+          {
+            "Custom": {
+              "name": "agent_id",
+              "kind": {
+                "Composite": [
+                  [
+                    "account_id",
+                    {
+                      "Custom": {
+                        "name": "account_id",
+                        "kind": {
+                          "Composite": [
+                            [
+                              "label",
+                              "Text"
+                            ],
+                            [
+                              "audience",
+                              "Text"
+                            ]
+                          ]
+                        }
+                      }
+                    }
+                  ],
+                  [
+                    "label",
+                    "Text"
+                  ]
+                ]
+              }
+            }
+          }
         ]
       },
       "nullable": [

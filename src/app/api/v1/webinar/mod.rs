@@ -563,6 +563,7 @@ async fn convert_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
                 recording.segments,
                 recording.modified_segments,
                 recording.uri,
+                svc_agent::AgentId::new("portal", account_id)
             )
             .execute(&mut txn)
             .await
