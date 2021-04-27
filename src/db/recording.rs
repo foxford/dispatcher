@@ -362,6 +362,7 @@ pub struct RecordingConvertInsertQuery {
     segments: Segments,
     modified_segments: Segments,
     stream_uri: String,
+    created_by: AgentId
 }
 
 impl RecordingConvertInsertQuery {
@@ -371,6 +372,7 @@ impl RecordingConvertInsertQuery {
         segments: Segments,
         modified_segments: Segments,
         stream_uri: String,
+        created_by: AgentId,
     ) -> Self {
         Self {
             class_id,
@@ -378,6 +380,7 @@ impl RecordingConvertInsertQuery {
             segments,
             modified_segments,
             stream_uri,
+            created_by,
         }
     }
 
@@ -385,8 +388,8 @@ impl RecordingConvertInsertQuery {
         sqlx::query_as!(
             Object,
             r#"
-            INSERT INTO recording (class_id, rtc_id, segments, modified_segments, stream_uri, started_at, adjusted_at, transcoded_at)
-            VALUES ($1, $2, $3, $4, $5, NOW(), NOW(), NOW())
+            INSERT INTO recording (class_id, rtc_id, segments, modified_segments, stream_uri, started_at, adjusted_at, transcoded_at, created_by)
+            VALUES ($1, $2, $3, $4, $5, NOW(), NOW(), NOW(), $6)
             RETURNING
                 id,
                 class_id,
@@ -406,6 +409,7 @@ impl RecordingConvertInsertQuery {
             self.segments as Segments,
             self.modified_segments as Segments,
             self.stream_uri,
+            self.created_by as AgentId
 
         )
         .fetch_one(conn)
