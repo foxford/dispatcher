@@ -451,7 +451,9 @@ struct WebinarConvertObject {
 #[derive(Deserialize)]
 struct RecordingConvertObject {
     stream_id: Uuid,
+    #[serde(deserialize_with = "crate::db::recording::serde::segments::deserialize")]
     segments: Segments,
+    #[serde(deserialize_with = "crate::db::recording::serde::segments::deserialize")]
     modified_segments: Segments,
     uri: String,
 }
