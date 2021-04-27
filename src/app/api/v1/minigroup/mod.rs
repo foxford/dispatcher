@@ -19,9 +19,10 @@ use crate::db::class::Object as Class;
 use super::{extract_id, extract_param, validate_token, AppResult};
 
 #[derive(Serialize)]
-struct MinigroupObject {
+struct MinigroupObject<'a> {
     id: String,
     real_time: RealTimeObject,
+    host: &'a AccountId
 }
 
 #[derive(Serialize)]
@@ -32,8 +33,8 @@ struct RealTimeObject {
     rtc_id: Option<Uuid>,
 }
 
-impl From<Class> for MinigroupObject {
-    fn from(obj: Class) -> Self {
+impl<'a> From<&'a Class> for MinigroupObject<'a> {
+    fn from(obj: &'a Class) -> Self {
         Self {
             id: obj.scope().to_owned(),
             real_time: RealTimeObject {
@@ -41,6 +42,8 @@ impl From<Class> for MinigroupObject {
                 event_room_id: obj.event_room_id(),
                 rtc_id: None,
             },
+            // Minigroups have host enforced by db
+            host: obj.host().unwrap()
         }
     }
 }
@@ -67,7 +70,7 @@ async fn read_inner(req: Request<Arc<dyn AppContext>>) -> AppResult {
         )
         .await?;
 
-    let minigroup_obj: MinigroupObject = minigroup.into();
+    let minigroup_obj: MinigroupObject = (&minigroup).into();
 
     let body = serde_json::to_string(&minigroup_obj)
         .context("Failed to serialize minigroup")
@@ -105,7 +108,7 @@ async fn read_by_scope_inner(req: Request<Arc<dyn AppContext>>) -> AppResult {
         )
         .await?;
 
-    let minigroup_obj: MinigroupObject = minigroup.into();
+    let minigroup_obj: MinigroupObject = (&minigroup).into();
 
     let body = serde_json::to_string(&minigroup_obj)
         .context("Failed to serialize minigroup")
