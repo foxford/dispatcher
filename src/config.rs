@@ -59,5 +59,5 @@ pub struct MqttServiceConfig {
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct StorageConfig {
-    pub base_url: String,
+    pub base_url: url::Url,
 }
