@@ -59,4 +59,4 @@ audience               | string      |          | Audience
 tags                   | json object | +        | Arbitrary tags
 event_room_id          | uuid        |          | Event room uuid
 
-Response: status 201 and classroom object as payload.
+Response: status 201 and chat object as payload.

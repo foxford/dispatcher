@@ -131,8 +131,8 @@ fn extract_id(req: &Request<Arc<dyn AppContext>>) -> anyhow::Result<Uuid> {
 
 pub mod authz;
 pub mod chat;
-pub mod classroom;
 pub mod minigroup;
+pub mod p2p;
 #[cfg(test)]
 mod tests;
 pub mod webinar;

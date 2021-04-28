@@ -25,13 +25,13 @@ use api::v1::chat::{
     convert as convert_chat, create as create_chat, read as read_chat,
     read_by_scope as read_chat_by_scope,
 };
-use api::v1::classroom::{
-    convert as convert_classroom, create as create_classroom, read as read_classroom,
-    read_by_scope as read_classroom_by_scope,
-};
 use api::v1::minigroup::{
     create as create_minigroup, read as read_minigroup, read_by_scope as read_minigroup_by_scope,
     update as update_minigroup,
+};
+use api::v1::p2p::{
+    convert as convert_p2p, create as create_p2p, read as read_p2p,
+    read_by_scope as read_p2p_by_scope,
 };
 use api::v1::webinar::{
     convert as convert_webinar, create as create_webinar, download as download_webinar,
@@ -183,7 +183,7 @@ pub async fn run(db: PgPool, authz_cache: Option<Box<dyn AuthzCache>>) -> Result
     app.with(request_logger::LogMiddleware::new());
     bind_redirects_routes(&mut app);
     bind_webinars_routes(&mut app);
-    bind_classroom_routes(&mut app);
+    bind_p2p_routes(&mut app);
     bind_minigroups_routes(&mut app);
     bind_chat_routes(&mut app);
     bind_authz_routes(&mut app);
@@ -240,23 +240,19 @@ fn bind_webinars_routes(app: &mut tide::Server<Arc<dyn AppContext>>) {
         .post(recreate_webinar);
 }
 
-fn bind_classroom_routes(app: &mut tide::Server<Arc<dyn AppContext>>) {
-    app.at("/api/v1/classrooms/:id")
+fn bind_p2p_routes(app: &mut tide::Server<Arc<dyn AppContext>>) {
+    app.at("/api/v1/p2p/:id").with(cors()).options(read_options);
+    app.at("/api/v1/p2p/:id").with(cors()).get(read_p2p);
+    app.at("/api/v1/audiences/:audience/p2p/:scope")
         .with(cors())
         .options(read_options);
-    app.at("/api/v1/classrooms/:id")
+    app.at("/api/v1/audiences/:audience/p2p/:scope")
         .with(cors())
-        .get(read_classroom);
-    app.at("/api/v1/audiences/:audience/classrooms/:scope")
-        .with(cors())
-        .options(read_options);
-    app.at("/api/v1/audiences/:audience/classrooms/:scope")
-        .with(cors())
-        .get(read_classroom_by_scope);
+        .get(read_p2p_by_scope);
 
-    app.at("/api/v1/classrooms").post(create_classroom);
+    app.at("/api/v1/p2p").post(create_p2p);
 
-    app.at("/api/v1/classrooms/convert").post(convert_classroom);
+    app.at("/api/v1/p2p/convert").post(convert_p2p);
 }
 
 fn bind_minigroups_routes(app: &mut tide::Server<Arc<dyn AppContext>>) {

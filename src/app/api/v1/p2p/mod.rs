@@ -17,7 +17,7 @@ use crate::db::class::Object as Class;
 use super::{extract_id, extract_param, validate_token, AppResult};
 
 #[derive(Serialize)]
-struct ClassroomObject {
+struct P2PObject {
     id: String,
     real_time: RealTimeObject,
 }
@@ -30,9 +30,9 @@ struct RealTimeObject {
     fallback_uri: Option<String>,
 }
 
-impl From<Class> for ClassroomObject {
-    fn from(obj: Class) -> ClassroomObject {
-        ClassroomObject {
+impl From<Class> for P2PObject {
+    fn from(obj: Class) -> P2PObject {
+        P2PObject {
             id: obj.scope().to_owned(),
             real_time: RealTimeObject {
                 fallback_uri: None,
@@ -44,13 +44,13 @@ impl From<Class> for ClassroomObject {
 }
 
 pub async fn read(req: Request<Arc<dyn AppContext>>) -> tide::Result {
-    read_inner(&req, find_classroom(&req))
+    read_inner(&req, find_p2p(&req))
         .await
         .or_else(|e| Ok(e.to_tide_response()))
 }
 
 pub async fn read_by_scope(req: Request<Arc<dyn AppContext>>) -> tide::Result {
-    read_inner(&req, find_classroom_by_scope(&req))
+    read_inner(&req, find_p2p_by_scope(&req))
         .await
         .or_else(|e| Ok(e.to_tide_response()))
 }
@@ -62,30 +62,30 @@ async fn read_inner(
     let state = req.state();
     let account_id = validate_token(&req).error(AppErrorKind::Unauthorized)?;
 
-    let classroom = match finder.await {
-        Ok(classroom) => classroom,
+    let p2p = match finder.await {
+        Ok(p2p) => p2p,
         Err(e) => {
-            error!(crate::LOG, "Failed to find a classroom, err = {:?}", e);
+            error!(crate::LOG, "Failed to find a p2p, err = {:?}", e);
             return Ok(tide::Response::builder(404).body("Not found").build());
         }
     };
 
-    let object = AuthzObject::new(&["classrooms", &classroom.id().to_string()]).into();
+    let object = AuthzObject::new(&["classrooms", &p2p.id().to_string()]).into();
 
     state
         .authz()
         .authorize(
-            classroom.audience().to_owned(),
+            p2p.audience().to_owned(),
             account_id.clone(),
             object,
             "read".into(),
         )
         .await?;
 
-    let classroom_obj: ClassroomObject = classroom.into();
+    let p2p_obj: P2PObject = p2p.into();
 
-    let body = serde_json::to_string(&classroom_obj)
-        .context("Failed to serialize classroom")
+    let body = serde_json::to_string(&p2p_obj)
+        .context("Failed to serialize p2p")
         .error(AppErrorKind::SerializationFailed)?;
 
     let response = Response::builder(200).body(body).build();
@@ -93,7 +93,7 @@ async fn read_inner(
 }
 
 #[derive(Deserialize)]
-struct Classroom {
+struct P2P {
     scope: String,
     audience: String,
     tags: Option<serde_json::Value>,
@@ -105,7 +105,7 @@ pub async fn create(req: Request<Arc<dyn AppContext>>) -> tide::Result {
         .or_else(|e| Ok(e.to_tide_response()))
 }
 async fn create_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
-    let body: Classroom = req.body_json().await.error(AppErrorKind::InvalidPayload)?;
+    let body: P2P = req.body_json().await.error(AppErrorKind::InvalidPayload)?;
 
     let account_id = validate_token(&req).error(AppErrorKind::Unauthorized)?;
     let state = req.state();
@@ -143,7 +143,7 @@ async fn create_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
         .context("Services requests")
         .error(AppErrorKind::MqttRequestFailed)?;
 
-    let query = crate::db::class::ClassroomInsertQuery::new(
+    let query = crate::db::class::P2PInsertQuery::new(
         body.scope,
         body.audience,
         conference_room_id,
@@ -161,14 +161,14 @@ async fn create_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
         .get_conn()
         .await
         .error(AppErrorKind::DbConnAcquisitionFailed)?;
-    let classroom = query
+    let p2p = query
         .execute(&mut conn)
         .await
-        .context("Failed to insert classroom")
+        .context("Failed to insert p2p")
         .error(AppErrorKind::DbQueryFailed)?;
 
-    let body = serde_json::to_string_pretty(&classroom)
-        .context("Failed to serialize classroom")
+    let body = serde_json::to_string_pretty(&p2p)
+        .context("Failed to serialize p2p")
         .error(AppErrorKind::SerializationFailed)?;
 
     let response = Response::builder(201).body(body).build();
@@ -177,7 +177,7 @@ async fn create_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
 }
 
 #[derive(Deserialize)]
-struct ClassroomConvertObject {
+struct P2PConvertObject {
     scope: String,
     audience: String,
     event_room_id: Uuid,
@@ -192,7 +192,7 @@ pub async fn convert(req: Request<Arc<dyn AppContext>>) -> tide::Result {
 }
 async fn convert_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
     let body = req
-        .body_json::<ClassroomConvertObject>()
+        .body_json::<P2PConvertObject>()
         .await
         .error(AppErrorKind::InvalidPayload)?;
 
@@ -211,7 +211,7 @@ async fn convert_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
         )
         .await?;
 
-    let query = crate::db::class::ClassroomInsertQuery::new(
+    let query = crate::db::class::P2PInsertQuery::new(
         body.scope,
         body.audience,
         body.conference_room_id,
@@ -224,24 +224,24 @@ async fn convert_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
         query
     };
 
-    let classroom = {
+    let p2p = {
         let mut conn = req
             .state()
             .get_conn()
             .await
             .error(AppErrorKind::DbConnAcquisitionFailed)?;
 
-        let classroom = query
+        let p2p = query
             .execute(&mut conn)
             .await
             .context("Failed to find recording")
             .error(AppErrorKind::DbQueryFailed)?;
 
-        classroom
+            p2p
     };
 
-    let body = serde_json::to_string(&classroom)
-        .context("Failed to serialize classroom")
+    let body = serde_json::to_string(&p2p)
+        .context("Failed to serialize p2p")
         .error(AppErrorKind::SerializationFailed)?;
 
     let response = Response::builder(201).body(body).build();
@@ -249,31 +249,31 @@ async fn convert_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
     Ok(response)
 }
 
-async fn find_classroom(req: &Request<Arc<dyn AppContext>>) -> AnyResult<crate::db::class::Object> {
+async fn find_p2p(req: &Request<Arc<dyn AppContext>>) -> AnyResult<crate::db::class::Object> {
     let id = extract_id(req)?;
 
-    let classroom = {
+    let p2p = {
         let mut conn = req.state().get_conn().await?;
-        crate::db::class::ClassroomReadQuery::by_id(id)
+        crate::db::class::P2PReadQuery::by_id(id)
             .execute(&mut conn)
             .await?
-            .ok_or_else(|| anyhow!("Failed to find classroom by scope"))?
+            .ok_or_else(|| anyhow!("Failed to find p2p by scope"))?
     };
-    Ok(classroom)
+    Ok(p2p)
 }
 
-async fn find_classroom_by_scope(
+async fn find_p2p_by_scope(
     req: &Request<Arc<dyn AppContext>>,
 ) -> AnyResult<crate::db::class::Object> {
     let audience = extract_param(req, "audience")?.to_owned();
     let scope = extract_param(req, "scope")?.to_owned();
 
-    let classroom = {
+    let p2p = {
         let mut conn = req.state().get_conn().await?;
-        crate::db::class::ClassroomReadQuery::by_scope(audience.clone(), scope.clone())
+        crate::db::class::P2PReadQuery::by_scope(audience.clone(), scope.clone())
             .execute(&mut conn)
             .await?
-            .ok_or_else(|| anyhow!("Failed to find classroom by scope"))?
+            .ok_or_else(|| anyhow!("Failed to find p2p by scope"))?
     };
-    Ok(classroom)
+    Ok(p2p)
 }

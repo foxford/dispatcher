@@ -13,11 +13,11 @@ enum ReadQueryPredicate {
     Scope { audience: String, scope: String },
 }
 
-pub struct ClassroomReadQuery {
+pub struct P2PReadQuery {
     condition: ReadQueryPredicate,
 }
 
-impl ClassroomReadQuery {
+impl P2PReadQuery {
     pub fn by_id(id: Uuid) -> Self {
         Self {
             condition: ReadQueryPredicate::Id(id),
@@ -53,13 +53,13 @@ impl ClassroomReadQuery {
             ReadQueryPredicate::Id(id) => query.bind(id),
             ReadQueryPredicate::Scope { audience, scope } => query.bind(audience).bind(scope),
         };
-        let query = query.bind(ClassType::Classroom);
+        let query = query.bind(ClassType::P2P);
 
         query.fetch_optional(conn).await
     }
 }
 
-pub struct ClassroomInsertQuery {
+pub struct P2PInsertQuery {
     scope: String,
     audience: String,
     tags: Option<JsonValue>,
@@ -67,7 +67,7 @@ pub struct ClassroomInsertQuery {
     event_room_id: Uuid,
 }
 
-impl ClassroomInsertQuery {
+impl P2PInsertQuery {
     pub fn new(
         scope: String,
         audience: String,
@@ -122,7 +122,7 @@ impl ClassroomInsertQuery {
             time,
             self.tags,
             false,
-            ClassType::Classroom as ClassType,
+            ClassType::P2P as ClassType,
             self.conference_room_id,
             self.event_room_id,
         )

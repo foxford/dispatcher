@@ -2,7 +2,7 @@
 
 Dispatcher performs proxying of authz requests.
 
-If authz object starts with `["room", ROOM_ID, ..]` and dispatcher manages to find a webinar/classroom/chat corresponding to the room,
+If authz object starts with `["room", ROOM_ID, ..]` and dispatcher manages to find a webinar/p2p/chat corresponding to the room,
 the authz object will be altered.
 
 Otherwise, the request will be proxied as is (only if the audience param is a valid audience for authorization)
@@ -45,7 +45,7 @@ Object                          | Action      | New object                      
 ["sets", SET]                   | *           | ["classrooms", ID, "sets", BUCKET_PREFIX][^4]   | no change[^2]
 \*                              | *           | no change                                       | no change[^3]
 
-[^1]: `["rooms", ROOM_ID, ..]` means an array containing at least 2 elements, you can read `, ..` as "0 or more elements". `TYPE` is placeholder for `"webinars"`, `"classrooms"`, `"chats"` etc, depending on results of search by room id.
+[^1]: `["rooms", ROOM_ID, ..]` means an array containing at least 2 elements, you can read `, ..` as "0 or more elements".
 
 [^2]: If a class corresponding to the room is found action is left as is, only object is altered.
 

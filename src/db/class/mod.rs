@@ -15,7 +15,7 @@ pub type BoundedDateTimeTuple = (Bound<DateTime<Utc>>, Bound<DateTime<Utc>>);
 #[sqlx(rename = "class_type", rename_all = "lowercase")]
 pub enum ClassType {
     Webinar,
-    Classroom,
+    P2P,
     Minigroup,
 }
 
@@ -263,10 +263,10 @@ pub(crate) mod serde {
     }
 }
 
-mod classroom;
 mod minigroup;
+mod p2p;
 mod webinar;
 
-pub use classroom::*;
 pub use minigroup::*;
+pub use p2p::*;
 pub use webinar::*;
