@@ -90,6 +90,7 @@ Attribute              | Type         | Optional | Description
 stream_id              | uuid         |          | Stream id
 segments               | [[int, int]] |          | Segments
 modified_segments      | [[int, int]] |          | Modified segments
+uri                    | string       |          | Recording uri
 
 Response: status 201 and webinar object as payload.
 

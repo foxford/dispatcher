@@ -18,7 +18,7 @@ async fn download_inner(req: Request<Arc<dyn AppContext>>) -> AppResult {
         .await
         .error(AppErrorKind::WebinarNotFound)?;
 
-    let object = AuthzObject::new(&["webinars", &webinar.id().to_string()]).into();
+    let object = AuthzObject::new(&["classrooms", &webinar.id().to_string()]).into();
     state
         .authz()
         .authorize(

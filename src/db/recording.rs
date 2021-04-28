@@ -362,7 +362,7 @@ pub struct RecordingConvertInsertQuery {
     segments: Segments,
     modified_segments: Segments,
     stream_uri: String,
-    created_by: AgentId
+    created_by: AgentId,
 }
 
 impl RecordingConvertInsertQuery {
