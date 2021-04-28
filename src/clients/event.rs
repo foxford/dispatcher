@@ -106,6 +106,11 @@ impl From<RoomAdjust> for RoomAdjustResult {
     }
 }
 
+pub struct RoomUpdate {
+    pub time: Option<BoundedDateTimeTuple>,
+    pub classroom_id: Option<Uuid>,
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 #[cfg_attr(test, automock)]
@@ -121,7 +126,7 @@ pub trait EventClient: Sync + Send {
         tags: Option<JsonValue>,
     ) -> Result<Uuid, ClientError>;
 
-    async fn update_room(&self, id: Uuid, time: BoundedDateTimeTuple) -> Result<(), ClientError>;
+    async fn update_room(&self, id: Uuid, update: RoomUpdate) -> Result<(), ClientError>;
 
     async fn adjust_room(
         &self,
@@ -194,8 +199,10 @@ struct EventRoomPayload {
 #[derive(Debug, Serialize)]
 struct EventRoomUpdatePayload {
     id: Uuid,
-    #[serde(with = "crate::serde::ts_seconds_bound_tuple")]
-    time: BoundedDateTimeTuple,
+    #[serde(with = "crate::serde::ts_seconds_option_bound_tuple")]
+    time: Option<BoundedDateTimeTuple>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    classroom_id: Option<Uuid>,
 }
 
 #[derive(Serialize)]
@@ -312,9 +319,13 @@ impl EventClient for MqttEventClient {
         uuid_result
     }
 
-    async fn update_room(&self, id: Uuid, time: BoundedDateTimeTuple) -> Result<(), ClientError> {
-        let reqp = self.build_reqp("room.create")?;
-        let payload = EventRoomUpdatePayload { id, time };
+    async fn update_room(&self, id: Uuid, update: RoomUpdate) -> Result<(), ClientError> {
+        let reqp = self.build_reqp("room.update")?;
+        let payload = EventRoomUpdatePayload {
+            id,
+            time: update.time,
+            classroom_id: update.classroom_id,
+        };
 
         let msg = if let OutgoingMessage::Request(msg) =
             OutgoingRequest::multicast(payload, reqp, &self.event_account_id, &self.api_version)

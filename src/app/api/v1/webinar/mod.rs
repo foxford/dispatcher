@@ -15,6 +15,9 @@ use crate::app::error::ErrorExt;
 use crate::app::error::ErrorKind as AppErrorKind;
 use crate::app::AppContext;
 use crate::clients::{conference::ConferenceRoomResponse, event::EventRoomResponse};
+use crate::clients::{
+    conference::RoomUpdate as ConfRoomUpdate, event::RoomUpdate as EventRoomUpdate,
+};
 use crate::db::class::BoundedDateTimeTuple;
 use crate::db::class::Object as Class;
 use crate::db::recording::Segments;
@@ -351,6 +354,31 @@ async fn create_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
         }
     }
 
+    let conference_fut = req.state().conference_client().update_room(
+        webinar.conference_room_id(),
+        ConfRoomUpdate {
+            time: None,
+            classroom_id: Some(webinar.id()),
+        },
+    );
+
+    let event_id = webinar
+        .modified_event_room_id()
+        .unwrap_or_else(|| webinar.event_room_id());
+    let event_fut = req.state().event_client().update_room(
+        event_id,
+        EventRoomUpdate {
+            time: None,
+            classroom_id: Some(webinar.id()),
+        },
+    );
+
+    event_fut
+        .try_join(conference_fut)
+        .await
+        .context("Services requests updating classroom_id failed")
+        .error(AppErrorKind::MqttRequestFailed)?;
+
     let body = serde_json::to_string_pretty(&webinar)
         .context("Failed to serialize webinar")
         .error(AppErrorKind::SerializationFailed)?;
@@ -397,16 +425,22 @@ async fn update_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
         Bound::Included(t) | Bound::Excluded(t) => (Bound::Included(t), body.time.1),
         Bound::Unbounded => (Bound::Unbounded, Bound::Unbounded),
     };
-    let conference_fut = req
-        .state()
-        .conference_client()
-        .update_room(webinar.id(), conference_time);
+    let conference_fut = req.state().conference_client().update_room(
+        webinar.conference_room_id(),
+        ConfRoomUpdate {
+            time: Some(conference_time),
+            classroom_id: None,
+        },
+    );
 
     let event_time = (Bound::Included(Utc::now()), Bound::Unbounded);
-    let event_fut = req
-        .state()
-        .event_client()
-        .update_room(webinar.id(), event_time);
+    let event_fut = req.state().event_client().update_room(
+        webinar.event_room_id(),
+        EventRoomUpdate {
+            time: Some(event_time),
+            classroom_id: None,
+        },
+    );
 
     event_fut
         .try_join(conference_fut)
@@ -572,6 +606,32 @@ async fn convert_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
             .context("Failed to insert recording")
             .error(AppErrorKind::DbQueryFailed)?;
         }
+
+        let conference_fut = req.state().conference_client().update_room(
+            webinar.conference_room_id(),
+            ConfRoomUpdate {
+                time: None,
+                classroom_id: Some(webinar.id()),
+            },
+        );
+
+        let event_id = webinar
+            .modified_event_room_id()
+            .unwrap_or_else(|| webinar.event_room_id());
+        let event_fut = req.state().event_client().update_room(
+            event_id,
+            EventRoomUpdate {
+                time: None,
+                classroom_id: Some(webinar.id()),
+            },
+        );
+
+        event_fut
+            .try_join(conference_fut)
+            .await
+            .context("Services requests updating classroom_id failed")
+            .error(AppErrorKind::MqttRequestFailed)?;
+
         txn.commit()
             .await
             .context("Convert transaction failed")

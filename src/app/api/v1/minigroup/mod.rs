@@ -13,6 +13,9 @@ use crate::app::authz::AuthzObject;
 use crate::app::error::ErrorExt;
 use crate::app::error::ErrorKind as AppErrorKind;
 use crate::app::AppContext;
+use crate::clients::{
+    conference::RoomUpdate as ConfRoomUpdate, event::RoomUpdate as EventRoomUpdate,
+};
 use crate::db::class::BoundedDateTimeTuple;
 use crate::db::class::Object as Class;
 
@@ -263,16 +266,22 @@ async fn update_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
             Bound::Included(t) | Bound::Excluded(t) => (Bound::Included(t), time.1),
             Bound::Unbounded => (Bound::Unbounded, Bound::Unbounded),
         };
-        let conference_fut = req
-            .state()
-            .conference_client()
-            .update_room(minigroup.id(), conference_time);
+        let conference_fut = req.state().conference_client().update_room(
+            minigroup.conference_room_id(),
+            ConfRoomUpdate {
+                time: Some(conference_time),
+                classroom_id: None,
+            },
+        );
 
         let event_time = (Bound::Included(Utc::now()), Bound::Unbounded);
-        let event_fut = req
-            .state()
-            .event_client()
-            .update_room(minigroup.id(), event_time);
+        let event_fut = req.state().event_client().update_room(
+            minigroup.event_room_id(),
+            EventRoomUpdate {
+                time: Some(event_time),
+                classroom_id: None,
+            },
+        );
 
         event_fut
             .try_join(conference_fut)
