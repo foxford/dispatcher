@@ -54,10 +54,12 @@ async fn download_inner(req: Request<Arc<dyn AppContext>>) -> AppResult {
 }
 
 fn format_url(config: &StorageConfig, webinar: &Class, recording: &Recording) -> String {
-    format!(
-        "https://{}/api/v2/backends/yandex/sets/ms.webinar.{}::{}/objects/mp4",
-        config.base_url,
+    let mut url = config.base_url.clone();
+    url.set_path(&format!(
+        "/api/v2/backends/yandex/sets/ms.webinar.{}::{}/objects/mp4",
         webinar.audience(),
         recording.rtc_id()
-    )
+    ));
+
+    url.to_string()
 }
