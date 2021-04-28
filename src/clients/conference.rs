@@ -23,6 +23,11 @@ use uuid::Uuid;
 use super::{generate_correlation_data, ClientError};
 use crate::db::class::BoundedDateTimeTuple;
 
+pub struct RoomUpdate {
+    pub time: Option<BoundedDateTimeTuple>,
+    pub classroom_id: Option<Uuid>,
+}
+
 #[cfg_attr(test, automock)]
 #[async_trait]
 pub trait ConferenceClient: Sync + Send {
@@ -37,7 +42,7 @@ pub trait ConferenceClient: Sync + Send {
         tags: Option<JsonValue>,
     ) -> Result<Uuid, ClientError>;
 
-    async fn update_room(&self, id: Uuid, time: BoundedDateTimeTuple) -> Result<(), ClientError>;
+    async fn update_room(&self, id: Uuid, update: RoomUpdate) -> Result<(), ClientError>;
 }
 
 pub struct MqttConferenceClient {
@@ -101,8 +106,10 @@ struct ConferenceRoomPayload {
 #[derive(Serialize)]
 struct ConferenceRoomUpdatePayload {
     id: Uuid,
-    #[serde(with = "crate::serde::ts_seconds_bound_tuple")]
-    time: BoundedDateTimeTuple,
+    #[serde(with = "crate::serde::ts_seconds_option_bound_tuple")]
+    time: Option<BoundedDateTimeTuple>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    classroom_id: Option<Uuid>,
 }
 
 #[derive(Serialize)]
@@ -199,13 +206,20 @@ impl ConferenceClient for MqttConferenceClient {
         uuid_result
     }
 
-    async fn update_room(&self, id: Uuid, time: BoundedDateTimeTuple) -> Result<(), ClientError> {
+    async fn update_room(&self, id: Uuid, update: RoomUpdate) -> Result<(), ClientError> {
         let reqp = self.build_reqp("room.update")?;
 
-        let payload = ConferenceRoomUpdatePayload { id, time };
-        let msg = if let OutgoingMessage::Request(msg) =
-            OutgoingRequest::multicast(payload, reqp, &self.conference_account_id, "v2")
-        {
+        let payload = ConferenceRoomUpdatePayload {
+            id,
+            time: update.time,
+            classroom_id: update.classroom_id,
+        };
+        let msg = if let OutgoingMessage::Request(msg) = OutgoingRequest::multicast(
+            payload,
+            reqp,
+            &self.conference_account_id,
+            &self.api_version,
+        ) {
             msg
         } else {
             unreachable!()
