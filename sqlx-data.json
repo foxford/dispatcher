@@ -201,7 +201,7 @@
               "kind": {
                 "Enum": [
                   "webinar",
-                  "classroom",
+                  "p2p",
                   "minigroup"
                 ]
               }
@@ -501,7 +501,7 @@
               "kind": {
                 "Enum": [
                   "webinar",
-                  "classroom",
+                  "p2p",
                   "minigroup"
                 ]
               }
@@ -1022,7 +1022,7 @@
               "kind": {
                 "Enum": [
                   "webinar",
-                  "classroom",
+                  "p2p",
                   "minigroup"
                 ]
               }
@@ -1114,7 +1114,7 @@
               "kind": {
                 "Enum": [
                   "webinar",
-                  "classroom",
+                  "p2p",
                   "minigroup"
                 ]
               }
@@ -1302,7 +1302,7 @@
               "kind": {
                 "Enum": [
                   "webinar",
-                  "classroom",
+                  "p2p",
                   "minigroup"
                 ]
               }
@@ -1394,7 +1394,7 @@
               "kind": {
                 "Enum": [
                   "webinar",
-                  "classroom",
+                  "p2p",
                   "minigroup"
                 ]
               }
@@ -1448,7 +1448,7 @@
               "kind": {
                 "Enum": [
                   "webinar",
-                  "classroom",
+                  "p2p",
                   "minigroup"
                 ]
               }
@@ -1540,7 +1540,7 @@
               "kind": {
                 "Enum": [
                   "webinar",
-                  "classroom",
+                  "p2p",
                   "minigroup"
                 ]
               }
@@ -1778,7 +1778,7 @@
               "kind": {
                 "Enum": [
                   "webinar",
-                  "classroom",
+                  "p2p",
                   "minigroup"
                 ]
               }
