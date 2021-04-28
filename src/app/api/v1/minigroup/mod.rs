@@ -22,7 +22,7 @@ use super::{extract_id, extract_param, validate_token, AppResult};
 struct MinigroupObject<'a> {
     id: String,
     real_time: RealTimeObject,
-    host: &'a AccountId
+    host: &'a AccountId,
 }
 
 #[derive(Serialize)]
@@ -43,7 +43,7 @@ impl<'a> From<&'a Class> for MinigroupObject<'a> {
                 rtc_id: None,
             },
             // Minigroups have host enforced by db
-            host: obj.host().unwrap()
+            host: obj.host().unwrap(),
         }
     }
 }
@@ -59,7 +59,7 @@ async fn read_inner(req: Request<Arc<dyn AppContext>>) -> AppResult {
         .await
         .error(AppErrorKind::WebinarNotFound)?;
 
-    let object = AuthzObject::new(&["minigroups", &minigroup.id().to_string()]).into();
+    let object = AuthzObject::new(&["classrooms", &minigroup.id().to_string()]).into();
     state
         .authz()
         .authorize(
@@ -96,7 +96,7 @@ async fn read_by_scope_inner(req: Request<Arc<dyn AppContext>>) -> AppResult {
         }
     };
 
-    let object = AuthzObject::new(&["minigroups", &minigroup.id().to_string()]).into();
+    let object = AuthzObject::new(&["classrooms", &minigroup.id().to_string()]).into();
 
     state
         .authz()
@@ -142,7 +142,7 @@ async fn create_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
     let account_id = validate_token(&req).error(AppErrorKind::Unauthorized)?;
     let state = req.state();
 
-    let object = AuthzObject::new(&["minigroups"]).into();
+    let object = AuthzObject::new(&["classrooms"]).into();
 
     state
         .authz()
@@ -246,7 +246,7 @@ async fn update_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
         .await
         .error(AppErrorKind::WebinarNotFound)?;
 
-    let object = AuthzObject::new(&["minigroups", &minigroup.id().to_string()]).into();
+    let object = AuthzObject::new(&["classrooms", &minigroup.id().to_string()]).into();
 
     state
         .authz()

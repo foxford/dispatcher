@@ -106,10 +106,23 @@ pub(crate) mod ts_seconds_bound_tuple {
 ///////////////////////////////////////////////////////////////////////////////
 
 pub(crate) mod ts_seconds_option_bound_tuple {
-    use serde::de;
+    use serde::{de, ser};
     use std::fmt;
 
     use super::BoundedDatetimeTuple;
+
+    pub(crate) fn serialize<S>(
+        option: &Option<BoundedDatetimeTuple>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error>
+    where
+        S: ser::Serializer,
+    {
+        match option {
+            Some(value) => super::ts_seconds_bound_tuple::serialize(value, serializer),
+            None => serializer.serialize_none(),
+        }
+    }
 
     pub fn deserialize<'de, D>(d: D) -> Result<Option<BoundedDatetimeTuple>, D::Error>
     where

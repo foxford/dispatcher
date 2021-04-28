@@ -66,7 +66,7 @@ async fn read_inner(
         }
     };
 
-    let object = AuthzObject::new(&["chats", &chat.id().to_string()]).into();
+    let object = AuthzObject::new(&["classrooms", &chat.id().to_string()]).into();
 
     state
         .authz()
@@ -101,7 +101,7 @@ async fn create_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
     let account_id = validate_token(&req).error(AppErrorKind::Unauthorized)?;
     let state = req.state();
 
-    let object = AuthzObject::new(&["chats"]).into();
+    let object = AuthzObject::new(&["classrooms"]).into();
 
     state
         .authz()
@@ -176,7 +176,7 @@ async fn convert_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
     let account_id = validate_token(&req).error(AppErrorKind::Unauthorized)?;
     let state = req.state();
 
-    let object = AuthzObject::new(&["chats"]).into();
+    let object = AuthzObject::new(&["classrooms"]).into();
 
     state
         .authz()

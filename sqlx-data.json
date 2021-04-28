@@ -158,6 +158,26 @@
       ]
     }
   },
+  "201ffb88b904a890d96af64d1ef2d5b9f98e86f4c9668f1659bbc49b0f50b863": {
+    "query": "\n                        SELECT\n                            class.id::text AS \"id!: String\"\n                        FROM class\n                        INNER JOIN recording r\n                        ON r.class_id = class.id\n                        WHERE rtc_id = $1\n                    ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id!: String",
+          "type_info": "Text"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Uuid"
+        ]
+      },
+      "nullable": [
+        null
+      ]
+    }
+  },
   "227cb6555bfbb2baa29208c31f2fa9ed433c8f1ee57ce99bfecbd2eec3f16408": {
     "query": "\n            UPDATE class\n            SET time = $2, event_room_id = $3, conference_room_id = $4, original_event_room_id = NULL, modified_event_room_id = NULL\n            WHERE id = $1\n            RETURNING\n                id,\n                scope,\n                kind AS \"kind!: ClassType\",\n                audience,\n                host AS \"host?: AccountId\",\n                time AS \"time!: Time\",\n                tags,\n                preserve_history,\n                created_at,\n                event_room_id,\n                conference_room_id,\n                original_event_room_id,\n                modified_event_room_id,\n                reserve\n            ",
     "describe": {
@@ -819,6 +839,27 @@
       ]
     }
   },
+  "64ab45d4e8b9c8dec30970897cff4cde70b3de4497324a2398227c5653c4a765": {
+    "query": "\n                        SELECT\n                            id::text AS \"id!: String\"\n                        FROM class\n                        WHERE audience = $1\n                        AND scope = $2\n                    ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id!: String",
+          "type_info": "Text"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Text"
+        ]
+      },
+      "nullable": [
+        null
+      ]
+    }
+  },
   "6a85df0b3fb2e765367b68282d111965d868cd2de73e46ac4e05b6e541293598": {
     "query": "\n            UPDATE recording\n            SET modified_segments = $2,\n                adjusted_at = NOW()\n            WHERE class_id = $1 AND deleted_at IS NULL\n            RETURNING\n                id,\n                class_id,\n                rtc_id,\n                stream_uri,\n                segments AS \"segments!: Segments\",\n                started_at,\n                modified_segments AS \"modified_segments!: Option<Segments>\",\n                created_at,\n                adjusted_at,\n                transcoded_at,\n                created_by AS \"created_by: AgentId\",\n                deleted_at\n            ",
     "describe": {
@@ -935,6 +976,26 @@
         true,
         false,
         true
+      ]
+    }
+  },
+  "81d25baa2c0c0823c75915eeda2077cf278327a5d3dca82a65e7a384b8a8b53c": {
+    "query": "\n                        SELECT\n                            id::text AS \"id!: String\"\n                        FROM class\n                        WHERE conference_room_id = $1\n                    ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id!: String",
+          "type_info": "Text"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Uuid"
+        ]
+      },
+      "nullable": [
+        null
       ]
     }
   },
@@ -1097,58 +1158,6 @@
         true,
         true,
         true
-      ]
-    }
-  },
-  "a673dd5ac9d0ed4ea5359f22c3ac9294cdd9a5d680a433f91ffb2853e1a00a03": {
-    "query": "\n                        SELECT\n                            id::text AS \"id!: String\",\n                            (\n                                CASE kind\n                                    WHEN 'webinar' THEN 'webinars'\n                                    WHEN 'classroom' THEN 'classrooms'\n                                    ELSE ''\n                                END\n                            ) AS \"kind!: String\"\n                        FROM class\n                        WHERE event_room_id = $1\n                            OR original_event_room_id = $1\n                            OR modified_event_room_id = $1\n                        UNION ALL\n                        SELECT\n                            id::text AS \"id!: String\",\n                            'chats' AS kind\n                        FROM chat\n                        WHERE event_room_id = $1\n                    ",
-    "describe": {
-      "columns": [
-        {
-          "ordinal": 0,
-          "name": "id!: String",
-          "type_info": "Text"
-        },
-        {
-          "ordinal": 1,
-          "name": "kind!: String",
-          "type_info": "Text"
-        }
-      ],
-      "parameters": {
-        "Left": [
-          "Uuid"
-        ]
-      },
-      "nullable": [
-        null,
-        null
-      ]
-    }
-  },
-  "b7767308ad0a5eff8b98a918b57a7b9011168a86c953e2ba2181b37b5905666f": {
-    "query": "\n                        SELECT\n                            class.id::text AS \"id!: String\",\n                            (\n                                CASE kind\n                                    WHEN 'webinar' THEN 'webinars'\n                                    WHEN 'classroom' THEN 'classrooms'\n                                    ELSE ''\n                                END\n                            ) AS \"kind!: String\"\n                        FROM class\n                        INNER JOIN recording r\n                        ON r.class_id = class.id\n                        WHERE rtc_id = $1\n                    ",
-    "describe": {
-      "columns": [
-        {
-          "ordinal": 0,
-          "name": "id!: String",
-          "type_info": "Text"
-        },
-        {
-          "ordinal": 1,
-          "name": "kind!: String",
-          "type_info": "Text"
-        }
-      ],
-      "parameters": {
-        "Left": [
-          "Uuid"
-        ]
-      },
-      "nullable": [
-        null,
-        null
       ]
     }
   },
@@ -1726,18 +1735,13 @@
       ]
     }
   },
-  "e7a3c90b5e4832b9802c9fe4fc1d7ec162610fb0c99c9b09d3511b83bdca299e": {
-    "query": "\n                        SELECT\n                            id::text AS \"id!: String\",\n                            (\n                                CASE kind\n                                    WHEN 'webinar' THEN 'webinars'\n                                    WHEN 'classroom' THEN 'classrooms'\n                                    ELSE ''\n                                END\n                            ) AS \"kind!: String\"\n                        FROM class\n                        WHERE conference_room_id = $1\n                    ",
+  "f8d622058f961916238cfdd457aff61f71c28897536a699c8287f16bfcf1b579": {
+    "query": "\n                        SELECT\n                            id::text AS \"id!: String\"\n                        FROM class\n                        WHERE event_room_id = $1\n                            OR original_event_room_id = $1\n                            OR modified_event_room_id = $1\n                        UNION ALL\n                        SELECT\n                            id::text AS \"id!: String\"\n                        FROM chat\n                        WHERE event_room_id = $1\n                    ",
     "describe": {
       "columns": [
         {
           "ordinal": 0,
           "name": "id!: String",
-          "type_info": "Text"
-        },
-        {
-          "ordinal": 1,
-          "name": "kind!: String",
           "type_info": "Text"
         }
       ],
@@ -1747,34 +1751,6 @@
         ]
       },
       "nullable": [
-        null,
-        null
-      ]
-    }
-  },
-  "ed668e73b12310ec525552d9bfb526a96090d20fd4fd2539ec574b8b10581fdb": {
-    "query": "\n                        SELECT\n                            id::text AS \"id!: String\",\n                            (\n                                CASE kind\n                                    WHEN 'webinar' THEN 'webinars'\n                                    WHEN 'classroom' THEN 'classrooms'\n                                    ELSE ''\n                                END\n                            ) AS \"kind!: String\"\n                        FROM class\n                        WHERE audience = $1\n                        AND scope = $2\n                    ",
-    "describe": {
-      "columns": [
-        {
-          "ordinal": 0,
-          "name": "id!: String",
-          "type_info": "Text"
-        },
-        {
-          "ordinal": 1,
-          "name": "kind!: String",
-          "type_info": "Text"
-        }
-      ],
-      "parameters": {
-        "Left": [
-          "Text",
-          "Text"
-        ]
-      },
-      "nullable": [
-        null,
         null
       ]
     }

@@ -10,7 +10,6 @@ enum AuthzClassQueryState {
 
 #[derive(Clone, Debug, sqlx::FromRow)]
 pub struct AuthzClass {
-    pub kind: String,
     pub id: String,
 }
 pub struct AuthzReadQuery {
@@ -49,22 +48,14 @@ impl AuthzReadQuery {
                     AuthzClass,
                     r#"
                         SELECT
-                            id::text AS "id!: String",
-                            (
-                                CASE kind
-                                    WHEN 'webinar' THEN 'webinars'
-                                    WHEN 'classroom' THEN 'classrooms'
-                                    ELSE ''
-                                END
-                            ) AS "kind!: String"
+                            id::text AS "id!: String"
                         FROM class
                         WHERE event_room_id = $1
                             OR original_event_room_id = $1
                             OR modified_event_room_id = $1
                         UNION ALL
                         SELECT
-                            id::text AS "id!: String",
-                            'chats' AS kind
+                            id::text AS "id!: String"
                         FROM chat
                         WHERE event_room_id = $1
                     "#,
@@ -78,14 +69,7 @@ impl AuthzReadQuery {
                     AuthzClass,
                     r#"
                         SELECT
-                            id::text AS "id!: String",
-                            (
-                                CASE kind
-                                    WHEN 'webinar' THEN 'webinars'
-                                    WHEN 'classroom' THEN 'classrooms'
-                                    ELSE ''
-                                END
-                            ) AS "kind!: String"
+                            id::text AS "id!: String"
                         FROM class
                         WHERE conference_room_id = $1
                     "#,
@@ -99,14 +83,7 @@ impl AuthzReadQuery {
                     AuthzClass,
                     r#"
                         SELECT
-                            class.id::text AS "id!: String",
-                            (
-                                CASE kind
-                                    WHEN 'webinar' THEN 'webinars'
-                                    WHEN 'classroom' THEN 'classrooms'
-                                    ELSE ''
-                                END
-                            ) AS "kind!: String"
+                            class.id::text AS "id!: String"
                         FROM class
                         INNER JOIN recording r
                         ON r.class_id = class.id
@@ -122,14 +99,7 @@ impl AuthzReadQuery {
                     AuthzClass,
                     r#"
                         SELECT
-                            id::text AS "id!: String",
-                            (
-                                CASE kind
-                                    WHEN 'webinar' THEN 'webinars'
-                                    WHEN 'classroom' THEN 'classrooms'
-                                    ELSE ''
-                                END
-                            ) AS "kind!: String"
+                            id::text AS "id!: String"
                         FROM class
                         WHERE audience = $1
                         AND scope = $2

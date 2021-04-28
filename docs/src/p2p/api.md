@@ -3,14 +3,14 @@
 All routes expect json payloads.
 
 ### Routes
-Route                                          | Method | Short description
----------------------------------------------- | ------ | ----------
-/api/v1/classrooms/:classroom_id               | GET    | [Reads](#read-classroom) classroom.
-/api/v1/audiences/:audience/classrooms/:scope  | GET    | [Reads](#read-classroom) classroom.
-/api/v1/classrooms                             | POST   | [Creates](#create-classroom) classroom and required rooms in other services.
-/api/v1/classrooms/convert                     | POST   | [Creates](#convert-classroom) classroom with already existing event and conference rooms.
+Route                                   | Method | Short description
+--------------------------------------- | ------ | ----------
+/api/v1/p2p/:p2p_id                     | GET    | [Reads](#read-p2p) p2p.
+/api/v1/audiences/:audience/p2p/:scope  | GET    | [Reads](#read-p2p) p2p.
+/api/v1/p2p                             | POST   | [Creates](#create-p2p) p2p and required rooms in other services.
+/api/v1/p2p/convert                     | POST   | [Creates](#convert-p2p) p2p with already existing event and conference rooms.
 
-### Create classroom
+### Create p2p
 
 Request parameters:
 
@@ -20,35 +20,35 @@ scope                  | string      |          | Scope
 audience               | string      |          | Audience
 tags                   | json object | +        | Arbitrary tags.
 
-Response: status 201 and classroom object as payload.
+Response: status 201 and p2p object as payload.
 
-### Read classroom
+### Read p2p
 
 Parameters either
 
-Attribute            | Type        | Optional | Description
--------------------- | ----------- | -------- | --------------
-classroom_id         | uuid        |          | Classroom id
+Attribute      | Type        | Optional | Description
+-------------- | ----------- | -------- | --------------
+p2p_id         | uuid        |          | p2p id
 
 Or:
 
 Attribute            | Type        | Optional | Description
 -------------------- | ----------- | -------- | ------------------
-audience             | string      |          | Classroom audience
-scope                | string      |          | Classroom scope
+audience             | string      |          | P2p audience
+scope                | string      |          | P2p scope
 
 Response:
 
 Attribute              | Type        | Optional | Description
 ---------------------- | ----------- | -------- | ---------------------------------------------------------
-id                     | string      |          | Classroom scope
+id                     | string      |          | P2p scope
 real_time              | json object | +        | `event_room_id` and `conference_room_id` fields
 
-Response: status 200 and classroom object as payload.
+Response: status 200 and p2p object as payload.
 
-### Convert classroom
+### Convert p2p
 
-A tenant may wish to create a classroom with event and conference rooms already created earlier. It can use this method.
+A tenant may wish to create a p2p with event and conference rooms already created earlier. It can use this method.
 
 Parameters:
 
@@ -60,4 +60,4 @@ tags                   | json object | +        | Arbitrary tags
 conference_room_id     | uuid        |          | Conference room uuid
 event_room_id          | uuid        |          | Event room uuid
 
-Response: status 201 and classroom object as payload.
+Response: status 201 and p2p object as payload.

@@ -99,7 +99,7 @@ async fn read_inner(req: Request<Arc<dyn AppContext>>) -> AppResult {
         .await
         .error(AppErrorKind::WebinarNotFound)?;
 
-    let object = AuthzObject::new(&["webinars", &webinar.id().to_string()]).into();
+    let object = AuthzObject::new(&["classrooms", &webinar.id().to_string()]).into();
     state
         .authz()
         .authorize(
@@ -125,6 +125,8 @@ async fn read_inner(req: Request<Arc<dyn AppContext>>) -> AppResult {
     let mut webinar_obj: WebinarObject = webinar.clone().into();
 
     if let Some(recording) = recordings.first() {
+        // BEWARE: the order is significant
+        // as of now its expected that modified version is second
         if let Some(og_event_id) = webinar.original_event_room_id() {
             webinar_obj.add_version(WebinarVersion {
                 version: "original",
@@ -178,7 +180,7 @@ async fn read_by_scope_inner(req: Request<Arc<dyn AppContext>>) -> AppResult {
         }
     };
 
-    let object = AuthzObject::new(&["webinars", &webinar.id().to_string()]).into();
+    let object = AuthzObject::new(&["classrooms", &webinar.id().to_string()]).into();
 
     state
         .authz()
@@ -271,7 +273,7 @@ async fn create_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
     let account_id = validate_token(&req).error(AppErrorKind::Unauthorized)?;
     let state = req.state();
 
-    let object = AuthzObject::new(&["webinars"]).into();
+    let object = AuthzObject::new(&["classrooms"]).into();
 
     state
         .authz()
@@ -379,7 +381,7 @@ async fn update_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
         .await
         .error(AppErrorKind::WebinarNotFound)?;
 
-    let object = AuthzObject::new(&["webinars", &webinar.id().to_string()]).into();
+    let object = AuthzObject::new(&["classrooms", &webinar.id().to_string()]).into();
 
     state
         .authz()
@@ -472,7 +474,7 @@ async fn convert_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
     let account_id = validate_token(&req).error(AppErrorKind::Unauthorized)?;
     let state = req.state();
 
-    let object = AuthzObject::new(&["webinars"]).into();
+    let object = AuthzObject::new(&["classrooms"]).into();
 
     state
         .authz()
@@ -563,7 +565,7 @@ async fn convert_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
                 recording.segments,
                 recording.modified_segments,
                 recording.uri,
-                svc_agent::AgentId::new("portal", account_id)
+                svc_agent::AgentId::new("portal", account_id),
             )
             .execute(&mut txn)
             .await

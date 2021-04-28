@@ -91,15 +91,17 @@ fn validate_client(
         },
         "storage" if account_audience == audience => |id: &str| {
             if id.starts_with("content.") {
-                let audience = "".to_owned();
-                let scope = "".to_owned();
-                Ok(AuthzReadQuery::by_scope(audience, scope))
+                match extract_audience_and_scope(&id) {
+                    Some(AudienceScope { audience, scope }) => {
+                        Ok(AuthzReadQuery::by_scope(audience, scope))
+                    }
+                    None => Err(anyhow!("Access to set {:?} isnt proxied", id)),
+                }
             } else if BUCKETS.iter().any(|prefix| id.starts_with(prefix)) {
-                match id.find("::") {
-                    Some(idx) => {
-                        let id = &id[idx + 1..];
-                        let id = Uuid::from_str(id)?;
-                        Ok(AuthzReadQuery::by_rtc_id(id))
+                match extract_rtc_id(id) {
+                    Some(rtc_id) => {
+                        let rtc_id = Uuid::from_str(rtc_id)?;
+                        Ok(AuthzReadQuery::by_rtc_id(rtc_id))
                     }
                     None => Err(anyhow!("Access to bucket {:?} isnt proxied", id)),
                 }
@@ -163,11 +165,7 @@ fn transform_authz_request(authz_req: &mut AuthzRequest, account_id: &AccountId)
     match account_id.label() {
         "event" => transform_event_authz_request(authz_req),
         "conference" => transform_conference_authz_request(authz_req),
-        // Storage authz is passed as is since tenant yet not implements some of new actions
-        // (like upload/download on a "webinars/:webinar_id")
-        // and only altered if matching class is found
-        //
-        // "storage" => transform_storage_authz_request(authz_req),
+        "storage" => transform_storage_authz_request(authz_req),
         _ => {}
     }
 }
@@ -281,6 +279,37 @@ async fn substitute_class(
     q: impl Fn(&str) -> Result<AuthzReadQuery, anyhow::Error>,
 ) -> Result<(), AppError> {
     match authz_req.object.value.get_mut(0..2) {
+        Some([ref mut obj, ref mut set_id]) if obj == "sets" => {
+            let query = match q(set_id) {
+                Ok(query) => query,
+                Err(_e) => {
+                    return Ok(());
+                }
+            };
+
+            let mut conn = state
+                .get_conn()
+                .await
+                .error(AppErrorKind::DbConnAcquisitionFailed)?;
+
+            {}
+
+            match query
+                .execute(&mut conn)
+                .await
+                .context("Failed to find classroom")
+                .error(AppErrorKind::DbQueryFailed)?
+            {
+                None => Ok(()),
+                Some(AuthzClass { id }) => {
+                    *obj = "classrooms".into();
+                    *set_id = id;
+                    authz_req.object.namespace = state.agent_id().as_account_id().to_string();
+
+                    Ok(())
+                }
+            }
+        }
         Some([ref mut obj, ref mut room_id]) if obj == "rooms" => {
             let query = match q(room_id) {
                 Ok(query) => query,
@@ -297,12 +326,12 @@ async fn substitute_class(
             match query
                 .execute(&mut conn)
                 .await
-                .context("Failed to insert chat")
+                .context("Failed to find classroom")
                 .error(AppErrorKind::DbQueryFailed)?
             {
                 None => Ok(()),
-                Some(AuthzClass { kind, id }) => {
-                    *obj = kind;
+                Some(AuthzClass { id }) => {
+                    *obj = "classrooms".into();
                     *room_id = id;
                     authz_req.object.namespace = state.agent_id().as_account_id().to_string();
 
@@ -310,37 +339,50 @@ async fn substitute_class(
                 }
             }
         }
-        Some([ref mut obj, ref mut set_id]) if obj == "sets" => {
-            let query = match q(set_id) {
-                Ok(query) => query,
-                Err(_) => {
-                    return Ok(());
-                }
-            };
-
-            let mut conn = state
-                .get_conn()
-                .await
-                .error(AppErrorKind::DbConnAcquisitionFailed)?;
-
-            match query
-                .execute(&mut conn)
-                .await
-                .context("Failed to insert chat")
-                .error(AppErrorKind::DbQueryFailed)?
-            {
-                None => Ok(()),
-                Some(AuthzClass { kind, id }) => {
-                    *obj = kind;
-                    *set_id = id;
-                    authz_req.object.namespace = state.agent_id().as_account_id().to_string();
-                    // TODO: this should be done as for event and conference
-                    transform_storage_authz_request(authz_req);
-
-                    Ok(())
-                }
-            }
+        Some([obj, ..]) if obj == "classrooms" => {
+            authz_req.object.namespace = state.agent_id().as_account_id().to_string();
+            Ok(())
         }
         _ => Ok(()),
     }
+}
+
+struct AudienceScope {
+    pub audience: String,
+    pub scope: String,
+}
+
+fn extract_audience_and_scope(set_id: &str) -> Option<AudienceScope> {
+    set_id.find("::").and_then(|idx| {
+        let bucket = &set_id[..idx];
+        let bucket_split = bucket.split('.').collect::<Vec<&str>>();
+        bucket_split.get(2..).map(|v| {
+            let audience = v.join(".");
+            let scope = set_id[idx + 2..].to_owned();
+
+            AudienceScope { audience, scope }
+        })
+    })
+}
+
+fn extract_rtc_id(set_id: &str) -> Option<&str> {
+    match set_id.find("::") {
+        Some(idx) => Some(&set_id[idx + 2..]),
+        None => None,
+    }
+}
+
+#[test]
+fn test_extract_audience_and_scope() {
+    let r = extract_audience_and_scope("content.webinar.testing01.foxford.ru::p2p_48wmpa")
+        .expect("Failed to extract audience and scope");
+    assert_eq!(r.audience, "testing01.foxford.ru");
+    assert_eq!(r.scope, "p2p_48wmpa");
+}
+
+#[test]
+fn test_extract_rtc_id() {
+    let r = extract_rtc_id("ms.webinar.testing01.foxford.ru::14aa9730-26e1-487c-9153-bc8cb28d8eb0")
+        .expect("Failed to extract rtc_id");
+    assert_eq!(r, "14aa9730-26e1-487c-9153-bc8cb28d8eb0");
 }
