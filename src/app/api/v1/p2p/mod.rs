@@ -167,6 +167,15 @@ async fn create_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
         .context("Failed to insert p2p")
         .error(AppErrorKind::DbQueryFailed)?;
 
+    crate::app::services::update_classroom_id(
+        req.state().as_ref(),
+        p2p.id(),
+        p2p.event_room_id(),
+        Some(p2p.conference_room_id()),
+    )
+    .await
+    .error(AppErrorKind::MqttRequestFailed)?;
+
     let body = serde_json::to_string_pretty(&p2p)
         .context("Failed to serialize p2p")
         .error(AppErrorKind::SerializationFailed)?;
@@ -237,8 +246,17 @@ async fn convert_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
             .context("Failed to find recording")
             .error(AppErrorKind::DbQueryFailed)?;
 
-            p2p
+        p2p
     };
+
+    crate::app::services::update_classroom_id(
+        req.state().as_ref(),
+        p2p.id(),
+        p2p.event_room_id(),
+        Some(p2p.conference_room_id()),
+    )
+    .await
+    .error(AppErrorKind::MqttRequestFailed)?;
 
     let body = serde_json::to_string(&p2p)
         .context("Failed to serialize p2p")

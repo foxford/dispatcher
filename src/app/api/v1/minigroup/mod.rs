@@ -218,6 +218,15 @@ async fn create_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
         }
     }
 
+    crate::app::services::update_classroom_id(
+        req.state().as_ref(),
+        minigroup.id(),
+        minigroup.event_room_id(),
+        Some(minigroup.conference_room_id()),
+    )
+    .await
+    .error(AppErrorKind::MqttRequestFailed)?;
+
     let body = serde_json::to_string_pretty(&minigroup)
         .context("Failed to serialize minigroup")
         .error(AppErrorKind::SerializationFailed)?;
