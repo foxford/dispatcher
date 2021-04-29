@@ -145,6 +145,15 @@ async fn create_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
         .context("Failed to insert chat")
         .error(AppErrorKind::DbQueryFailed)?;
 
+    crate::app::services::update_classroom_id(
+        req.state().as_ref(),
+        chat.id(),
+        chat.event_room_id(),
+        None,
+    )
+    .await
+    .error(AppErrorKind::MqttRequestFailed)?;
+
     let body = serde_json::to_string_pretty(&chat)
         .context("Failed to serialize chat")
         .error(AppErrorKind::SerializationFailed)?;
@@ -212,6 +221,15 @@ async fn convert_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
 
         chat
     };
+
+    crate::app::services::update_classroom_id(
+        req.state().as_ref(),
+        chat.id(),
+        chat.event_room_id(),
+        None,
+    )
+    .await
+    .error(AppErrorKind::MqttRequestFailed)?;
 
     let body = serde_json::to_string(&chat)
         .context("Failed to serialize chat")

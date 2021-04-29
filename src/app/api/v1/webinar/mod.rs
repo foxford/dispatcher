@@ -354,30 +354,14 @@ async fn create_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
         }
     }
 
-    let conference_fut = req.state().conference_client().update_room(
-        webinar.conference_room_id(),
-        ConfRoomUpdate {
-            time: None,
-            classroom_id: Some(webinar.id()),
-        },
-    );
-
-    let event_id = webinar
-        .modified_event_room_id()
-        .unwrap_or_else(|| webinar.event_room_id());
-    let event_fut = req.state().event_client().update_room(
-        event_id,
-        EventRoomUpdate {
-            time: None,
-            classroom_id: Some(webinar.id()),
-        },
-    );
-
-    event_fut
-        .try_join(conference_fut)
-        .await
-        .context("Services requests updating classroom_id failed")
-        .error(AppErrorKind::MqttRequestFailed)?;
+    crate::app::services::update_classroom_id(
+        req.state().as_ref(),
+        webinar.id(),
+        webinar.event_room_id(),
+        Some(webinar.conference_room_id()),
+    )
+    .await
+    .error(AppErrorKind::MqttRequestFailed)?;
 
     let body = serde_json::to_string_pretty(&webinar)
         .context("Failed to serialize webinar")
@@ -607,30 +591,17 @@ async fn convert_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
             .error(AppErrorKind::DbQueryFailed)?;
         }
 
-        let conference_fut = req.state().conference_client().update_room(
-            webinar.conference_room_id(),
-            ConfRoomUpdate {
-                time: None,
-                classroom_id: Some(webinar.id()),
-            },
-        );
-
         let event_id = webinar
             .modified_event_room_id()
             .unwrap_or_else(|| webinar.event_room_id());
-        let event_fut = req.state().event_client().update_room(
+        crate::app::services::update_classroom_id(
+            req.state().as_ref(),
+            webinar.id(),
             event_id,
-            EventRoomUpdate {
-                time: None,
-                classroom_id: Some(webinar.id()),
-            },
-        );
-
-        event_fut
-            .try_join(conference_fut)
-            .await
-            .context("Services requests updating classroom_id failed")
-            .error(AppErrorKind::MqttRequestFailed)?;
+            Some(webinar.conference_room_id()),
+        )
+        .await
+        .error(AppErrorKind::MqttRequestFailed)?;
 
         txn.commit()
             .await
