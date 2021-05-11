@@ -52,7 +52,7 @@ jobs:
         - CARGO_INCREMENTAL=0
 
       script:
-        - cargo install sqlx-cli --version 0.2.0
+        - cargo install sqlx-cli --version 0.5.2
         - cargo sqlx database create && cargo sqlx migrate run
         - cargo build
 
