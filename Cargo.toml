@@ -13,6 +13,8 @@ tide = { version = "0.15.0", default_features = false, features = ["h1-server", 
 async-std = { version = "1.8.0", features = ["attributes"] }
 async-trait = "0.1"
 chrono = { version = "0.4", features = ["serde"] }
+# we use sqlx 0.4 because sqlx 0.5 requires pulling tls impl into our svc-* crates
+# see https://github.com/launchbadge/sqlx/issues/996
 sqlx = { version = "0.4", features = ["offline", "postgres", "macros", "uuid", "chrono", "json", "bigdecimal", "runtime-async-std-rustls"] }
 serde = "1.0"
 serde_derive = "1.0"

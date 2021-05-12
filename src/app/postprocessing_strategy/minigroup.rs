@@ -389,8 +389,10 @@ mod tests {
                     Bound::Excluded(now - Duration::minutes(10)),
                 );
 
+                let minigroup_scope = format!("minigroup-{}", random_string());
+
                 factory::Minigroup::new(
-                    "minigroup123".to_string(),
+                    minigroup_scope,
                     USR_AUDIENCE.to_string(),
                     time.into(),
                     AccountId::new("host", USR_AUDIENCE),
@@ -483,7 +485,7 @@ mod tests {
                 .expect("Recording 1 not found");
 
             assert_eq!(recording1.stream_uri(), uri1);
-            assert_eq!(recording1.started_at(), started_at1);
+            assert!(datetimes_almost_eq(recording1.started_at(), started_at1));
             assert_eq!(recording1.segments(), &segments1);
             assert_eq!(recording1.created_by(), agent1.agent_id());
 
@@ -493,7 +495,10 @@ mod tests {
                 .expect("Recording 2 not found");
 
             assert_eq!(recording2.stream_uri(), uri2);
-            assert_eq!(recording2.started_at(), now - Duration::minutes(50));
+            assert!(datetimes_almost_eq(
+                recording2.started_at(),
+                now - Duration::minutes(50)
+            ));
             assert_eq!(recording2.segments(), &segments2);
             assert_eq!(recording2.created_by(), agent2.agent_id());
         }
@@ -536,8 +541,10 @@ mod tests {
                     Bound::Excluded(now - Duration::minutes(10)),
                 );
 
+                let minigroup_scope = format!("minigroup-{}", random_string());
+
                 let minigroup = factory::Minigroup::new(
-                    "minigroup123".to_string(),
+                    minigroup_scope,
                     USR_AUDIENCE.to_string(),
                     time.into(),
                     agent1.account_id().to_owned(),
@@ -747,8 +754,10 @@ mod tests {
                     Bound::Excluded(now - Duration::minutes(10)),
                 );
 
+                let minigroup_scope = format!("minigroup-{}", random_string());
+
                 let minigroup = factory::Minigroup::new(
-                    "minigroup123".to_string(),
+                    minigroup_scope,
                     USR_AUDIENCE.to_string(),
                     time.into(),
                     AccountId::new("host", USR_AUDIENCE),

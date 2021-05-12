@@ -9,7 +9,7 @@ use crate::db;
 ////////////////////////////////////////////////////////////////////////////////
 
 #[derive(Debug)]
-pub struct Classroom {
+pub struct P2P {
     scope: String,
     audience: String,
     conference_room_id: Uuid,
@@ -17,7 +17,7 @@ pub struct Classroom {
     tags: Option<JsonValue>,
 }
 
-impl Classroom {
+impl P2P {
     pub fn new(
         scope: String,
         audience: String,
@@ -41,7 +41,7 @@ impl Classroom {
     }
 
     pub async fn insert(self, conn: &mut PgConnection) -> db::class::Object {
-        let mut q = db::class::ClassroomInsertQuery::new(
+        let mut q = db::class::P2PInsertQuery::new(
             self.scope,
             self.audience,
             self.conference_room_id,
@@ -52,7 +52,7 @@ impl Classroom {
             q = q.tags(tags);
         }
 
-        q.execute(conn).await.expect("Failed to insert classroom")
+        q.execute(conn).await.expect("Failed to insert P2P")
     }
 }
 

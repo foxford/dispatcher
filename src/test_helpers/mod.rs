@@ -9,6 +9,8 @@ pub mod prelude {
         outgoing_envelope::OutgoingEnvelopeProperties, shared_helpers, state::TestState,
         SVC_AUDIENCE, USR_AUDIENCE,
     };
+
+    pub use shared_helpers::*;
 }
 
 pub mod agent;
