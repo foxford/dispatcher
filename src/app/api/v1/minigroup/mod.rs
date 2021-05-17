@@ -122,12 +122,12 @@ async fn read_by_scope_inner(req: Request<Arc<dyn AppContext>>) -> AppResult {
 }
 
 #[derive(Deserialize)]
-struct Minigroup {
+struct MinigroupCreatePayload {
     scope: String,
     audience: String,
     host: AccountId,
-    #[serde(with = "crate::serde::ts_seconds_bound_tuple")]
-    time: BoundedDateTimeTuple,
+    #[serde(default, with = "crate::serde::ts_seconds_option_bound_tuple")]
+    time: Option<BoundedDateTimeTuple>,
     tags: Option<serde_json::Value>,
     reserve: Option<i32>,
     #[serde(default)]
@@ -139,12 +139,20 @@ pub async fn create(req: Request<Arc<dyn AppContext>>) -> tide::Result {
         .await
         .or_else(|e| Ok(e.to_tide_response()))
 }
-async fn create_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
-    let body: Minigroup = req.body_json().await.error(AppErrorKind::InvalidPayload)?;
 
+async fn create_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
     let account_id = validate_token(&req).error(AppErrorKind::Unauthorized)?;
+    let body = req.body_json().await.error(AppErrorKind::InvalidPayload)?;
     let state = req.state();
 
+    do_create(state.as_ref(), &account_id, body).await
+}
+
+async fn do_create(
+    state: &dyn AppContext,
+    account_id: &AccountId,
+    body: MinigroupCreatePayload,
+) -> AppResult {
     let object = AuthzObject::new(&["classrooms"]).into();
 
     state
@@ -157,11 +165,14 @@ async fn create_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
         )
         .await?;
 
-    let conference_time = match body.time.0 {
-        Bound::Included(t) | Bound::Excluded(t) => (Bound::Included(t), Bound::Unbounded),
-        Bound::Unbounded => (Bound::Unbounded, Bound::Unbounded),
+    let conference_time = match body.time.map(|t| t.0) {
+        Some(Bound::Included(t)) | Some(Bound::Excluded(t)) => {
+            (Bound::Included(t), Bound::Unbounded)
+        }
+        Some(Bound::Unbounded) => (Bound::Unbounded, Bound::Unbounded),
+        None => (Bound::Unbounded, Bound::Unbounded),
     };
-    let conference_fut = req.state().conference_client().create_room(
+    let conference_fut = state.conference_client().create_room(
         conference_time,
         body.audience.clone(),
         Some("owned".into()),
@@ -170,7 +181,7 @@ async fn create_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
     );
 
     let event_time = (Bound::Included(Utc::now()), Bound::Unbounded);
-    let event_fut = req.state().event_client().create_room(
+    let event_fut = state.event_client().create_room(
         event_time,
         body.audience.clone(),
         Some(true),
@@ -186,7 +197,9 @@ async fn create_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
     let query = crate::db::class::MinigroupInsertQuery::new(
         body.scope,
         body.audience,
-        body.time.into(),
+        body.time
+            .unwrap_or((Bound::Unbounded, Bound::Unbounded))
+            .into(),
         body.host,
         conference_room_id,
         event_room_id,
@@ -198,8 +211,13 @@ async fn create_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
         query
     };
 
-    let mut conn = req
-        .state()
+    let query = if let Some(reserve) = body.reserve {
+        query.reserve(reserve)
+    } else {
+        query
+    };
+
+    let mut conn = state
         .get_conn()
         .await
         .error(AppErrorKind::DbConnAcquisitionFailed)?;
@@ -210,7 +228,7 @@ async fn create_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
         .error(AppErrorKind::DbQueryFailed)?;
 
     if body.locked_chat {
-        if let Err(e) = req.state().event_client().lock_chat(event_room_id).await {
+        if let Err(e) = state.event_client().lock_chat(event_room_id).await {
             error!(
                 crate::LOG,
                 "Failed to lock chat in event room, id = {:?}, err = {:?}", event_room_id, e
@@ -219,7 +237,7 @@ async fn create_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
     }
 
     crate::app::services::update_classroom_id(
-        req.state().as_ref(),
+        state,
         minigroup.id(),
         minigroup.event_room_id(),
         Some(minigroup.conference_room_id()),
@@ -356,4 +374,173 @@ async fn find_minigroup_by_scope(
             .ok_or_else(|| anyhow!("Failed to find minigroup by scope"))?
     };
     Ok(minigroup)
+}
+
+#[cfg(test)]
+mod tests {
+    mod create {
+        use super::super::*;
+        use crate::{db::class::MinigroupReadQuery, test_helpers::prelude::*};
+        use chrono::Duration;
+        use mockall::predicate as pred;
+
+        #[async_std::test]
+        async fn create_minigroup_no_time() {
+            let agent = TestAgent::new("web", "user1", USR_AUDIENCE);
+
+            let mut authz = TestAuthz::new();
+            authz.allow(agent.account_id(), vec!["classrooms"], "create");
+
+            let mut state = TestState::new(authz).await;
+            let event_room_id = Uuid::new_v4();
+            let conference_room_id = Uuid::new_v4();
+
+            create_minigroup_mocks(&mut state, event_room_id, conference_room_id);
+
+            let scope = random_string();
+
+            let state = Arc::new(state);
+            let body = MinigroupCreatePayload {
+                scope: scope.clone(),
+                audience: USR_AUDIENCE.to_string(),
+                time: None,
+                tags: None,
+                reserve: Some(10),
+                locked_chat: true,
+                host: agent.account_id().to_owned(),
+            };
+
+            let r = do_create(state.as_ref(), agent.account_id(), body).await;
+            r.expect("Failed to create minigroup");
+
+            // Assert DB changes.
+            let mut conn = state.get_conn().await.expect("Failed to get conn");
+
+            let new_minigroup = MinigroupReadQuery::by_scope(USR_AUDIENCE.to_string(), scope)
+                .execute(&mut conn)
+                .await
+                .expect("Failed to fetch minigroup")
+                .expect("Mebinar not found");
+
+            assert_eq!(new_minigroup.reserve(), Some(10),);
+        }
+
+        #[async_std::test]
+        async fn create_minigroup_with_time() {
+            let agent = TestAgent::new("web", "user1", USR_AUDIENCE);
+
+            let mut authz = TestAuthz::new();
+            authz.allow(agent.account_id(), vec!["classrooms"], "create");
+
+            let mut state = TestState::new(authz).await;
+            let event_room_id = Uuid::new_v4();
+            let conference_room_id = Uuid::new_v4();
+
+            create_minigroup_mocks(&mut state, event_room_id, conference_room_id);
+
+            let scope = random_string();
+
+            let now = Utc::now();
+            let time = (
+                Bound::Included(now + Duration::hours(1)),
+                Bound::Excluded(now + Duration::hours(5)),
+            );
+
+            let state = Arc::new(state);
+            let body = MinigroupCreatePayload {
+                scope: scope.clone(),
+                audience: USR_AUDIENCE.to_string(),
+                time: Some(time),
+                tags: None,
+                reserve: Some(10),
+                locked_chat: true,
+                host: agent.account_id().to_owned(),
+            };
+
+            let r = do_create(state.as_ref(), agent.account_id(), body).await;
+            r.expect("Failed to create minigroup");
+
+            // Assert DB changes.
+            let mut conn = state.get_conn().await.expect("Failed to get conn");
+
+            let new_minigroup = MinigroupReadQuery::by_scope(USR_AUDIENCE.to_string(), scope)
+                .execute(&mut conn)
+                .await
+                .expect("Failed to fetch minigroup")
+                .expect("Minigroup not found");
+
+            assert_eq!(new_minigroup.reserve(), Some(10),);
+        }
+
+        #[async_std::test]
+        async fn create_minigroup_unauthorized() {
+            let agent = TestAgent::new("web", "user1", USR_AUDIENCE);
+
+            let state = TestState::new(TestAuthz::new()).await;
+            let event_room_id = Uuid::new_v4();
+            let conference_room_id = Uuid::new_v4();
+
+            let scope = random_string();
+
+            let state = Arc::new(state);
+            let body = MinigroupCreatePayload {
+                scope: scope.clone(),
+                audience: USR_AUDIENCE.to_string(),
+                time: None,
+                tags: None,
+                reserve: Some(10),
+                locked_chat: true,
+                host: agent.account_id().to_owned(),
+            };
+
+            do_create(state.as_ref(), agent.account_id(), body)
+                .await
+                .expect_err("Unexpectedly succeeded");
+        }
+
+        fn create_minigroup_mocks(
+            state: &mut TestState,
+            event_room_id: Uuid,
+            conference_room_id: Uuid,
+        ) {
+            state
+                .event_client_mock()
+                .expect_create_room()
+                .with(
+                    pred::always(),
+                    pred::always(),
+                    pred::always(),
+                    pred::always(),
+                )
+                .returning(move |_, _, _, _| Ok(event_room_id));
+
+            state
+                .event_client_mock()
+                .expect_lock_chat()
+                .with(pred::eq(event_room_id))
+                .returning(move |_room_id| Ok(()));
+
+            state
+                .event_client_mock()
+                .expect_update_room()
+                .with(pred::eq(event_room_id), pred::always())
+                .returning(move |_room_id, _| Ok(()));
+
+            state
+                .conference_client_mock()
+                .expect_create_room()
+                .withf(move |_time, audience, policy, reserve, _tags| {
+                    assert_eq!(*policy, Some(String::from("owned")));
+                    assert_eq!(*reserve, Some(10));
+                    true
+                })
+                .returning(move |_, _, _, _, _| Ok(conference_room_id));
+
+            state
+                .conference_client_mock()
+                .expect_update_room()
+                .with(pred::eq(conference_room_id), pred::always())
+                .returning(move |_room_id, _| Ok(()));
+        }
+    }
 }

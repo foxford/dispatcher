@@ -839,6 +839,169 @@
       ]
     }
   },
+  "641924c913fae10233998879b2d51021b9e3dc1955a98cfc12045b8ae10338b2": {
+    "query": "\n            INSERT INTO class (\n                scope, audience, time, tags, preserve_history, kind, conference_room_id,\n                event_room_id, host, original_event_room_id, modified_event_room_id, reserve\n            )\n            VALUES ($1, $2, $3, $4, $5, $6::class_type, $7, $8, $9, $10, $11, $12)\n            RETURNING\n                id,\n                scope,\n                kind AS \"kind!: ClassType\",\n                audience,\n                host AS \"host?: AccountId\",\n                time AS \"time!: Time\",\n                tags,\n                preserve_history,\n                created_at,\n                event_room_id,\n                conference_room_id,\n                original_event_room_id,\n                modified_event_room_id,\n                reserve\n            ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 1,
+          "name": "scope",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 2,
+          "name": "kind!: ClassType",
+          "type_info": {
+            "Custom": {
+              "name": "class_type",
+              "kind": {
+                "Enum": [
+                  "webinar",
+                  "p2p",
+                  "minigroup"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "ordinal": 3,
+          "name": "audience",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 4,
+          "name": "host?: AccountId",
+          "type_info": {
+            "Custom": {
+              "name": "account_id",
+              "kind": {
+                "Composite": [
+                  [
+                    "label",
+                    "Text"
+                  ],
+                  [
+                    "audience",
+                    "Text"
+                  ]
+                ]
+              }
+            }
+          }
+        },
+        {
+          "ordinal": 5,
+          "name": "time!: Time",
+          "type_info": "TstzRange"
+        },
+        {
+          "ordinal": 6,
+          "name": "tags",
+          "type_info": "Json"
+        },
+        {
+          "ordinal": 7,
+          "name": "preserve_history",
+          "type_info": "Bool"
+        },
+        {
+          "ordinal": 8,
+          "name": "created_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 9,
+          "name": "event_room_id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 10,
+          "name": "conference_room_id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 11,
+          "name": "original_event_room_id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 12,
+          "name": "modified_event_room_id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 13,
+          "name": "reserve",
+          "type_info": "Int4"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Text",
+          "TstzRange",
+          "Json",
+          "Bool",
+          {
+            "Custom": {
+              "name": "class_type",
+              "kind": {
+                "Enum": [
+                  "webinar",
+                  "p2p",
+                  "minigroup"
+                ]
+              }
+            }
+          },
+          "Uuid",
+          "Uuid",
+          {
+            "Custom": {
+              "name": "account_id",
+              "kind": {
+                "Composite": [
+                  [
+                    "label",
+                    "Text"
+                  ],
+                  [
+                    "audience",
+                    "Text"
+                  ]
+                ]
+              }
+            }
+          },
+          "Uuid",
+          "Uuid",
+          "Int4"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        true,
+        false,
+        true,
+        false,
+        false,
+        false,
+        false,
+        true,
+        true,
+        true
+      ]
+    }
+  },
   "64ab45d4e8b9c8dec30970897cff4cde70b3de4497324a2398227c5653c4a765": {
     "query": "\n                        SELECT\n                            id::text AS \"id!: String\"\n                        FROM class\n                        WHERE audience = $1\n                        AND scope = $2\n                    ",
     "describe": {
@@ -996,168 +1159,6 @@
       },
       "nullable": [
         null
-      ]
-    }
-  },
-  "94ba9ad89375e6ad5fab7bc5a17ba540e684242451c63339100bee626da360bb": {
-    "query": "\n            INSERT INTO class (\n                scope, audience, time, tags, preserve_history, kind, conference_room_id,\n                event_room_id, host, original_event_room_id, modified_event_room_id\n            )\n            VALUES ($1, $2, $3, $4, $5, $6::class_type, $7, $8, $9, $10, $11)\n            RETURNING\n                id,\n                scope,\n                kind AS \"kind!: ClassType\",\n                audience,\n                host AS \"host?: AccountId\",\n                time AS \"time!: Time\",\n                tags,\n                preserve_history,\n                created_at,\n                event_room_id,\n                conference_room_id,\n                original_event_room_id,\n                modified_event_room_id,\n                reserve\n            ",
-    "describe": {
-      "columns": [
-        {
-          "ordinal": 0,
-          "name": "id",
-          "type_info": "Uuid"
-        },
-        {
-          "ordinal": 1,
-          "name": "scope",
-          "type_info": "Text"
-        },
-        {
-          "ordinal": 2,
-          "name": "kind!: ClassType",
-          "type_info": {
-            "Custom": {
-              "name": "class_type",
-              "kind": {
-                "Enum": [
-                  "webinar",
-                  "p2p",
-                  "minigroup"
-                ]
-              }
-            }
-          }
-        },
-        {
-          "ordinal": 3,
-          "name": "audience",
-          "type_info": "Text"
-        },
-        {
-          "ordinal": 4,
-          "name": "host?: AccountId",
-          "type_info": {
-            "Custom": {
-              "name": "account_id",
-              "kind": {
-                "Composite": [
-                  [
-                    "label",
-                    "Text"
-                  ],
-                  [
-                    "audience",
-                    "Text"
-                  ]
-                ]
-              }
-            }
-          }
-        },
-        {
-          "ordinal": 5,
-          "name": "time!: Time",
-          "type_info": "TstzRange"
-        },
-        {
-          "ordinal": 6,
-          "name": "tags",
-          "type_info": "Json"
-        },
-        {
-          "ordinal": 7,
-          "name": "preserve_history",
-          "type_info": "Bool"
-        },
-        {
-          "ordinal": 8,
-          "name": "created_at",
-          "type_info": "Timestamptz"
-        },
-        {
-          "ordinal": 9,
-          "name": "event_room_id",
-          "type_info": "Uuid"
-        },
-        {
-          "ordinal": 10,
-          "name": "conference_room_id",
-          "type_info": "Uuid"
-        },
-        {
-          "ordinal": 11,
-          "name": "original_event_room_id",
-          "type_info": "Uuid"
-        },
-        {
-          "ordinal": 12,
-          "name": "modified_event_room_id",
-          "type_info": "Uuid"
-        },
-        {
-          "ordinal": 13,
-          "name": "reserve",
-          "type_info": "Int4"
-        }
-      ],
-      "parameters": {
-        "Left": [
-          "Text",
-          "Text",
-          "TstzRange",
-          "Json",
-          "Bool",
-          {
-            "Custom": {
-              "name": "class_type",
-              "kind": {
-                "Enum": [
-                  "webinar",
-                  "p2p",
-                  "minigroup"
-                ]
-              }
-            }
-          },
-          "Uuid",
-          "Uuid",
-          {
-            "Custom": {
-              "name": "account_id",
-              "kind": {
-                "Composite": [
-                  [
-                    "label",
-                    "Text"
-                  ],
-                  [
-                    "audience",
-                    "Text"
-                  ]
-                ]
-              }
-            }
-          },
-          "Uuid",
-          "Uuid"
-        ]
-      },
-      "nullable": [
-        false,
-        false,
-        false,
-        false,
-        true,
-        false,
-        true,
-        false,
-        false,
-        false,
-        false,
-        true,
-        true,
-        true
       ]
     }
   },

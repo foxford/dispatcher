@@ -89,10 +89,6 @@ impl AppContext for TestState {
         Ok(conn)
     }
 
-    fn audience_authz_config(&self, audience: &str) -> Option<&svc_authz::Config> {
-        None
-    }
-
     fn default_frontend_base(&self) -> Url {
         self.config.default_frontend_base.clone()
     }
