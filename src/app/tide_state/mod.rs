@@ -30,7 +30,6 @@ pub trait AppContext: Sync + Send {
     fn tq_client(&self) -> &dyn TqClient;
     fn authz(&self) -> &Authz;
     fn storage_config(&self) -> &StorageConfig;
-    fn audience_authz_config(&self, audience: &str) -> Option<&svc_authz::Config>;
 }
 
 pub trait Publisher {
@@ -126,10 +125,6 @@ impl AppContext for TideState {
 
     fn storage_config(&self) -> &StorageConfig {
         &self.config.storage
-    }
-
-    fn audience_authz_config(&self, audience: &str) -> Option<&svc_authz::Config> {
-        self.config.authz.get(audience)
     }
 }
 

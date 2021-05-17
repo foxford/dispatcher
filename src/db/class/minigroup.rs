@@ -69,6 +69,7 @@ pub struct MinigroupInsertQuery {
     event_room_id: Uuid,
     original_event_room_id: Option<Uuid>,
     modified_event_room_id: Option<Uuid>,
+    reserve: Option<i32>,
 }
 
 impl MinigroupInsertQuery {
@@ -91,6 +92,7 @@ impl MinigroupInsertQuery {
             event_room_id,
             original_event_room_id: None,
             modified_event_room_id: None,
+            reserve: None,
         }
     }
 
@@ -117,6 +119,13 @@ impl MinigroupInsertQuery {
         }
     }
 
+    pub fn reserve(self, reserve: i32) -> Self {
+        Self {
+            reserve: Some(reserve),
+            ..self
+        }
+    }
+
     pub async fn execute(self, conn: &mut PgConnection) -> sqlx::Result<Object> {
         let time: PgRange<DateTime<Utc>> = self.time.into();
 
@@ -125,9 +134,9 @@ impl MinigroupInsertQuery {
             r#"
             INSERT INTO class (
                 scope, audience, time, tags, preserve_history, kind, conference_room_id,
-                event_room_id, host, original_event_room_id, modified_event_room_id
+                event_room_id, host, original_event_room_id, modified_event_room_id, reserve
             )
-            VALUES ($1, $2, $3, $4, $5, $6::class_type, $7, $8, $9, $10, $11)
+            VALUES ($1, $2, $3, $4, $5, $6::class_type, $7, $8, $9, $10, $11, $12)
             RETURNING
                 id,
                 scope,
@@ -155,6 +164,7 @@ impl MinigroupInsertQuery {
             self.host as AccountId,
             self.original_event_room_id,
             self.modified_event_room_id,
+            self.reserve,
         )
         .fetch_one(conn)
         .await
