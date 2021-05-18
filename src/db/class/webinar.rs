@@ -1,7 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde_json::Value as JsonValue;
 use sqlx::postgres::{types::PgRange, PgConnection};
-use svc_agent::AccountId;
 use uuid::Uuid;
 
 use super::{ClassType, Object, Time};
@@ -138,7 +137,6 @@ impl WebinarInsertQuery {
                 scope,
                 kind AS "kind!: ClassType",
                 audience,
-                host AS "host?: AccountId",
                 time AS "time!: Time",
                 tags,
                 preserve_history,
@@ -190,7 +188,6 @@ impl WebinarTimeUpdateQuery {
                 scope,
                 kind AS "kind!: ClassType",
                 audience,
-                host AS "host?: AccountId",
                 time AS "time!: Time",
                 tags,
                 preserve_history,
@@ -240,7 +237,6 @@ impl WebinarRecreateQuery {
                 scope,
                 kind AS "kind!: ClassType",
                 audience,
-                host AS "host?: AccountId",
                 time AS "time!: Time",
                 tags,
                 preserve_history,

@@ -1,7 +1,7 @@
 use chrono::{DateTime, Utc};
 use serde_json::Value as JsonValue;
 use sqlx::postgres::PgConnection;
-use svc_agent::{AccountId, AgentId};
+use svc_agent::AgentId;
 use uuid::Uuid;
 
 use crate::db;
@@ -63,7 +63,6 @@ pub struct Minigroup {
     scope: String,
     audience: String,
     time: db::class::Time,
-    host: AccountId,
     conference_room_id: Uuid,
     event_room_id: Uuid,
     tags: Option<JsonValue>,
@@ -76,7 +75,6 @@ impl Minigroup {
         scope: String,
         audience: String,
         time: db::class::Time,
-        host: AccountId,
         conference_room_id: Uuid,
         event_room_id: Uuid,
     ) -> Self {
@@ -84,7 +82,6 @@ impl Minigroup {
             scope,
             audience,
             time,
-            host,
             conference_room_id,
             event_room_id,
             tags: None,
@@ -119,7 +116,6 @@ impl Minigroup {
             self.scope,
             self.audience,
             self.time,
-            self.host,
             self.conference_room_id,
             self.event_room_id,
         );
