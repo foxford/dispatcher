@@ -165,8 +165,8 @@ impl ConferenceClient for MqttConferenceClient {
         let reqp = self.build_reqp("room.create")?;
 
         let payload = ConferenceRoomPayload {
-            time,
             audience,
+            time,
             rtc_sharing_policy,
             reserve,
             tags,
