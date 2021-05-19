@@ -4,7 +4,7 @@ use std::sync::Arc;
 use anyhow::Context;
 use async_std::prelude::FutureExt;
 use chrono::Utc;
-use serde_derive::{Deserialize, Serialize};
+use serde_derive::Serialize;
 use serde_json::Value as JsonValue;
 use tide::{Request, Response};
 use uuid::Uuid;
@@ -13,9 +13,6 @@ use crate::app::authz::AuthzObject;
 use crate::app::error::ErrorExt;
 use crate::app::error::ErrorKind as AppErrorKind;
 use crate::app::AppContext;
-use crate::clients::{
-    conference::RoomUpdate as ConfRoomUpdate, event::RoomUpdate as EventRoomUpdate,
-};
 use crate::db::class::BoundedDateTimeTuple;
 use crate::db::class::Object as Class;
 
@@ -94,8 +91,9 @@ pub async fn read(req: Request<Arc<dyn AppContext>>) -> tide::Result {
 async fn read_inner(req: Request<Arc<dyn AppContext>>) -> AppResult {
     let account_id = validate_token(&req).error(AppErrorKind::Unauthorized)?;
     let state = req.state();
+    let id = extract_id(&req).error(AppErrorKind::InvalidParameter)?;
 
-    let webinar = find_webinar(&req)
+    let webinar = find_webinar(state.as_ref(), id)
         .await
         .error(AppErrorKind::WebinarNotFound)?;
 
@@ -170,9 +168,12 @@ pub async fn read_by_scope(req: Request<Arc<dyn AppContext>>) -> tide::Result {
 }
 async fn read_by_scope_inner(req: Request<Arc<dyn AppContext>>) -> AppResult {
     let state = req.state();
+    let audience = extract_param(&req, "audience").error(AppErrorKind::InvalidParameter)?;
+    let scope = extract_param(&req, "scope").error(AppErrorKind::InvalidParameter)?;
+
     let account_id = validate_token(&req).error(AppErrorKind::Unauthorized)?;
 
-    let webinar = match find_webinar_by_scope(&req).await {
+    let webinar = match find_webinar_by_scope(state.as_ref(), audience, scope).await {
         Ok(webinar) => webinar,
         Err(e) => {
             error!(crate::LOG, "Failed to find a webinar, err = {:?}", e);
@@ -250,95 +251,12 @@ pub async fn options(_req: Request<Arc<dyn AppContext>>) -> tide::Result {
     Ok(Response::builder(200).build())
 }
 
-#[derive(Deserialize)]
-struct WebinarUpdate {
-    #[serde(with = "crate::serde::ts_seconds_bound_tuple")]
-    time: BoundedDateTimeTuple,
-}
-
-pub async fn update(req: Request<Arc<dyn AppContext>>) -> tide::Result {
-    update_inner(req)
-        .await
-        .or_else(|e| Ok(e.to_tide_response()))
-}
-async fn update_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
-    let body: WebinarUpdate = req.body_json().await.error(AppErrorKind::InvalidPayload)?;
-
-    let account_id = validate_token(&req).error(AppErrorKind::Unauthorized)?;
-    let state = req.state();
-
-    let webinar = find_webinar(&req)
-        .await
-        .error(AppErrorKind::WebinarNotFound)?;
-
-    let object = AuthzObject::new(&["classrooms", &webinar.id().to_string()]).into();
-
-    state
-        .authz()
-        .authorize(
-            webinar.audience().to_owned(),
-            account_id.clone(),
-            object,
-            "update".into(),
-        )
-        .await?;
-
-    let conference_time = match body.time.0 {
-        Bound::Included(t) | Bound::Excluded(t) => (Bound::Included(t), body.time.1),
-        Bound::Unbounded => (Bound::Unbounded, Bound::Unbounded),
-    };
-    let conference_fut = req.state().conference_client().update_room(
-        webinar.conference_room_id(),
-        ConfRoomUpdate {
-            time: Some(conference_time),
-            classroom_id: None,
-        },
-    );
-
-    let event_time = (Bound::Included(Utc::now()), Bound::Unbounded);
-    let event_fut = req.state().event_client().update_room(
-        webinar.event_room_id(),
-        EventRoomUpdate {
-            time: Some(event_time),
-            classroom_id: None,
-        },
-    );
-
-    event_fut
-        .try_join(conference_fut)
-        .await
-        .context("Services requests")
-        .error(AppErrorKind::MqttRequestFailed)?;
-
-    let query = crate::db::class::WebinarTimeUpdateQuery::new(webinar.id(), body.time.into());
-
-    let mut conn = req
-        .state()
-        .get_conn()
-        .await
-        .error(AppErrorKind::DbQueryFailed)?;
-    let webinar = query
-        .execute(&mut conn)
-        .await
-        .context("Failed to update webinar")
-        .error(AppErrorKind::DbQueryFailed)?;
-
-    let body = serde_json::to_string(&webinar)
-        .context("Failed to serialize webinar")
-        .error(AppErrorKind::SerializationFailed)?;
-
-    let response = Response::builder(200).body(body).build();
-
-    Ok(response)
-}
-
 async fn find_webinar(
-    req: &Request<Arc<dyn AppContext>>,
+    state: &dyn AppContext,
+    id: Uuid,
 ) -> anyhow::Result<crate::db::class::Object> {
-    let id = extract_id(req)?;
-
     let webinar = {
-        let mut conn = req.state().get_conn().await?;
+        let mut conn = state.get_conn().await?;
         crate::db::class::WebinarReadQuery::by_id(id)
             .execute(&mut conn)
             .await?
@@ -348,14 +266,13 @@ async fn find_webinar(
 }
 
 async fn find_webinar_by_scope(
-    req: &Request<Arc<dyn AppContext>>,
+    state: &dyn AppContext,
+    audience: &str,
+    scope: &str,
 ) -> anyhow::Result<crate::db::class::Object> {
-    let audience = extract_param(req, "audience")?.to_owned();
-    let scope = extract_param(req, "scope")?.to_owned();
-
     let webinar = {
-        let mut conn = req.state().get_conn().await?;
-        crate::db::class::WebinarReadQuery::by_scope(audience.clone(), scope.clone())
+        let mut conn = state.get_conn().await?;
+        crate::db::class::WebinarReadQuery::by_scope(audience.to_owned(), scope.to_owned())
             .execute(&mut conn)
             .await?
             .ok_or_else(|| anyhow!("Failed to find webinar by scope"))?
@@ -367,8 +284,10 @@ pub use convert::convert;
 pub use create::create;
 pub use download::download;
 pub use recreate::recreate;
+pub use update::update;
 
 mod convert;
 mod create;
 mod download;
 mod recreate;
+mod update;
