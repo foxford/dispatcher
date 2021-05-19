@@ -3,7 +3,6 @@ use std::ops::Bound;
 use chrono::serde::ts_seconds;
 use chrono::{DateTime, Utc};
 use sqlx::postgres::{types::PgRange, PgConnection};
-use svc_agent::AccountId;
 use uuid::Uuid;
 
 use serde_derive::{Deserialize, Serialize};
@@ -39,8 +38,6 @@ pub struct Object {
     #[serde(skip_serializing_if = "Option::is_none")]
     modified_event_room_id: Option<Uuid>,
     preserve_history: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    host: Option<AccountId>,
     reserve: Option<i32>,
 }
 
@@ -79,10 +76,6 @@ impl Object {
 
     pub fn modified_event_room_id(&self) -> Option<Uuid> {
         self.modified_event_room_id
-    }
-
-    pub fn host(&self) -> Option<&AccountId> {
-        self.host.as_ref()
     }
 
     pub fn reserve(&self) -> Option<i32> {
@@ -217,7 +210,6 @@ impl UpdateQuery {
                 scope,
                 kind AS "kind!: ClassType",
                 audience,
-                host AS "host?: AccountId",
                 time AS "time!: Time",
                 tags,
                 preserve_history,

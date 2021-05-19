@@ -33,11 +33,10 @@ const EVENT_LIST_LIMIT: u64 = 100;
 pub struct Event {
     id: Uuid,
     room_id: Uuid,
-    #[serde(rename = "type")]
-    kind: String,
     set: String,
     label: Option<String>,
     attribute: Option<String>,
+    #[serde(flatten)]
     data: EventData,
     occurred_at: u64,
     original_occurred_at: u64,
@@ -57,9 +56,11 @@ impl Event {
 }
 
 #[derive(Clone, Debug, Deserialize)]
-#[serde(untagged)]
+#[serde(tag = "type", content = "data")]
+#[serde(rename_all = "lowercase")]
 pub enum EventData {
     Pin(PinEventData),
+    Host(HostEventData),
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -68,6 +69,27 @@ pub struct PinEventData {
 }
 
 impl PinEventData {
+    #[cfg(test)]
+    pub fn new(agent_id: AgentId) -> Self {
+        Self { agent_id }
+    }
+
+    pub fn agent_id(&self) -> &AgentId {
+        &self.agent_id
+    }
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct HostEventData {
+    agent_id: AgentId,
+}
+
+impl HostEventData {
+    #[cfg(test)]
+    pub fn new(agent_id: AgentId) -> Self {
+        Self { agent_id }
+    }
+
     pub fn agent_id(&self) -> &AgentId {
         &self.agent_id
     }
@@ -494,7 +516,7 @@ pub mod test_helpers {
     #[derive(Debug, Default)]
     pub struct EventBuilder {
         room_id: Option<Uuid>,
-        kind: Option<String>,
+        set: Option<String>,
         data: Option<EventData>,
         occurred_at: Option<u64>,
     }
@@ -511,17 +533,14 @@ pub mod test_helpers {
             }
         }
 
-        pub fn kind(self, kind: String) -> Self {
+        pub fn set(self, set: String) -> Self {
             Self {
-                kind: Some(kind),
+                set: Some(set),
                 ..self
             }
         }
 
-        pub fn data(self, json_data: JsonValue) -> Self {
-            let data =
-                serde_json::from_value::<EventData>(json_data).expect("Failed to parse data");
-
+        pub fn data(self, data: EventData) -> Self {
             Self {
                 data: Some(data),
                 ..self
@@ -541,8 +560,7 @@ pub mod test_helpers {
             Event {
                 id: Uuid::new_v4(),
                 room_id: self.room_id.unwrap(),
-                kind: self.kind.clone().unwrap(),
-                set: self.kind.unwrap(),
+                set: self.set.unwrap(),
                 label: None,
                 attribute: None,
                 data: self.data.unwrap(),

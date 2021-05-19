@@ -31,7 +31,7 @@ pub enum Task {
     },
     TranscodeMinigroupToHls {
         streams: Vec<TranscodeMinigroupToHlsStream>,
-        host_stream_id: Option<Uuid>,
+        host_stream_id: Uuid,
     },
 }
 

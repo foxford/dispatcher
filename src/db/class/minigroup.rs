@@ -1,7 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde_json::Value as JsonValue;
 use sqlx::postgres::{types::PgRange, PgConnection};
-use svc_agent::AccountId;
 use uuid::Uuid;
 
 use super::{ClassType, Object, Time};
@@ -62,7 +61,6 @@ pub struct MinigroupInsertQuery {
     scope: String,
     audience: String,
     time: Time,
-    host: AccountId,
     tags: Option<JsonValue>,
     preserve_history: bool,
     conference_room_id: Uuid,
@@ -77,7 +75,6 @@ impl MinigroupInsertQuery {
         scope: String,
         audience: String,
         time: Time,
-        host: AccountId,
         conference_room_id: Uuid,
         event_room_id: Uuid,
     ) -> Self {
@@ -85,7 +82,6 @@ impl MinigroupInsertQuery {
             scope,
             audience,
             time,
-            host,
             tags: None,
             preserve_history: true,
             conference_room_id,
@@ -134,15 +130,14 @@ impl MinigroupInsertQuery {
             r#"
             INSERT INTO class (
                 scope, audience, time, tags, preserve_history, kind, conference_room_id,
-                event_room_id, host, original_event_room_id, modified_event_room_id, reserve
+                event_room_id, original_event_room_id, modified_event_room_id, reserve
             )
-            VALUES ($1, $2, $3, $4, $5, $6::class_type, $7, $8, $9, $10, $11, $12)
+            VALUES ($1, $2, $3, $4, $5, $6::class_type, $7, $8, $9, $10, $11)
             RETURNING
                 id,
                 scope,
                 kind AS "kind!: ClassType",
                 audience,
-                host AS "host?: AccountId",
                 time AS "time!: Time",
                 tags,
                 preserve_history,
@@ -161,7 +156,6 @@ impl MinigroupInsertQuery {
             ClassType::Minigroup as ClassType,
             self.conference_room_id,
             self.event_room_id,
-            self.host as AccountId,
             self.original_event_room_id,
             self.modified_event_room_id,
             self.reserve,
@@ -174,25 +168,15 @@ impl MinigroupInsertQuery {
 pub struct MinigroupTimeUpdateQuery {
     id: Uuid,
     time: Option<Time>,
-    host: Option<AccountId>,
 }
 
 impl MinigroupTimeUpdateQuery {
     pub fn new(id: Uuid) -> Self {
-        Self {
-            id,
-            time: None,
-            host: None,
-        }
+        Self { id, time: None }
     }
 
     pub fn time(&mut self, time: Time) -> &mut Self {
         self.time = Some(time);
-        self
-    }
-
-    pub fn host(&mut self, host: AccountId) -> &mut Self {
-        self.host = Some(host);
         self
     }
 
@@ -203,10 +187,6 @@ impl MinigroupTimeUpdateQuery {
         let q = Update::table("class");
         let q = match self.time {
             Some(_) => q.set("time", "__placeholder__"),
-            None => q,
-        };
-        let q = match self.host {
-            Some(_) => q.set("host", "__placeholder__"),
             None => q,
         };
 
@@ -223,11 +203,6 @@ impl MinigroupTimeUpdateQuery {
                 let t: PgRange<DateTime<Utc>> = t.into();
                 query.bind(t)
             }
-            None => query,
-        };
-
-        let query = match &self.host {
-            Some(h) => query.bind(h),
             None => query,
         };
 

@@ -5,7 +5,7 @@ use anyhow::Context;
 use async_std::prelude::FutureExt;
 use chrono::Utc;
 use serde_derive::{Deserialize, Serialize};
-use svc_authn::AccountId;
+use svc_agent::AccountId;
 use tide::{Request, Response};
 use uuid::Uuid;
 
@@ -22,10 +22,9 @@ use crate::db::class::Object as Class;
 use super::{extract_id, extract_param, validate_token, AppResult};
 
 #[derive(Serialize)]
-struct MinigroupObject<'a> {
+struct MinigroupObject {
     id: String,
     real_time: RealTimeObject,
-    host: &'a AccountId,
 }
 
 #[derive(Serialize)]
@@ -36,8 +35,8 @@ struct RealTimeObject {
     rtc_id: Option<Uuid>,
 }
 
-impl<'a> From<&'a Class> for MinigroupObject<'a> {
-    fn from(obj: &'a Class) -> Self {
+impl From<&Class> for MinigroupObject {
+    fn from(obj: &Class) -> Self {
         Self {
             id: obj.scope().to_owned(),
             real_time: RealTimeObject {
@@ -45,8 +44,6 @@ impl<'a> From<&'a Class> for MinigroupObject<'a> {
                 event_room_id: obj.event_room_id(),
                 rtc_id: None,
             },
-            // Minigroups have host enforced by db
-            host: obj.host().unwrap(),
         }
     }
 }
@@ -125,7 +122,6 @@ async fn read_by_scope_inner(req: Request<Arc<dyn AppContext>>) -> AppResult {
 struct MinigroupCreatePayload {
     scope: String,
     audience: String,
-    host: AccountId,
     #[serde(default, with = "crate::serde::ts_seconds_option_bound_tuple")]
     time: Option<BoundedDateTimeTuple>,
     tags: Option<serde_json::Value>,
@@ -200,7 +196,6 @@ async fn do_create(
         body.time
             .unwrap_or((Bound::Unbounded, Bound::Unbounded))
             .into(),
-        body.host,
         conference_room_id,
         event_room_id,
     );
@@ -258,7 +253,6 @@ async fn do_create(
 struct MinigroupUpdate {
     #[serde(with = "crate::serde::ts_seconds_option_bound_tuple")]
     time: Option<BoundedDateTimeTuple>,
-    host: Option<AccountId>,
 }
 
 pub async fn update(req: Request<Arc<dyn AppContext>>) -> tide::Result {
@@ -320,9 +314,6 @@ async fn update_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
     let mut query = crate::db::class::MinigroupTimeUpdateQuery::new(minigroup.id());
     if let Some(t) = body.time {
         query.time(t.into());
-    }
-    if let Some(h) = body.host {
-        query.host(h);
     }
 
     let mut conn = req
@@ -407,7 +398,6 @@ mod tests {
                 tags: None,
                 reserve: Some(10),
                 locked_chat: true,
-                host: agent.account_id().to_owned(),
             };
 
             let r = do_create(state.as_ref(), agent.account_id(), body).await;
@@ -454,7 +444,6 @@ mod tests {
                 tags: None,
                 reserve: Some(10),
                 locked_chat: true,
-                host: agent.account_id().to_owned(),
             };
 
             let r = do_create(state.as_ref(), agent.account_id(), body).await;
@@ -490,7 +479,6 @@ mod tests {
                 tags: None,
                 reserve: Some(10),
                 locked_chat: true,
-                host: agent.account_id().to_owned(),
             };
 
             do_create(state.as_ref(), agent.account_id(), body)

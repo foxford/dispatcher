@@ -10,7 +10,6 @@ use sqlx::{postgres::PgConnection, Acquire};
 use svc_agent::mqtt::{
     IntoPublishableMessage, OutgoingEvent, OutgoingEventProperties, ShortTermTimingProperties,
 };
-use svc_authz::Authenticable;
 use uuid::Uuid;
 
 use crate::app::AppContext;
@@ -26,6 +25,7 @@ use super::{shared_helpers, RtcUploadReadyData, RtcUploadResult};
 
 const NS_IN_MS: i64 = 1000000;
 const PIN_EVENT_TYPE: &str = "pin";
+const HOST_EVENT_TYPE: &str = "host";
 // TODO: make configurable for each audience.
 const PREROLL_OFFSET: i64 = 4018;
 
@@ -71,7 +71,7 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
                 ..
             } => {
                 // Save adjust results to the DB and fetch recordings.
-                let (minigroup, recordings) = {
+                let recordings = {
                     let mut conn = self.ctx.get_conn().await?;
 
                     let mut txn = conn
@@ -85,7 +85,7 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
                         modified_room_id,
                     );
 
-                    let minigroup = q.execute(&mut txn).await?;
+                    q.execute(&mut txn).await?;
 
                     let recordings =
                         crate::db::recording::AdjustMinigroupUpdateQuery::new(self.minigroup.id())
@@ -93,7 +93,7 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
                             .await?;
 
                     txn.commit().await?;
-                    (minigroup, recordings)
+                    recordings
                 };
 
                 // Find the earliest recording.
@@ -138,12 +138,29 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
                     .collect::<Vec<_>>();
 
                 // Find host stream id.
-                let host_stream_id = minigroup.host().and_then(|host| {
-                    recordings
-                        .iter()
-                        .find(|recording| recording.created_by().as_account_id() == host)
-                        .map(|recording| recording.rtc_id())
-                });
+                let host_events = self
+                    .ctx
+                    .event_client()
+                    .list_events(modified_room_id, HOST_EVENT_TYPE)
+                    .await
+                    .context("Failed to get host events for room")?;
+
+                let host = match host_events.first().map(|event| event.data()) {
+                    // Host has not been set, skip transcoding.
+                    None => return Ok(()),
+                    Some(EventData::Host(data)) => data.agent_id(),
+                    Some(other) => bail!("Got unexpected host event data: {:?}", other),
+                };
+
+                let maybe_host_recording = recordings
+                    .iter()
+                    .find(|recording| recording.created_by() == host);
+
+                let host_stream_id = match maybe_host_recording {
+                    // Host has been set but there's no recording, skip transcoding.
+                    None => return Ok(()),
+                    Some(recording) => recording.rtc_id(),
+                };
 
                 // Create a tq task.
                 let task = TqTask::TranscodeMinigroupToHls {
@@ -325,6 +342,7 @@ fn build_stream(
                     pin_start = None;
                 }
             }
+            _ => (),
         }
     }
 
@@ -363,7 +381,6 @@ mod tests {
         use std::sync::Arc;
 
         use chrono::{DateTime, Duration, Utc};
-        use svc_agent::AccountId;
         use uuid::Uuid;
 
         use crate::app::AppContext;
@@ -395,7 +412,6 @@ mod tests {
                     minigroup_scope,
                     USR_AUDIENCE.to_string(),
                     time.into(),
-                    AccountId::new("host", USR_AUDIENCE),
                     conference_room_id,
                     event_room_id,
                 )
@@ -509,12 +525,11 @@ mod tests {
         use std::sync::Arc;
 
         use chrono::{Duration, Utc};
-        use serde_json::json;
         use uuid::Uuid;
 
         use crate::app::AppContext;
         use crate::clients::event::test_helpers::EventBuilder;
-        use crate::clients::event::EventRoomResponse;
+        use crate::clients::event::{EventData, EventRoomResponse, HostEventData, PinEventData};
         use crate::db::class::MinigroupReadQuery;
         use crate::db::recording::{RecordingListQuery, Segments};
         use crate::test_helpers::prelude::*;
@@ -547,7 +562,6 @@ mod tests {
                     minigroup_scope,
                     USR_AUDIENCE.to_string(),
                     time.into(),
-                    agent1.account_id().to_owned(),
                     Uuid::new_v4(),
                     event_room_id,
                 )
@@ -606,32 +620,46 @@ mod tests {
             state
                 .event_client_mock()
                 .expect_list_events()
-                .withf(move |room_id: &Uuid, kind: &str| {
+                .withf(move |room_id: &Uuid, _kind: &str| {
                     assert_eq!(*room_id, modified_event_room_id);
-                    assert_eq!(kind, PIN_EVENT_TYPE);
                     true
                 })
-                .returning(move |_, _| {
-                    Ok(vec![
+                .returning(move |_, kind| match kind {
+                    PIN_EVENT_TYPE => Ok(vec![
                         EventBuilder::new()
                             .room_id(modified_event_room_id)
-                            .kind(PIN_EVENT_TYPE.to_string())
-                            .data(json!({ "agent_id": agent1.agent_id().to_string() }))
+                            .set(PIN_EVENT_TYPE.to_string())
+                            .data(EventData::Pin(PinEventData::new(
+                                agent1.agent_id().to_owned(),
+                            )))
                             .occurred_at(0)
                             .build(),
                         EventBuilder::new()
                             .room_id(modified_event_room_id)
-                            .kind(PIN_EVENT_TYPE.to_string())
-                            .data(json!({ "agent_id": agent2.agent_id().to_string() }))
+                            .set(PIN_EVENT_TYPE.to_string())
+                            .data(EventData::Pin(PinEventData::new(
+                                agent2.agent_id().to_owned(),
+                            )))
                             .occurred_at(1200000000000)
                             .build(),
                         EventBuilder::new()
                             .room_id(modified_event_room_id)
-                            .kind(PIN_EVENT_TYPE.to_string())
-                            .data(json!({ "agent_id": agent1.agent_id().to_string() }))
+                            .set(PIN_EVENT_TYPE.to_string())
+                            .data(EventData::Pin(PinEventData::new(
+                                agent1.agent_id().to_owned(),
+                            )))
                             .occurred_at(1500000000000)
                             .build(),
-                    ])
+                    ]),
+                    HOST_EVENT_TYPE => Ok(vec![EventBuilder::new()
+                        .room_id(modified_event_room_id)
+                        .set(HOST_EVENT_TYPE.to_string())
+                        .data(EventData::Host(HostEventData::new(
+                            agent1.agent_id().to_owned(),
+                        )))
+                        .occurred_at(0)
+                        .build()]),
+                    other => panic!("Event client mock got unknown kind: {}", other),
                 });
 
             // Set up tq client mock.
@@ -657,7 +685,7 @@ mod tests {
                             vec![(Bound::Included(600000), Bound::Excluded(900000))].into(),
                         ),
                 ],
-                host_stream_id: Some(recording1.rtc_id()),
+                host_stream_id: recording1.rtc_id(),
             };
 
             state
@@ -728,7 +756,6 @@ mod tests {
 
         use chrono::{Duration, Utc};
         use serde_json::json;
-        use svc_agent::AccountId;
         use uuid::Uuid;
 
         use crate::app::{AppContext, API_VERSION};
@@ -760,7 +787,6 @@ mod tests {
                     minigroup_scope,
                     USR_AUDIENCE.to_string(),
                     time.into(),
-                    AccountId::new("host", USR_AUDIENCE),
                     Uuid::new_v4(),
                     Uuid::new_v4(),
                 )
