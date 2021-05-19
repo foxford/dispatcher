@@ -15,6 +15,8 @@ before_cache:
     - find ./target/debug -type f -maxdepth 1 -delete
     - rm -rf ./target/debug/{deps,.fingerprint}/{*ra_*,*test*,*tools*,*gen_lsp*,*thread_worker*}
     - rm -f  ./target/.rustc_info.json
+    - rm -f ./target/sqlx/query-*.json
+    - rm -f ./target/debug/deps/dispatcher-*
 
 services:
   - docker
