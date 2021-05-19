@@ -3,10 +3,9 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use async_std::prelude::FutureExt;
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use serde_derive::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
-use sqlx::Acquire;
 use svc_agent::AccountId;
 use tide::{Request, Response};
 use uuid::Uuid;
@@ -15,13 +14,11 @@ use crate::app::authz::AuthzObject;
 use crate::app::error::ErrorExt;
 use crate::app::error::ErrorKind as AppErrorKind;
 use crate::app::AppContext;
-use crate::clients::{conference::ConferenceRoomResponse, event::EventRoomResponse};
 use crate::clients::{
     conference::RoomUpdate as ConfRoomUpdate, event::RoomUpdate as EventRoomUpdate,
 };
 use crate::db::class::BoundedDateTimeTuple;
 use crate::db::class::Object as Class;
-use crate::db::recording::Segments;
 
 use super::{extract_id, extract_param, validate_token, AppResult};
 
@@ -466,171 +463,6 @@ async fn update_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
     Ok(response)
 }
 
-#[derive(Deserialize)]
-struct WebinarConvertObject {
-    scope: String,
-    audience: String,
-    event_room_id: Uuid,
-    conference_room_id: Uuid,
-    #[serde(default, with = "crate::serde::ts_seconds_option_bound_tuple")]
-    time: Option<BoundedDateTimeTuple>,
-    tags: Option<serde_json::Value>,
-    original_event_room_id: Option<Uuid>,
-    modified_event_room_id: Option<Uuid>,
-    recording: Option<RecordingConvertObject>,
-}
-
-#[derive(Deserialize)]
-struct RecordingConvertObject {
-    stream_id: Uuid,
-    #[serde(deserialize_with = "crate::db::recording::serde::segments::deserialize")]
-    segments: Segments,
-    #[serde(deserialize_with = "crate::db::recording::serde::segments::deserialize")]
-    modified_segments: Segments,
-    uri: String,
-}
-
-pub async fn convert(req: Request<Arc<dyn AppContext>>) -> tide::Result {
-    convert_inner(req)
-        .await
-        .or_else(|e| Ok(e.to_tide_response()))
-}
-async fn convert_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
-    let body = req
-        .body_json::<WebinarConvertObject>()
-        .await
-        .error(AppErrorKind::InvalidPayload)?;
-
-    let account_id = validate_token(&req).error(AppErrorKind::Unauthorized)?;
-    let state = req.state();
-
-    let object = AuthzObject::new(&["classrooms"]).into();
-
-    state
-        .authz()
-        .authorize(
-            body.audience.clone(),
-            account_id.clone(),
-            object,
-            "convert".into(),
-        )
-        .await?;
-
-    let (time, tags) = match (body.time, body.tags) {
-        // if we have both time and tags - lets use them
-        (Some(t), Some(tags)) => (t, Some(tags)),
-        // otherwise we try to fetch room time from conference and event
-        _ => {
-            let conference_fut = req
-                .state()
-                .conference_client()
-                .read_room(body.conference_room_id);
-            let event_fut = req.state().event_client().read_room(body.event_room_id);
-            match event_fut.try_join(conference_fut).await {
-                // if we got times back correctly lets pick the overlap of event and conf times
-                Ok((
-                    EventRoomResponse {
-                        time: ev_time,
-                        tags,
-                        ..
-                    },
-                    ConferenceRoomResponse {
-                        time: conf_time, ..
-                    },
-                )) => (times_overlap(ev_time, conf_time), tags),
-                // if there was an error we actually dont care much about the time being correct
-                Err(_) => ((Bound::Unbounded, Bound::Unbounded), None),
-            }
-        }
-    };
-
-    let query = crate::db::class::WebinarInsertQuery::new(
-        body.scope,
-        body.audience,
-        time.into(),
-        body.conference_room_id,
-        body.event_room_id,
-    );
-
-    let query = if let Some(tags) = tags {
-        query.tags(tags)
-    } else {
-        query
-    };
-
-    let query = if let Some(id) = body.original_event_room_id {
-        query.original_event_room_id(id)
-    } else {
-        query
-    };
-
-    let query = if let Some(id) = body.modified_event_room_id {
-        query.modified_event_room_id(id)
-    } else {
-        query
-    };
-
-    let webinar = {
-        let mut conn = req
-            .state()
-            .get_conn()
-            .await
-            .error(AppErrorKind::DbConnAcquisitionFailed)?;
-
-        let mut txn = conn
-            .begin()
-            .await
-            .context("Failed to acquire transaction")
-            .error(AppErrorKind::DbQueryFailed)?;
-        let webinar = query
-            .execute(&mut txn)
-            .await
-            .context("Failed to find recording")
-            .error(AppErrorKind::DbQueryFailed)?;
-
-        if let Some(recording) = body.recording {
-            crate::db::recording::RecordingConvertInsertQuery::new(
-                webinar.id(),
-                recording.stream_id,
-                recording.segments,
-                recording.modified_segments,
-                recording.uri,
-                svc_agent::AgentId::new("portal", account_id),
-            )
-            .execute(&mut txn)
-            .await
-            .context("Failed to insert recording")
-            .error(AppErrorKind::DbQueryFailed)?;
-        }
-
-        let event_id = webinar
-            .modified_event_room_id()
-            .unwrap_or_else(|| webinar.event_room_id());
-        crate::app::services::update_classroom_id(
-            req.state().as_ref(),
-            webinar.id(),
-            event_id,
-            Some(webinar.conference_room_id()),
-        )
-        .await
-        .error(AppErrorKind::MqttRequestFailed)?;
-
-        txn.commit()
-            .await
-            .context("Convert transaction failed")
-            .error(AppErrorKind::DbQueryFailed)?;
-        webinar
-    };
-
-    let body = serde_json::to_string(&webinar)
-        .context("Failed to serialize webinar")
-        .error(AppErrorKind::SerializationFailed)?;
-
-    let response = Response::builder(201).body(body).build();
-
-    Ok(response)
-}
-
 async fn find_webinar(
     req: &Request<Arc<dyn AppContext>>,
 ) -> anyhow::Result<crate::db::class::Object> {
@@ -662,49 +494,11 @@ async fn find_webinar_by_scope(
     Ok(webinar)
 }
 
-fn extract_bound(t: Bound<DateTime<Utc>>) -> Option<DateTime<Utc>> {
-    match t {
-        Bound::Included(t) => Some(t),
-        Bound::Excluded(t) => Some(t),
-        Bound::Unbounded => None,
-    }
-}
-
-fn dt_options_cmp_max(a: Option<DateTime<Utc>>, b: Option<DateTime<Utc>>) -> Option<DateTime<Utc>> {
-    match (a, b) {
-        (Some(a), Some(b)) => Some(std::cmp::max(a, b)),
-        (Some(a), None) => Some(a),
-        (None, Some(b)) => Some(b),
-        (None, None) => None,
-    }
-}
-
-fn dt_options_cmp_min(a: Option<DateTime<Utc>>, b: Option<DateTime<Utc>>) -> Option<DateTime<Utc>> {
-    match (a, b) {
-        (Some(a), Some(b)) => Some(std::cmp::min(a, b)),
-        (Some(a), None) => Some(a),
-        (None, Some(b)) => Some(b),
-        (None, None) => None,
-    }
-}
-
-fn times_overlap(t1: BoundedDateTimeTuple, t2: BoundedDateTimeTuple) -> BoundedDateTimeTuple {
-    let st1 = extract_bound(t1.0);
-    let end1 = extract_bound(t1.1);
-    let st2 = extract_bound(t2.0);
-    let end2 = extract_bound(t2.1);
-
-    let st = dt_options_cmp_max(st1, st2);
-    let st = st.map(Bound::Included).unwrap_or(Bound::Unbounded);
-    let end = dt_options_cmp_min(end1, end2);
-    let end = end.map(Bound::Excluded).unwrap_or(Bound::Unbounded);
-
-    (st, end)
-}
-
+pub use convert::convert;
 pub use download::download;
 pub use recreate::recreate;
 
+mod convert;
 mod download;
 mod recreate;
 

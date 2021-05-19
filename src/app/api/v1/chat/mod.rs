@@ -123,6 +123,7 @@ async fn create_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
             body.tags.clone(),
         )
         .await
+        .map_err(|e| anyhow!("Failed to create event room, reason = {:?}", e))
         .context("Services requests")
         .error(AppErrorKind::MqttRequestFailed)?;
 
