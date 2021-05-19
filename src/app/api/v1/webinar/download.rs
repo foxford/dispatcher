@@ -12,9 +12,10 @@ pub async fn download(req: Request<Arc<dyn AppContext>>) -> tide::Result {
 
 async fn download_inner(req: Request<Arc<dyn AppContext>>) -> AppResult {
     let account_id = validate_token(&req).error(AppErrorKind::Unauthorized)?;
+    let id = extract_id(&req).error(AppErrorKind::InvalidParameter)?;
     let state = req.state();
 
-    let webinar = find_webinar(&req)
+    let webinar = find_webinar(state.as_ref(), id)
         .await
         .error(AppErrorKind::WebinarNotFound)?;
 

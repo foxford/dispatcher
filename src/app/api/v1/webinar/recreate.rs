@@ -1,3 +1,4 @@
+use super::update::WebinarUpdate;
 use super::*;
 
 use crate::app::api::v1::AppError;
@@ -14,9 +15,10 @@ async fn recreate_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
     let body: WebinarUpdate = req.body_json().await.error(AppErrorKind::InvalidPayload)?;
 
     let account_id = validate_token(&req).error(AppErrorKind::Unauthorized)?;
+    let id = extract_id(&req).error(AppErrorKind::InvalidParameter)?;
     let state = req.state();
 
-    let webinar = find_webinar(&req)
+    let webinar = find_webinar(state.as_ref(), id)
         .await
         .error(AppErrorKind::WebinarNotFound)?;
 

@@ -20,6 +20,7 @@ pub enum ErrorKind {
     AuthorizationFailed,
     DbConnAcquisitionFailed,
     DbQueryFailed,
+    InvalidParameter,
     InvalidPayload,
     MqttRequestFailed,
     SerializationFailed,
@@ -70,6 +71,12 @@ impl From<ErrorKind> for ErrorKindProperties {
                 kind: "database_query_failed",
                 title: "Database query failed",
                 is_notify_sentry: true,
+            },
+            ErrorKind::InvalidParameter => ErrorKindProperties {
+                status: ResponseStatus::BAD_REQUEST,
+                kind: "invalid_parameter",
+                title: "Invalid parameter",
+                is_notify_sentry: false,
             },
             ErrorKind::InvalidPayload => ErrorKindProperties {
                 status: ResponseStatus::BAD_REQUEST,

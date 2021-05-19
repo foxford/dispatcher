@@ -81,6 +81,11 @@ impl Object {
     pub fn reserve(&self) -> Option<i32> {
         self.reserve
     }
+
+    #[cfg(test)]
+    pub fn time(&self) -> &Time {
+        &self.time
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
