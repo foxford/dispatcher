@@ -13,7 +13,7 @@ addons:
 cache: cargo
 before_cache:
     - find ./target/debug -type f -maxdepth 1 -delete
-    - rm -f ./target/debug/{deps,.fingerprint}/{dispatcher-*,*serde_test*}
+    - rm -fr ./target/debug/{deps,.fingerprint}/{dispatcher-*,*serde_test*}
     - rm -f  ./target/.rustc_info.json
     - rm -f ./target/sqlx/query-*.json
 
