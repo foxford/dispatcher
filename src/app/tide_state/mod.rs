@@ -66,10 +66,10 @@ impl TideState {
         Self {
             db_pool,
             config,
+            agent,
             conference_client,
             event_client,
             tq_client,
-            agent,
             authz,
         }
     }

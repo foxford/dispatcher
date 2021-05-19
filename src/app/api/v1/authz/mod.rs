@@ -364,10 +364,7 @@ fn extract_audience_and_scope(set_id: &str) -> Option<AudienceScope> {
 }
 
 fn extract_rtc_id(set_id: &str) -> Option<&str> {
-    match set_id.find("::") {
-        Some(idx) => Some(&set_id[idx + 2..]),
-        None => None,
-    }
+    set_id.find("::").and_then(|idx| set_id.get(idx + 2..))
 }
 
 #[test]

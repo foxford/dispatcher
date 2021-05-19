@@ -306,10 +306,10 @@ impl EventClient for MqttEventClient {
         let reqp = self.build_reqp("room.create")?;
 
         let payload = EventRoomPayload {
-            time,
             audience,
-            tags,
+            time,
             preserve_history,
+            tags,
         };
         let msg = if let OutgoingMessage::Request(msg) =
             OutgoingRequest::multicast(payload, reqp, &self.event_account_id, &self.api_version)
