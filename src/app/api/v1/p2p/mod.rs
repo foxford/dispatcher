@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result as AnyResult};
 use async_std::prelude::FutureExt;
+use chrono::Utc;
 use serde_derive::{Deserialize, Serialize};
 use tide::{Request, Response};
 use uuid::Uuid;
@@ -123,7 +124,7 @@ async fn create_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
         .await?;
 
     let conference_fut = req.state().conference_client().create_room(
-        (Bound::Unbounded, Bound::Unbounded),
+        (Bound::Included(Utc::now()), Bound::Unbounded),
         body.audience.clone(),
         None,
         None,
