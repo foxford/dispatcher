@@ -68,6 +68,7 @@ pub struct WebinarInsertQuery {
     original_event_room_id: Option<Uuid>,
     modified_event_room_id: Option<Uuid>,
     reserve: Option<i32>,
+    room_events_uri: Option<String>,
 }
 
 impl WebinarInsertQuery {
@@ -89,6 +90,7 @@ impl WebinarInsertQuery {
             original_event_room_id: None,
             modified_event_room_id: None,
             reserve: None,
+            room_events_uri: None,
         }
     }
 
@@ -129,9 +131,9 @@ impl WebinarInsertQuery {
             INSERT INTO class (
                 scope, audience, time, tags, preserve_history, kind,
                 conference_room_id, event_room_id,
-                original_event_room_id, modified_event_room_id, reserve
+                original_event_room_id, modified_event_room_id, reserve, room_events_uri
             )
-            VALUES ($1, $2, $3, $4, $5, $6::class_type, $7, $8, $9, $10, $11)
+            VALUES ($1, $2, $3, $4, $5, $6::class_type, $7, $8, $9, $10, $11, $12)
             RETURNING
                 id,
                 scope,
@@ -145,7 +147,8 @@ impl WebinarInsertQuery {
                 conference_room_id,
                 original_event_room_id,
                 modified_event_room_id,
-                reserve
+                reserve,
+                room_events_uri
             "#,
             self.scope,
             self.audience,
@@ -158,6 +161,7 @@ impl WebinarInsertQuery {
             self.original_event_room_id,
             self.modified_event_room_id,
             self.reserve,
+            self.room_events_uri,
         )
         .fetch_one(conn)
         .await
@@ -196,7 +200,8 @@ impl WebinarTimeUpdateQuery {
                 conference_room_id,
                 original_event_room_id,
                 modified_event_room_id,
-                reserve
+                reserve,
+                room_events_uri
             "#,
             self.id,
             time,
@@ -245,7 +250,8 @@ impl WebinarRecreateQuery {
                 conference_room_id,
                 original_event_room_id,
                 modified_event_room_id,
-                reserve
+                reserve,
+                room_events_uri
             "#,
             self.id,
             time,

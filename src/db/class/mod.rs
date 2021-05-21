@@ -39,6 +39,7 @@ pub struct Object {
     modified_event_room_id: Option<Uuid>,
     preserve_history: bool,
     reserve: Option<i32>,
+    room_events_uri: Option<String>,
 }
 
 impl Object {
@@ -187,6 +188,35 @@ impl ReadQuery {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+pub struct UpdateDumpEventsQuery {
+    modified_event_room_id: Uuid,
+    room_events_uri: String,
+}
+
+impl UpdateDumpEventsQuery {
+    pub fn new(modified_event_room_id: Uuid, room_events_uri: String) -> Self {
+        Self {
+            modified_event_room_id,
+            room_events_uri,
+        }
+    }
+
+    pub async fn execute(self, conn: &mut PgConnection) -> sqlx::Result<()> {
+        sqlx::query!(
+            r"
+                UPDATE class
+                SET room_events_uri = $1
+                WHERE modified_event_room_id = $2
+            ",
+            self.room_events_uri,
+            self.modified_event_room_id,
+        )
+        .execute(conn)
+        .await?;
+        Ok(())
+    }
+}
+
 pub struct UpdateQuery {
     id: Uuid,
     original_event_room_id: Uuid,
@@ -223,7 +253,8 @@ impl UpdateQuery {
                 conference_room_id,
                 original_event_room_id,
                 modified_event_room_id,
-                reserve
+                reserve,
+                room_events_uri
             "#,
             self.id,
             self.original_event_room_id,
