@@ -105,8 +105,8 @@ impl super::PostprocessingStrategy for WebinarPostprocessingStrategy {
                 self.ctx
                     .event_client()
                     .dump_room(modified_room_id)
-                    .await?
-                    .context("Dump room event failed");
+                    .await
+                    .context("Dump room event failed")?;
                 self.ctx
                     .tq_client()
                     .create_task(
