@@ -195,9 +195,9 @@ impl MessageHandler {
     async fn handle_dump_events(&self, data: IncomingEvent<String>) -> Result<()> {
         let payload = data.extract_payload();
         let dump_events: DumpEvents = serde_json::from_str(&payload)?;
-        let mut conn = self.ctx.get_conn().await?;
         match dump_events.result {
             DumpEventsResult::Success { room_id, s3_uri } => {
+                let mut conn = self.ctx.get_conn().await?;
                 crate::db::class::UpdateDumpEventsQuery::new(room_id, s3_uri)
                     .execute(&mut conn)
                     .await?;
