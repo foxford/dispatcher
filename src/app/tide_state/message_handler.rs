@@ -75,7 +75,7 @@ impl MessageHandler {
                 .handle_transcoding_completion(data, audience)
                 .await
                 .error(AppErrorKind::TranscodingFlowFailed),
-            Some("room.dumps_events") => self
+            Some("room.dump_events") => self
                 .handle_dump_events(data)
                 .await
                 .error(AppErrorKind::TranscodingFlowFailed),

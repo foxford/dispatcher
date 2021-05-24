@@ -514,7 +514,7 @@ impl EventClient for MqttEventClient {
     }
 
     async fn dump_room(&self, room_id: Uuid) -> Result<(), ClientError> {
-        let reqp = self.build_reqp("room.dumps_events")?;
+        let reqp = self.build_reqp("room.dump_events")?;
         let payload = EventDumpEventsPayload { id: room_id };
         let msg = if let OutgoingMessage::Request(msg) =
             OutgoingRequest::multicast(payload, reqp, &self.event_account_id, &self.api_version)
