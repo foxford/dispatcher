@@ -87,6 +87,10 @@ impl Object {
     pub fn time(&self) -> &Time {
         &self.time
     }
+
+    pub fn room_events_uri(&self) -> Option<&String> {
+        self.room_events_uri.as_ref()
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
