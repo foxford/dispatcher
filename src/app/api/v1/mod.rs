@@ -26,8 +26,15 @@ where
     S: Clone + Send + Sync + 'static,
 {
     async fn call(&self, req: tide::Request<S>) -> tide::Result {
-        let resp = (self.0)(req).await.or_else(|e| Ok(e.to_tide_response()));
-        resp
+        let resp = (self.0)(req).await;
+        Ok(match resp {
+            Ok(resp) => resp,
+            Err(err) => {
+                let mut tide_resp = err.to_tide_response();
+                tide_resp.set_error(err);
+                tide_resp
+            }
+        })
     }
 }
 

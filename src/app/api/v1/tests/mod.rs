@@ -1,7 +1,10 @@
+use std::pin::Pin;
+
+use http::StatusCode;
 use tide::http::{Method, Request, Url};
 
 use super::*;
-use crate::test_helpers::prelude::*;
+use crate::{app::error::ErrorKind, test_helpers::prelude::*};
 
 #[async_std::test]
 async fn test_healthz() {
@@ -19,6 +22,38 @@ async fn test_healthz() {
         .await
         .expect("Failed to get body");
     assert_eq!(body, "Ok");
+}
+
+#[async_std::test]
+async fn response_error_should_visible_in_middlewares() {
+    fn middleware<'a>(
+        request: tide::Request<()>,
+        next: tide::Next<'a, ()>,
+    ) -> Pin<Box<dyn Future<Output = tide::Result> + Send + 'a>> {
+        Box::pin(async {
+            let resp = next.run(request).await;
+            if resp
+                .error()
+                .and_then(|err| err.downcast_ref::<AppError>())
+                .is_some()
+            {
+                Ok(Response::new(200))
+            } else {
+                Ok(Response::new(500))
+            }
+        })
+    }
+
+    let mut app = tide::with_state(());
+    app.at("/").get(AppEndpoint(|_| async {
+        Err(AppError::new(ErrorKind::AccessDenied, anyhow!("err")))
+    }));
+    app.with(middleware);
+    async_std::task::spawn(app.listen("127.0.0.1:5674"));
+
+    let response = isahc::get_async("127.0.0.1:5674").await.unwrap().status();
+
+    assert_eq!(response, StatusCode::OK);
 }
 
 #[async_std::test]
