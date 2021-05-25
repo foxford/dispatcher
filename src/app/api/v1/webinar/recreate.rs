@@ -5,13 +5,7 @@ use crate::app::api::v1::AppError;
 use crate::db::class::Object as WebinarObject;
 use sqlx::Acquire;
 
-pub async fn recreate(req: Request<Arc<dyn AppContext>>) -> tide::Result {
-    recreate_inner(req)
-        .await
-        .or_else(|e| Ok(e.to_tide_response()))
-}
-
-async fn recreate_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
+pub async fn recreate(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
     let body: WebinarUpdate = req.body_json().await.error(AppErrorKind::InvalidPayload)?;
 
     let account_id = validate_token(&req).error(AppErrorKind::Unauthorized)?;

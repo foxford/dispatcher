@@ -42,10 +42,7 @@ struct Object {
     value: Vec<String>,
 }
 
-pub async fn proxy(req: Request<Arc<dyn AppContext>>) -> tide::Result {
-    proxy_inner(req).await.or_else(|e| Ok(e.to_tide_response()))
-}
-async fn proxy_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
+pub async fn proxy(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
     let request_audience = extract_param(&req, "audience")
         .error(AppErrorKind::InvalidPayload)?
         .to_owned();

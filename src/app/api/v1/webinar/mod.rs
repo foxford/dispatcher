@@ -85,10 +85,7 @@ impl From<Class> for WebinarObject {
     }
 }
 
-pub async fn read(req: Request<Arc<dyn AppContext>>) -> tide::Result {
-    read_inner(req).await.or_else(|e| Ok(e.to_tide_response()))
-}
-async fn read_inner(req: Request<Arc<dyn AppContext>>) -> AppResult {
+pub async fn read(req: Request<Arc<dyn AppContext>>) -> AppResult {
     let account_id = validate_token(&req).error(AppErrorKind::Unauthorized)?;
     let state = req.state();
     let id = extract_id(&req).error(AppErrorKind::InvalidParameter)?;
@@ -161,12 +158,7 @@ async fn read_inner(req: Request<Arc<dyn AppContext>>) -> AppResult {
     Ok(response)
 }
 
-pub async fn read_by_scope(req: Request<Arc<dyn AppContext>>) -> tide::Result {
-    read_by_scope_inner(req)
-        .await
-        .or_else(|e| Ok(e.to_tide_response()))
-}
-async fn read_by_scope_inner(req: Request<Arc<dyn AppContext>>) -> AppResult {
+pub async fn read_by_scope(req: Request<Arc<dyn AppContext>>) -> AppResult {
     let state = req.state();
     let audience = extract_param(&req, "audience").error(AppErrorKind::InvalidParameter)?;
     let scope = extract_param(&req, "scope").error(AppErrorKind::InvalidParameter)?;

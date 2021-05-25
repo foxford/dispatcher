@@ -4,13 +4,7 @@ use crate::config::StorageConfig;
 use crate::db::class::Object as Class;
 use crate::db::recording::Object as Recording;
 
-pub async fn download(req: Request<Arc<dyn AppContext>>) -> tide::Result {
-    download_inner(req)
-        .await
-        .or_else(|e| Ok(e.to_tide_response()))
-}
-
-async fn download_inner(req: Request<Arc<dyn AppContext>>) -> AppResult {
+pub async fn download(req: Request<Arc<dyn AppContext>>) -> AppResult {
     let account_id = validate_token(&req).error(AppErrorKind::Unauthorized)?;
     let id = extract_id(&req).error(AppErrorKind::InvalidParameter)?;
     let state = req.state();
