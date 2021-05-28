@@ -44,19 +44,15 @@ impl From<Class> for P2PObject {
     }
 }
 
-pub async fn read(req: Request<Arc<dyn AppContext>>) -> tide::Result {
-    read_inner(&req, find_p2p(&req))
-        .await
-        .or_else(|e| Ok(e.to_tide_response()))
+pub async fn read_p2p(req: Request<Arc<dyn AppContext>>) -> AppResult {
+    read(&req, find_p2p(&req)).await
 }
 
-pub async fn read_by_scope(req: Request<Arc<dyn AppContext>>) -> tide::Result {
-    read_inner(&req, find_p2p_by_scope(&req))
-        .await
-        .or_else(|e| Ok(e.to_tide_response()))
+pub async fn read_by_scope(req: Request<Arc<dyn AppContext>>) -> AppResult {
+    read(&req, find_p2p_by_scope(&req)).await
 }
 
-async fn read_inner(
+pub async fn read(
     req: &Request<Arc<dyn AppContext>>,
     finder: impl Future<Output = AnyResult<Class>>,
 ) -> AppResult {
@@ -100,12 +96,7 @@ struct P2P {
     tags: Option<serde_json::Value>,
 }
 
-pub async fn create(req: Request<Arc<dyn AppContext>>) -> tide::Result {
-    create_inner(req)
-        .await
-        .or_else(|e| Ok(e.to_tide_response()))
-}
-async fn create_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
+pub async fn create(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
     let body: P2P = req.body_json().await.error(AppErrorKind::InvalidPayload)?;
 
     let account_id = validate_token(&req).error(AppErrorKind::Unauthorized)?;
@@ -195,12 +186,7 @@ struct P2PConvertObject {
     tags: Option<serde_json::Value>,
 }
 
-pub async fn convert(req: Request<Arc<dyn AppContext>>) -> tide::Result {
-    convert_inner(req)
-        .await
-        .or_else(|e| Ok(e.to_tide_response()))
-}
-async fn convert_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
+pub async fn convert(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
     let body = req
         .body_json::<P2PConvertObject>()
         .await

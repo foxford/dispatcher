@@ -44,13 +44,7 @@ struct RecordingConvertObject {
     uri: String,
 }
 
-pub async fn convert(req: Request<Arc<dyn AppContext>>) -> tide::Result {
-    convert_inner(req)
-        .await
-        .or_else(|e| Ok(e.to_tide_response()))
-}
-
-async fn convert_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
+pub async fn convert(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
     let account_id = validate_token(&req).error(AppErrorKind::Unauthorized)?;
     let body = req.body_json().await.error(AppErrorKind::InvalidPayload)?;
     let state = req.state();

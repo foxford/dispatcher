@@ -134,13 +134,13 @@ impl From<ErrorKind> for ErrorKindProperties {
 
 pub struct Error {
     kind: ErrorKind,
-    source: Box<dyn AsRef<dyn StdError + Send + Sync + 'static> + Send + 'static>,
+    source: Box<dyn AsRef<dyn StdError + Send + Sync + 'static> + Send + Sync + 'static>,
 }
 
 impl Error {
     pub fn new<E>(kind: ErrorKind, source: E) -> Self
     where
-        E: AsRef<dyn StdError + Send + Sync + 'static> + Send + 'static,
+        E: AsRef<dyn StdError + Send + Sync + 'static> + Send + Sync + 'static,
     {
         Self {
             kind,
@@ -218,7 +218,7 @@ pub trait ErrorExt<T> {
     fn error(self, kind: ErrorKind) -> Result<T, Error>;
 }
 
-impl<T, E: AsRef<dyn StdError + Send + Sync + 'static> + Send + 'static> ErrorExt<T>
+impl<T, E: AsRef<dyn StdError + Send + Sync + 'static> + Send + Sync + 'static> ErrorExt<T>
     for Result<T, E>
 {
     fn error(self, kind: ErrorKind) -> Result<T, Error> {

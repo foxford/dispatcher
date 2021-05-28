@@ -28,13 +28,7 @@ struct WebinarCreatePayload {
     locked_chat: bool,
 }
 
-pub async fn create(req: Request<Arc<dyn AppContext>>) -> tide::Result {
-    create_inner(req)
-        .await
-        .or_else(|e| Ok(e.to_tide_response()))
-}
-
-async fn create_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
+pub async fn create(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
     let account_id = validate_token(&req).error(AppErrorKind::Unauthorized)?;
     let body = req.body_json().await.error(AppErrorKind::InvalidPayload)?;
     let state = req.state();

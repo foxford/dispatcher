@@ -39,19 +39,15 @@ impl From<Chat> for ChatObject {
     }
 }
 
-pub async fn read(req: Request<Arc<dyn AppContext>>) -> tide::Result {
-    read_inner(&req, find_chat(&req))
-        .await
-        .or_else(|e| Ok(e.to_tide_response()))
+pub async fn read_chat(req: Request<Arc<dyn AppContext>>) -> AppResult {
+    read(&req, find_chat(&req)).await
 }
 
-pub async fn read_by_scope(req: Request<Arc<dyn AppContext>>) -> tide::Result {
-    read_inner(&req, find_chat_by_scope(&req))
-        .await
-        .or_else(|e| Ok(e.to_tide_response()))
+pub async fn read_by_scope(req: Request<Arc<dyn AppContext>>) -> AppResult {
+    read(&req, find_chat_by_scope(&req)).await
 }
 
-async fn read_inner(
+async fn read(
     req: &Request<Arc<dyn AppContext>>,
     finder: impl Future<Output = AnyResult<Chat>>,
 ) -> AppResult {
@@ -90,12 +86,7 @@ struct ChatPayload {
     tags: Option<serde_json::Value>,
 }
 
-pub async fn create(req: Request<Arc<dyn AppContext>>) -> tide::Result {
-    create_inner(req)
-        .await
-        .or_else(|e| Ok(e.to_tide_response()))
-}
-async fn create_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
+pub async fn create(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
     let body: ChatPayload = req.body_json().await.error(AppErrorKind::InvalidPayload)?;
 
     let account_id = validate_token(&req).error(AppErrorKind::Unauthorized)?;
@@ -172,12 +163,7 @@ struct ChatConvertObject {
     tags: Option<serde_json::Value>,
 }
 
-pub async fn convert(req: Request<Arc<dyn AppContext>>) -> tide::Result {
-    convert_inner(req)
-        .await
-        .or_else(|e| Ok(e.to_tide_response()))
-}
-async fn convert_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
+pub async fn convert(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
     let body = req
         .body_json::<ChatConvertObject>()
         .await

@@ -48,10 +48,7 @@ impl From<&Class> for MinigroupObject {
     }
 }
 
-pub async fn read(req: Request<Arc<dyn AppContext>>) -> tide::Result {
-    read_inner(req).await.or_else(|e| Ok(e.to_tide_response()))
-}
-async fn read_inner(req: Request<Arc<dyn AppContext>>) -> AppResult {
+pub async fn read(req: Request<Arc<dyn AppContext>>) -> AppResult {
     let account_id = validate_token(&req).error(AppErrorKind::Unauthorized)?;
     let state = req.state();
 
@@ -79,12 +76,7 @@ async fn read_inner(req: Request<Arc<dyn AppContext>>) -> AppResult {
     Ok(response)
 }
 
-pub async fn read_by_scope(req: Request<Arc<dyn AppContext>>) -> tide::Result {
-    read_by_scope_inner(req)
-        .await
-        .or_else(|e| Ok(e.to_tide_response()))
-}
-async fn read_by_scope_inner(req: Request<Arc<dyn AppContext>>) -> AppResult {
+pub async fn read_by_scope(req: Request<Arc<dyn AppContext>>) -> AppResult {
     let state = req.state();
     let account_id = validate_token(&req).error(AppErrorKind::Unauthorized)?;
 
@@ -130,13 +122,7 @@ struct MinigroupCreatePayload {
     locked_chat: bool,
 }
 
-pub async fn create(req: Request<Arc<dyn AppContext>>) -> tide::Result {
-    create_inner(req)
-        .await
-        .or_else(|e| Ok(e.to_tide_response()))
-}
-
-async fn create_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
+pub async fn create(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
     let account_id = validate_token(&req).error(AppErrorKind::Unauthorized)?;
     let body = req.body_json().await.error(AppErrorKind::InvalidPayload)?;
     let state = req.state();
@@ -254,12 +240,7 @@ struct MinigroupUpdate {
     time: Option<BoundedDateTimeTuple>,
 }
 
-pub async fn update(req: Request<Arc<dyn AppContext>>) -> tide::Result {
-    update_inner(req)
-        .await
-        .or_else(|e| Ok(e.to_tide_response()))
-}
-async fn update_inner(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
+pub async fn update(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
     let body: MinigroupUpdate = req.body_json().await.error(AppErrorKind::InvalidPayload)?;
 
     let account_id = validate_token(&req).error(AppErrorKind::Unauthorized)?;

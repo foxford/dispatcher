@@ -1,19 +1,42 @@
 use std::str::FromStr;
 use std::sync::Arc;
 
+use crate::app::AppContext;
 use anyhow::Context;
+use async_trait::async_trait;
+use futures::Future;
 use percent_encoding::{percent_encode, NON_ALPHANUMERIC};
 use serde_derive::Deserialize;
 use svc_agent::AccountId;
-use tide::{Request, Response};
+use tide::{Endpoint, Request, Response};
 use uuid::Uuid;
-
-use crate::app::AppContext;
 
 use super::FEATURE_POLICY;
 
 type AppError = crate::app::error::Error;
 type AppResult = Result<tide::Response, AppError>;
+
+pub struct AppEndpoint<E>(pub E);
+
+#[async_trait]
+impl<E, S, F> Endpoint<S> for AppEndpoint<E>
+where
+    E: Fn(tide::Request<S>) -> F + Send + Sync + 'static,
+    F: Future<Output = AppResult> + Send + 'static,
+    S: Clone + Send + Sync + 'static,
+{
+    async fn call(&self, req: tide::Request<S>) -> tide::Result {
+        let resp = (self.0)(req).await;
+        Ok(match resp {
+            Ok(resp) => resp,
+            Err(err) => {
+                let mut tide_resp = err.to_tide_response();
+                tide_resp.set_error(err);
+                tide_resp
+            }
+        })
+    }
+}
 
 pub async fn healthz(_req: Request<Arc<dyn AppContext>>) -> tide::Result {
     Ok("Ok".into())
