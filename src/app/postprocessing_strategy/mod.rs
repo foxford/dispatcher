@@ -31,6 +31,7 @@ pub(crate) fn get(
 
 #[async_trait]
 pub(crate) trait PostprocessingStrategy {
+    async fn handle_dumps_upload(&self, rtcs: Vec<RtcUploadResult>) -> Result<()>;
     async fn handle_upload(&self, rtcs: Vec<RtcUploadResult>) -> Result<()>;
     async fn handle_adjust(&self, room_adjust_result: RoomAdjustResult) -> Result<()>;
 
@@ -59,6 +60,7 @@ pub(crate) struct RtcUploadReadyData {
     #[serde(deserialize_with = "crate::db::recording::serde::segments::deserialize")]
     pub(self) segments: Segments,
     pub(self) created_by: AgentId,
+    pub(self) dumps_uris: Option<Vec<String>>,
 }
 
 #[derive(Debug, Deserialize)]

@@ -33,6 +33,12 @@ pub enum Task {
         streams: Vec<TranscodeMinigroupToHlsStream>,
         host_stream_id: Uuid,
     },
+    ConvertDumps {
+        dumps_uris: Vec<String>,
+        stream_uri: String,
+        class_id: Uuid,
+        rtc_id: Uuid,
+    },
 }
 
 impl Task {
@@ -40,6 +46,7 @@ impl Task {
         match self {
             Self::TranscodeStreamToHls { .. } => "transcode-stream-to-hls",
             Self::TranscodeMinigroupToHls { .. } => "transcode-minigroup-to-hls",
+            Self::ConvertDumps { .. } => "convert-dumps",
         }
     }
 }
@@ -114,7 +121,7 @@ pub enum TaskCompleteResult {
 }
 
 impl From<TaskComplete> for TaskCompleteResult {
-    fn from(task_complete: TaskComplete) -> Self {
+    fn from(task_copmlete: TaskComplete) -> Self {
         task_complete.result
     }
 }
