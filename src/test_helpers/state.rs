@@ -149,6 +149,14 @@ impl AppContext for TestState {
     fn storage_config(&self) -> &StorageConfig {
         &self.config.storage
     }
+
+    fn config(&self) -> &Config {
+        &self.config
+    }
+
+    fn agent(&self) -> Option<&svc_agent::mqtt::Agent> {
+        None
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

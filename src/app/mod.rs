@@ -6,13 +6,14 @@ use futures::StreamExt;
 use signal_hook::consts::TERM_SIGNALS;
 use sqlx::postgres::PgPool;
 use svc_agent::{
-    mqtt::{AgentBuilder, AgentNotification, ConnectionMode, IncomingMessage, QoS},
+    mqtt::{Agent, AgentBuilder, AgentNotification, ConnectionMode, IncomingMessage, QoS},
     request::Dispatcher,
     AgentId, Authenticable, SharedGroup, Subscription,
 };
 use svc_authn::token::jws_compact;
 use svc_authz::cache::AuthzCache;
 use svc_authz::ClientMap as Authz;
+use svc_error::{extension::sentry, Error as SvcError};
 use tide::http::headers::HeaderValue;
 use tide::security::{CorsMiddleware, Origin};
 
@@ -121,6 +122,16 @@ pub async fn run(db: PgPool, authz_cache: Option<Box<dyn AuthzCache>>) -> Result
                     }
                     AgentNotification::Reconnection => {
                         error!(crate::LOG, "Reconnected to broker");
+
+                        resubscribe(
+                            &mut message_handler_
+                                .ctx()
+                                .agent()
+                                .expect("Cant disconnect without agent")
+                                .to_owned(),
+                            message_handler_.ctx().agent_id(),
+                            message_handler_.ctx().config(),
+                        );
                     }
                     AgentNotification::Puback(_) => (),
                     AgentNotification::Pubrec(_) => (),
@@ -135,6 +146,32 @@ pub async fn run(db: PgPool, authz_cache: Option<Box<dyn AuthzCache>>) -> Result
         }
     });
 
+    subscribe(&mut agent, &agent_id, &config).expect("Failed to subscribe to required topics");
+
+    let mut app = tide::with_state(state);
+    app.with(request_logger::LogMiddleware::new());
+    bind_redirects_routes(&mut app);
+    bind_webinars_routes(&mut app);
+    bind_p2p_routes(&mut app);
+    bind_minigroups_routes(&mut app);
+    bind_chat_routes(&mut app);
+    bind_authz_routes(&mut app);
+
+    let app_future = app.listen(config.http.listener_address);
+    pin_utils::pin_mut!(app_future);
+    let mut signals_stream = signal_hook_async_std::Signals::new(TERM_SIGNALS)?.fuse();
+    let signals = signals_stream.next();
+
+    futures::future::select(app_future, signals).await;
+
+    // sleep for 2 secs to finish requests
+    // this is very primitive way of waiting for them but
+    // neither tide nor svc-agent (rumqtt) support graceful shutdowns
+    async_std::task::sleep(Duration::from_secs(2)).await;
+    Ok(())
+}
+
+fn subscribe(agent: &mut Agent, agent_id: &AgentId, config: &Config) -> Result<()> {
     agent
         .subscribe(&Subscription::unicast_requests(), QoS::AtMostOnce, None)
         .context("Error subscribing to unicast requests")?;
@@ -179,27 +216,22 @@ pub async fn run(db: PgPool, authz_cache: Option<Box<dyn AuthzCache>>) -> Result
             .context("Error subscribing to app's tq topic")?;
     }
 
-    let mut app = tide::with_state(state);
-    app.with(request_logger::LogMiddleware::new());
-    bind_redirects_routes(&mut app);
-    bind_webinars_routes(&mut app);
-    bind_p2p_routes(&mut app);
-    bind_minigroups_routes(&mut app);
-    bind_chat_routes(&mut app);
-    bind_authz_routes(&mut app);
-
-    let app_future = app.listen(config.http.listener_address);
-    pin_utils::pin_mut!(app_future);
-    let mut signals_stream = signal_hook_async_std::Signals::new(TERM_SIGNALS)?.fuse();
-    let signals = signals_stream.next();
-
-    futures::future::select(app_future, signals).await;
-
-    // sleep for 2 secs to finish requests
-    // this is very primitive way of waiting for them but
-    // neither tide nor svc-agent (rumqtt) support graceful shutdowns
-    async_std::task::sleep(Duration::from_secs(2)).await;
     Ok(())
+}
+
+fn resubscribe(agent: &mut Agent, agent_id: &AgentId, config: &Config) {
+    if let Err(err) = subscribe(agent, agent_id, config) {
+        let err = format!("Failed to resubscribe after reconnection: {:?}", err);
+        error!(crate::LOG, "{:?}", err);
+
+        let svc_error = SvcError::builder()
+            .kind("resubscription_error", "Resubscription error")
+            .detail(&err)
+            .build();
+
+        sentry::send(svc_error)
+            .unwrap_or_else(|err| warn!(crate::LOG, "Error sending error to Sentry: {:?}", err));
+    }
 }
 
 fn bind_redirects_routes(app: &mut tide::Server<Arc<dyn AppContext>>) {

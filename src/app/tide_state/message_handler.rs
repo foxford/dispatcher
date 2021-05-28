@@ -27,6 +27,10 @@ impl MessageHandler {
         Self { ctx, dispatcher }
     }
 
+    pub fn ctx(&self) -> &dyn AppContext {
+        self.ctx.as_ref()
+    }
+
     pub async fn handle_response(&self, data: IncomingResponse<String>) {
         match IncomingResponse::convert::<JsonValue>(data) {
             Ok(message) => {
