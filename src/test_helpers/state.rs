@@ -12,7 +12,7 @@ use svc_agent::{
 };
 use svc_authn::{token::jws_compact::extract::parse_jws_compact, Error as AuthnError};
 use svc_authz::ClientMap as Authz;
-use tide::http::url::Url;
+use url::Url;
 
 use crate::app::{AppContext, Publisher};
 use crate::clients::conference::{ConferenceClient, MockConferenceClient};
@@ -20,10 +20,9 @@ use crate::clients::event::{EventClient, MockEventClient};
 use crate::clients::tq::{MockTqClient, TqClient};
 use crate::config::{Config, StorageConfig};
 
-use super::agent::TestAgent;
-use super::authz::TestAuthz;
 use super::db::TestDb;
 use super::outgoing_envelope::OutgoingEnvelope;
+use super::{agent::TestAgent, prelude::TestAuthz};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,7 +40,7 @@ pub struct TestState {
 
 impl TestState {
     pub async fn new(authz: TestAuthz) -> Self {
-        let config = crate::config::load().expect("Failed to load config");
+        let config = crate::config::load("App.sample.toml").expect("Failed to load config");
 
         let agent = TestAgent::new(&config.agent_label, config.id.label(), config.id.audience());
 
@@ -60,7 +59,7 @@ impl TestState {
     }
 
     pub fn new_with_pool(db_pool: TestDb, authz: TestAuthz) -> Self {
-        let config = crate::config::load().expect("Failed to load config");
+        let config = crate::config::load("App.sample.toml").expect("Failed to load config");
 
         let agent = TestAgent::new(&config.agent_label, config.id.label(), config.id.audience());
 

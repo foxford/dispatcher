@@ -443,9 +443,9 @@ mod tests {
         use chrono::{DateTime, Duration, Utc};
         use uuid::Uuid;
 
-        use crate::app::AppContext;
         use crate::db::recording::{RecordingListQuery, Segments};
         use crate::test_helpers::prelude::*;
+        use crate::{app::AppContext, test_helpers::db::LocalPostgres};
 
         use super::super::super::{
             MjrDumpsUploadReadyData, MjrDumpsUploadResult, PostprocessingStrategy,
@@ -454,8 +454,13 @@ mod tests {
 
         #[async_std::test]
         async fn handle_upload_stream() {
+            let postgres = LocalPostgres::new();
+            let handle = postgres.run();
             let now = Utc::now();
-            let mut state = TestState::new(TestAuthz::new()).await;
+            let mut state = TestState::new_with_pool(
+                TestDb::new_with_local_postgres(&handle).await,
+                TestAuthz::new(),
+            );
             let conference_room_id = Uuid::new_v4();
             let event_room_id = Uuid::new_v4();
 
@@ -480,18 +485,18 @@ mod tests {
                 .insert(&mut conn)
                 .await
             };
+            let rtc1_id = Uuid::new_v4();
+            let rtc2_id = Uuid::new_v4();
             let minigroup_id = minigroup.id();
 
             {
                 let mut conn = state.get_conn().await.expect("Failed to get conn");
-                let rtc1_id = Uuid::new_v4();
                 let agent1 = TestAgent::new("web", "user1", USR_AUDIENCE);
 
                 factory::Recording::new(minigroup_id, rtc1_id, agent1.agent_id().clone())
                     .insert(&mut conn)
                     .await;
 
-                let rtc2_id = Uuid::new_v4();
                 let agent2 = TestAgent::new("web", "user2", USR_AUDIENCE);
                 factory::Recording::new(minigroup_id, rtc2_id, agent2.agent_id().clone())
                     .insert(&mut conn)
@@ -520,7 +525,6 @@ mod tests {
                 .returning(|_, _, _, _| Ok(()));
 
             // Handle uploading two RTCs.
-            let rtc1_id = Uuid::new_v4();
             let uri1 = "s3://minigroup.origin.dev.example.com/rtc1.webm";
             let started_at1 = now - Duration::hours(1);
             let agent1 = TestAgent::new("web", "user1", USR_AUDIENCE);
@@ -538,7 +542,6 @@ mod tests {
                 segments: segments1.clone(),
             };
 
-            let rtc2_id = Uuid::new_v4();
             let uri2 = "s3://minigroup.origin.dev.example.com/rtc2.webm";
             let started_at2 = now - Duration::minutes(50);
             let segments2: Segments = vec![(Bound::Included(0), Bound::Excluded(2700000))].into();
@@ -617,8 +620,13 @@ mod tests {
 
         #[async_std::test]
         async fn handle_upload_mjr() {
+            let postgres = LocalPostgres::new();
+            let handle = postgres.run();
             let now = Utc::now();
-            let mut state = TestState::new(TestAuthz::new()).await;
+            let mut state = TestState::new_with_pool(
+                TestDb::new_with_local_postgres(&handle).await,
+                TestAuthz::new(),
+            );
             let conference_room_id = Uuid::new_v4();
             let event_room_id = Uuid::new_v4();
 
@@ -726,22 +734,27 @@ mod tests {
         use chrono::{Duration, Utc};
         use uuid::Uuid;
 
-        use crate::app::AppContext;
         use crate::clients::event::test_helpers::EventBuilder;
         use crate::clients::event::{EventData, EventRoomResponse, HostEventData, PinEventData};
         use crate::db::class::MinigroupReadQuery;
         use crate::db::recording::{RecordingListQuery, Segments};
         use crate::test_helpers::prelude::*;
+        use crate::{app::AppContext, test_helpers::db::LocalPostgres};
 
         use super::super::super::PostprocessingStrategy;
         use super::super::*;
 
         #[async_std::test]
         async fn handle_adjust() {
+            let postgres = LocalPostgres::new();
+            let handle = postgres.run();
             let now = Utc::now();
+            let mut state = TestState::new_with_pool(
+                TestDb::new_with_local_postgres(&handle).await,
+                TestAuthz::new(),
+            );
             let agent1 = TestAgent::new("web", "user1", USR_AUDIENCE);
             let agent2 = TestAgent::new("web", "user2", USR_AUDIENCE);
-            let mut state = TestState::new(TestAuthz::new()).await;
             let event_room_id = Uuid::new_v4();
             let original_event_room_id = Uuid::new_v4();
             let modified_event_room_id = Uuid::new_v4();
@@ -954,19 +967,27 @@ mod tests {
         use serde_json::json;
         use uuid::Uuid;
 
-        use crate::app::{AppContext, API_VERSION};
         use crate::db::recording::{RecordingListQuery, Segments};
         use crate::test_helpers::prelude::*;
+        use crate::{
+            app::{AppContext, API_VERSION},
+            test_helpers::db::LocalPostgres,
+        };
 
         use super::super::super::PostprocessingStrategy;
         use super::super::*;
 
         #[async_std::test]
         async fn handle_transcoding_completion() {
+            let postgres = LocalPostgres::new();
+            let handle = postgres.run();
             let now = Utc::now();
+            let state = TestState::new_with_pool(
+                TestDb::new_with_local_postgres(&handle).await,
+                TestAuthz::new(),
+            );
             let agent1 = TestAgent::new("web", "user1", USR_AUDIENCE);
             let agent2 = TestAgent::new("web", "user2", USR_AUDIENCE);
-            let state = TestState::new(TestAuthz::new()).await;
 
             // Insert a minigroup with recordings.
             let (minigroup, recording1, recording2) = {

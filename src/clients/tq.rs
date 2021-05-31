@@ -104,12 +104,6 @@ pub struct TaskComplete {
     pub result: TaskCompleteResult,
 }
 
-impl TaskComplete {
-    pub fn tags(&self) -> Option<&JsonValue> {
-        self.tags.as_ref()
-    }
-}
-
 #[derive(Debug, Deserialize)]
 #[serde(tag = "status")]
 pub enum TaskCompleteResult {

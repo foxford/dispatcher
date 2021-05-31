@@ -31,9 +31,9 @@ pub struct JwtConfig {
     pub key: Vec<u8>,
 }
 
-pub fn load() -> Result<Config, config::ConfigError> {
+pub fn load(config_name: &str) -> Result<Config, config::ConfigError> {
     let mut parser = config::Config::default();
-    parser.merge(config::File::with_name("App"))?;
+    parser.merge(config::File::with_name(config_name))?;
     parser.merge(config::Environment::with_prefix("APP").separator("__"))?;
     parser.try_into::<Config>()
 }

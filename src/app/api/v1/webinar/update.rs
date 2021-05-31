@@ -106,7 +106,10 @@ async fn do_update(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{db::class::WebinarReadQuery, test_helpers::prelude::*};
+    use crate::{
+        db::class::WebinarReadQuery,
+        test_helpers::{db::LocalPostgres, prelude::*},
+    };
     use chrono::Duration;
     use mockall::predicate as pred;
     use uuid::Uuid;
@@ -117,7 +120,12 @@ mod tests {
         let event_room_id = Uuid::new_v4();
         let conference_room_id = Uuid::new_v4();
 
-        let state = TestState::new(TestAuthz::new()).await;
+        let postgres = LocalPostgres::new();
+        let handle = postgres.run();
+        let state = TestState::new_with_pool(
+            TestDb::new_with_local_postgres(&handle).await,
+            TestAuthz::new(),
+        );
         let webinar = {
             let mut conn = state.get_conn().await.expect("Failed to fetch connection");
             factory::Webinar::new(
@@ -150,7 +158,9 @@ mod tests {
         let event_room_id = Uuid::new_v4();
         let conference_room_id = Uuid::new_v4();
 
-        let db_pool = TestDb::new().await;
+        let postgres = LocalPostgres::new();
+        let handle = postgres.run();
+        let db_pool = TestDb::new_with_local_postgres(&handle).await;
 
         let webinar = {
             let mut conn = db_pool.get_conn().await;

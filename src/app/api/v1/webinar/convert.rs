@@ -222,7 +222,7 @@ fn times_overlap(t1: BoundedDateTimeTuple, t2: BoundedDateTimeTuple) -> BoundedD
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_helpers::prelude::*;
+    use crate::test_helpers::{db::LocalPostgres, prelude::*};
     use mockall::predicate as pred;
     use serde_json::{json, Value};
 
@@ -230,7 +230,12 @@ mod tests {
     async fn convert_webinar_unauthorized() {
         let agent = TestAgent::new("web", "user1", USR_AUDIENCE);
 
-        let state = TestState::new(TestAuthz::new()).await;
+        let postgres = LocalPostgres::new();
+        let handle = postgres.run();
+        let state = TestState::new_with_pool(
+            TestDb::new_with_local_postgres(&handle).await,
+            TestAuthz::new(),
+        );
         let event_room_id = Uuid::new_v4();
         let conference_room_id = Uuid::new_v4();
 
@@ -261,7 +266,10 @@ mod tests {
         let mut authz = TestAuthz::new();
         authz.allow(agent.account_id(), vec!["classrooms"], "convert");
 
-        let mut state = TestState::new(authz).await;
+        let postgres = LocalPostgres::new();
+        let handle = postgres.run();
+        let mut state =
+            TestState::new_with_pool(TestDb::new_with_local_postgres(&handle).await, authz);
         let event_room_id = Uuid::new_v4();
         let conference_room_id = Uuid::new_v4();
         convert_webinar_mocks(&mut state, event_room_id, conference_room_id);
@@ -308,7 +316,10 @@ mod tests {
         let mut authz = TestAuthz::new();
         authz.allow(agent.account_id(), vec!["classrooms"], "convert");
 
-        let mut state = TestState::new(authz).await;
+        let postgres = LocalPostgres::new();
+        let handle = postgres.run();
+        let mut state =
+            TestState::new_with_pool(TestDb::new_with_local_postgres(&handle).await, authz);
         let event_room_id = Uuid::new_v4();
         let conference_room_id = Uuid::new_v4();
         convert_webinar_mocks(&mut state, event_room_id, conference_room_id);
@@ -363,7 +374,10 @@ mod tests {
         let mut authz = TestAuthz::new();
         authz.allow(agent.account_id(), vec!["classrooms"], "convert");
 
-        let mut state = TestState::new(authz).await;
+        let postgres = LocalPostgres::new();
+        let handle = postgres.run();
+        let mut state =
+            TestState::new_with_pool(TestDb::new_with_local_postgres(&handle).await, authz);
         let event_room_id = Uuid::new_v4();
         let conference_room_id = Uuid::new_v4();
         convert_unspecified_time_webinar_mocks(&mut state, event_room_id, conference_room_id);
