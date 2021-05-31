@@ -33,11 +33,10 @@ pub enum Task {
         streams: Vec<TranscodeMinigroupToHlsStream>,
         host_stream_id: Uuid,
     },
-    ConvertDumps {
+    ConvertMjrDumpsToStream {
         dumps_uris: Vec<String>,
         stream_uri: String,
-        class_id: Uuid,
-        rtc_id: Uuid,
+        stream_id: Uuid,
     },
 }
 
@@ -46,7 +45,7 @@ impl Task {
         match self {
             Self::TranscodeStreamToHls { .. } => "transcode-stream-to-hls",
             Self::TranscodeMinigroupToHls { .. } => "transcode-minigroup-to-hls",
-            Self::ConvertDumps { .. } => "convert-dumps",
+            Self::ConvertMjrDumpsToStream { .. } => "convert-mjr-dumps-to-stream",
         }
     }
 }
@@ -100,9 +99,9 @@ impl TranscodeMinigroupToHlsStream {
 
 #[derive(Debug, Deserialize)]
 pub struct TaskComplete {
-    tags: Option<JsonValue>,
+    pub tags: Option<JsonValue>,
     #[serde(flatten)]
-    result: TaskCompleteResult,
+    pub result: TaskCompleteResult,
 }
 
 impl TaskComplete {
@@ -121,7 +120,7 @@ pub enum TaskCompleteResult {
 }
 
 impl From<TaskComplete> for TaskCompleteResult {
-    fn from(task_copmlete: TaskComplete) -> Self {
+    fn from(task_complete: TaskComplete) -> Self {
         task_complete.result
     }
 }
@@ -133,6 +132,15 @@ pub enum TaskCompleteSuccess {
     TranscodeStreamToHls(TranscodeStreamToHlsSuccess),
     #[serde(rename = "transcode-minigroup-to-hls")]
     TranscodeMinigroupToHls(TranscodeMinigroupToHlsSuccess),
+    #[serde(rename = "convert-mjr-dumps-to-stream")]
+    ConvertMjrDumpsToStream(ConvertMjrDumpsToStreamSuccess),
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ConvertMjrDumpsToStreamSuccess {
+    pub stream_id: Uuid,
+    pub stream_uri: String,
+    pub segments: String,
 }
 
 #[derive(Debug, Deserialize)]

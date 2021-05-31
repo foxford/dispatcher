@@ -3,25 +3,30 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
-use chrono::{Duration, Utc};
+use chrono::{DateTime, Duration, Utc};
 use serde_derive::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
-use sqlx::{postgres::PgConnection, Acquire};
-use svc_agent::mqtt::{
-    IntoPublishableMessage, OutgoingEvent, OutgoingEventProperties, ShortTermTimingProperties,
+use sqlx::{Acquire, PgConnection};
+use svc_agent::{
+    mqtt::{
+        IntoPublishableMessage, OutgoingEvent, OutgoingEventProperties, ShortTermTimingProperties,
+    },
+    AgentId,
 };
 use uuid::Uuid;
 
 use crate::app::AppContext;
 use crate::clients::event::{Event, EventData, RoomAdjustResult};
-use crate::clients::tq::{
-    Task as TqTask, TaskCompleteResult, TaskCompleteSuccess, TranscodeMinigroupToHlsStream,
-    TranscodeMinigroupToHlsSuccess,
-};
 use crate::db::class::Object as Class;
-use crate::db::recording::{BoundedOffsetTuples, Object as Recording, Segments};
+use crate::db::recording::BoundedOffsetTuples;
+use crate::{
+    clients::tq::{Task as TqTask, TranscodeMinigroupToHlsStream, TranscodeMinigroupToHlsSuccess},
+    db::recording::Segments,
+};
 
-use super::{shared_helpers, RtcUploadReadyData, RtcUploadResult};
+use super::{
+    shared_helpers, MjrDumpsUploadReadyData, MjrDumpsUploadResult, TranscodeSuccess, UploadedStream,
+};
 
 const NS_IN_MS: i64 = 1000000;
 const PIN_EVENT_TYPE: &str = "pin";
@@ -42,22 +47,34 @@ impl MinigroupPostprocessingStrategy {
 
 #[async_trait]
 impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
-    async fn handle_upload(&self, rtcs: Vec<RtcUploadResult>) -> Result<()> {
-        if rtcs.is_empty() {
-            bail!("Expected at least 1 RTC");
-        }
-
-        let ready_rtcs = shared_helpers::extract_ready_rtcs(rtcs)?;
-
-        {
+    async fn handle_stream_upload(&self, stream: UploadedStream) -> Result<()> {
+        let recordings = {
             let mut conn = self.ctx.get_conn().await?;
-            insert_recordings(&mut conn, self.minigroup.id(), &ready_rtcs).await?;
+            crate::db::recording::StreamUploadUpdateQuery::new(
+                self.minigroup.id(),
+                stream.id,
+                stream.segments,
+                stream.uri,
+                stream.started_at,
+            )
+            .execute(&mut conn)
+            .await?;
+            crate::db::recording::RecordingListQuery::new(self.minigroup.id())
+                .execute(&mut conn)
+                .await?
+        };
+        let ready_recordings = recordings
+            .iter()
+            .filter_map(|recording| ReadyRecording::from_db_object(recording))
+            .collect::<Vec<_>>();
+        if recordings.len() != ready_recordings.len() {
+            return Ok(());
         }
 
         call_adjust(
             self.ctx.clone(),
             self.minigroup.event_room_id(),
-            &ready_rtcs,
+            ready_recordings,
         )
         .await?;
         Ok(())
@@ -94,12 +111,16 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
 
                     txn.commit().await?;
                     recordings
+                        .into_iter()
+                        .map(|recording| ReadyRecording::from_db_object(&recording))
+                        .collect::<Option<Vec<_>>>()
+                        .ok_or_else(|| anyhow!("Not all recordings are ready"))?
                 };
 
                 // Find the earliest recording.
                 let earliest_recording = recordings
                     .iter()
-                    .min_by(|a, b| a.started_at().cmp(&b.started_at()))
+                    .min_by(|a, b| a.started_at.cmp(&b.started_at))
                     .ok_or_else(|| anyhow!("No recordings"))?;
 
                 // Fetch event room opening time for events' offset calculation.
@@ -128,10 +149,9 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
                     .iter()
                     .map(|recording| {
                         let event_room_offset =
-                            recording.started_at() - modified_event_room_opened_at;
+                            recording.started_at - modified_event_room_opened_at;
 
-                        let recording_offset =
-                            recording.started_at() - earliest_recording.started_at();
+                        let recording_offset = recording.started_at - earliest_recording.started_at;
 
                         build_stream(recording, &pin_events, event_room_offset, recording_offset)
                     })
@@ -154,12 +174,12 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
 
                 let maybe_host_recording = recordings
                     .iter()
-                    .find(|recording| recording.created_by() == host);
+                    .find(|recording| &recording.created_by == host);
 
                 let host_stream_id = match maybe_host_recording {
                     // Host has been set but there's no recording, skip transcoding.
                     None => return Ok(()),
-                    Some(recording) => recording.rtc_id(),
+                    Some(recording) => recording.rtc_id,
                 };
 
                 // Create a tq task.
@@ -182,14 +202,13 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
 
     async fn handle_transcoding_completion(
         &self,
-        completion_result: TaskCompleteResult,
+        completion_result: TranscodeSuccess,
     ) -> Result<()> {
         match completion_result {
-            TaskCompleteResult::Success(TaskCompleteSuccess::TranscodeMinigroupToHls(
-                TranscodeMinigroupToHlsSuccess {
-                    recording_duration, ..
-                },
-            )) => {
+            TranscodeSuccess::TranscodeMinigroupToHls(TranscodeMinigroupToHlsSuccess {
+                recording_duration,
+                ..
+            }) => {
                 let recording_duration = recording_duration.parse::<f64>()?.round() as u64;
 
                 {
@@ -220,38 +239,58 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
                     .publish(boxed_event)
                     .context("Failed to publish minigroup.ready event")
             }
-            TaskCompleteResult::Success(success_result) => {
+            TranscodeSuccess::TranscodeStreamToHls(success_result) => {
                 bail!(
                     "Got transcoding success for an unexpected tq template; expected transcode-minigroup-to-hls for a minigroup, id = {}, result = {:#?}",
                     self.minigroup.id(),
                     success_result,
                 );
             }
-            TaskCompleteResult::Failure { error } => {
-                bail!("Transcoding failed: {}", error);
-            }
         }
+    }
+
+    async fn handle_mjr_dumps_upload(&self, dumps: Vec<MjrDumpsUploadResult>) -> Result<()> {
+        if dumps.is_empty() {
+            bail!("Expected at least 1 RTC");
+        }
+
+        let ready_dumps = shared_helpers::extract_ready_dumps(dumps)?;
+        {
+            let mut conn = self.ctx.get_conn().await?;
+            insert_recordings(&mut conn, self.minigroup.id(), &ready_dumps).await?;
+        }
+        let tq_client = self.ctx.tq_client();
+        for dump in ready_dumps {
+            tq_client
+                .create_task(
+                    &self.minigroup,
+                    TqTask::ConvertMjrDumpsToStream {
+                        dumps_uris: dump.dumps_uris,
+                        stream_uri: dump.uri,
+                        stream_id: dump.id,
+                    },
+                )
+                .await?
+        }
+        Ok(())
     }
 }
 
 async fn insert_recordings(
     conn: &mut PgConnection,
     class_id: Uuid,
-    rtcs: &[RtcUploadReadyData],
+    dumps: &[MjrDumpsUploadReadyData],
 ) -> Result<()> {
     let mut txn = conn
         .begin()
         .await
         .context("Failed to begin sqlx db transaction")?;
 
-    for rtc in rtcs {
+    for dump in dumps {
         let q = crate::db::recording::RecordingInsertQuery::new(
             class_id,
-            rtc.id,
-            rtc.segments.to_owned(),
-            rtc.started_at,
-            rtc.uri.to_owned(),
-            rtc.created_by.to_owned(),
+            dump.id,
+            dump.created_by.to_owned(),
         );
 
         q.execute(&mut txn).await?;
@@ -264,15 +303,15 @@ async fn insert_recordings(
 async fn call_adjust(
     ctx: Arc<dyn AppContext>,
     room_id: Uuid,
-    rtcs: &[RtcUploadReadyData],
+    recordings: Vec<ReadyRecording>,
 ) -> Result<()> {
-    let started_at = rtcs
+    let started_at = recordings
         .iter()
         .map(|rtc| rtc.started_at)
         .min()
         .ok_or_else(|| anyhow!("Couldn't get min started at"))?;
 
-    let segments = build_adjust_segments(&rtcs)?;
+    let segments = build_adjust_segments(&recordings)?;
 
     ctx.event_client()
         .adjust_room(room_id, started_at, segments, PREROLL_OFFSET)
@@ -282,7 +321,7 @@ async fn call_adjust(
     Ok(())
 }
 
-fn build_adjust_segments(rtcs: &[RtcUploadReadyData]) -> Result<Segments> {
+fn build_adjust_segments(rtcs: &[ReadyRecording]) -> Result<Segments> {
     let mut maybe_min_start: Option<i64> = None;
     let mut maybe_max_stop: Option<i64> = None;
 
@@ -318,7 +357,7 @@ fn build_adjust_segments(rtcs: &[RtcUploadReadyData]) -> Result<Segments> {
 }
 
 fn build_stream(
-    recording: &Recording,
+    recording: &ReadyRecording,
     pin_events: &[Event],
     event_room_offset: Duration,
     recording_offset: Duration,
@@ -333,7 +372,7 @@ fn build_stream(
                 // Shift from the event room's dimension to the recording's dimension.
                 let occurred_at = event.occurred_at() as i64 / NS_IN_MS - event_room_offset;
 
-                if data.agent_id() == recording.created_by() && pin_start.is_none() {
+                if data.agent_id() == &recording.created_by && pin_start.is_none() {
                     // Stream has got pinned.
                     pin_start = Some(occurred_at);
                 } else if let Some(pinned_at) = pin_start {
@@ -349,17 +388,38 @@ fn build_stream(
     // If the stream hasn't got unpinned since some moment then add a pin segment to the end
     // of the recording to keep it pinned.
     if let Some(start) = pin_start {
-        let recording_segments: BoundedOffsetTuples = recording.segments().to_owned().into();
+        let recording_segments: BoundedOffsetTuples = recording.segments.clone().into();
 
         if let Some((_, Bound::Excluded(recording_end))) = recording_segments.last() {
             pin_segments.push((Bound::Included(start), Bound::Excluded(*recording_end)));
         }
     }
 
-    TranscodeMinigroupToHlsStream::new(recording.rtc_id(), recording.stream_uri().to_owned())
+    TranscodeMinigroupToHlsStream::new(recording.rtc_id, recording.stream_uri.clone())
         .offset(recording_offset.num_milliseconds() as u64)
-        .segments(recording.segments().to_owned())
+        .segments(recording.segments.clone())
         .pin_segments(pin_segments.into())
+}
+
+#[derive(Debug)]
+struct ReadyRecording {
+    rtc_id: Uuid,
+    stream_uri: String,
+    segments: Segments,
+    started_at: DateTime<Utc>,
+    created_by: AgentId,
+}
+
+impl ReadyRecording {
+    fn from_db_object(recording: &crate::db::recording::Object) -> Option<Self> {
+        Some(Self {
+            rtc_id: recording.rtc_id(),
+            stream_uri: recording.stream_uri().cloned()?,
+            segments: recording.segments().cloned()?,
+            started_at: recording.started_at()?,
+            created_by: recording.created_by().clone(),
+        })
+    }
 }
 
 #[derive(Debug, PartialEq, Deserialize, Serialize)]
@@ -372,7 +432,7 @@ struct MinigroupReady {
     recording_duration: u64,
 }
 
-////////////////////////////////////////////////////////////////////////////////
+// ////////////////////////////////////////////////////////////////////////////////
 
 #[cfg(test)]
 mod tests {
@@ -387,11 +447,13 @@ mod tests {
         use crate::db::recording::{RecordingListQuery, Segments};
         use crate::test_helpers::prelude::*;
 
-        use super::super::super::{PostprocessingStrategy, RtcUploadReadyData, RtcUploadResult};
+        use super::super::super::{
+            MjrDumpsUploadReadyData, MjrDumpsUploadResult, PostprocessingStrategy,
+        };
         use super::super::*;
 
         #[async_std::test]
-        async fn handle_upload() {
+        async fn handle_upload_stream() {
             let now = Utc::now();
             let mut state = TestState::new(TestAuthz::new()).await;
             let conference_room_id = Uuid::new_v4();
@@ -418,8 +480,23 @@ mod tests {
                 .insert(&mut conn)
                 .await
             };
-
             let minigroup_id = minigroup.id();
+
+            {
+                let mut conn = state.get_conn().await.expect("Failed to get conn");
+                let rtc1_id = Uuid::new_v4();
+                let agent1 = TestAgent::new("web", "user1", USR_AUDIENCE);
+
+                factory::Recording::new(minigroup_id, rtc1_id, agent1.agent_id().clone())
+                    .insert(&mut conn)
+                    .await;
+
+                let rtc2_id = Uuid::new_v4();
+                let agent2 = TestAgent::new("web", "user2", USR_AUDIENCE);
+                factory::Recording::new(minigroup_id, rtc2_id, agent2.agent_id().clone())
+                    .insert(&mut conn)
+                    .await;
+            };
 
             // Set up event client mock.
             let expected_started_at = now - Duration::hours(1);
@@ -454,13 +531,12 @@ mod tests {
             ]
             .into();
 
-            let rtc1 = RtcUploadResult::Ready(RtcUploadReadyData {
+            let stream1 = UploadedStream {
                 id: rtc1_id,
                 uri: uri1.to_string(),
                 started_at: started_at1,
                 segments: segments1.clone(),
-                created_by: agent1.agent_id().to_owned(),
-            });
+            };
 
             let rtc2_id = Uuid::new_v4();
             let uri2 = "s3://minigroup.origin.dev.example.com/rtc2.webm";
@@ -468,18 +544,146 @@ mod tests {
             let segments2: Segments = vec![(Bound::Included(0), Bound::Excluded(2700000))].into();
             let agent2 = TestAgent::new("web", "user2", USR_AUDIENCE);
 
-            let rtc2 = RtcUploadResult::Ready(RtcUploadReadyData {
+            let stream2 = UploadedStream {
                 id: rtc2_id,
                 uri: uri2.to_string(),
                 started_at: started_at2,
                 segments: segments2.clone(),
+            };
+
+            let state = Arc::new(state);
+
+            MinigroupPostprocessingStrategy::new(state.clone(), minigroup.clone())
+                .handle_stream_upload(stream1)
+                .await
+                .expect("Failed to handle upload");
+
+            // Assert recordings in the DB.
+            {
+                let mut conn = state.get_conn().await.expect("Failed to get conn");
+
+                let ready_items = RecordingListQuery::new(minigroup_id)
+                    .execute(&mut conn)
+                    .await
+                    .expect("Failed to list recordings")
+                    .into_iter()
+                    .filter_map(|recording| ReadyRecording::from_db_object(&recording))
+                    .count();
+                assert_eq!(ready_items, 1);
+            }
+
+            MinigroupPostprocessingStrategy::new(state.clone(), minigroup)
+                .handle_stream_upload(stream2)
+                .await
+                .expect("Failed to handle upload");
+
+            let recordings = {
+                let mut conn = state.get_conn().await.expect("Failed to get conn");
+
+                RecordingListQuery::new(minigroup_id)
+                    .execute(&mut conn)
+                    .await
+                    .expect("Failed to list recordings")
+                    .into_iter()
+                    .filter_map(|recording| ReadyRecording::from_db_object(&recording))
+                    .collect::<Vec<_>>()
+            };
+
+            assert_eq!(recordings.len(), 2);
+
+            let recording1 = recordings
+                .iter()
+                .find(|recording| recording.rtc_id == rtc1_id)
+                .expect("Recording 1 not found");
+
+            assert_eq!(&recording1.stream_uri, uri1);
+            assert!(datetimes_almost_eq(recording1.started_at, started_at1));
+            assert_eq!(&recording1.segments, &segments1);
+            assert_eq!(&recording1.created_by, agent1.agent_id());
+
+            let recording2 = recordings
+                .iter()
+                .find(|recording| recording.rtc_id == rtc2_id)
+                .expect("Recording 2 not found");
+
+            assert_eq!(&recording2.stream_uri, uri2);
+            assert!(datetimes_almost_eq(
+                recording2.started_at,
+                now - Duration::minutes(50)
+            ));
+            assert_eq!(&recording2.segments, &segments2);
+            assert_eq!(&recording2.created_by, agent2.agent_id());
+        }
+
+        #[async_std::test]
+        async fn handle_upload_mjr() {
+            let now = Utc::now();
+            let mut state = TestState::new(TestAuthz::new()).await;
+            let conference_room_id = Uuid::new_v4();
+            let event_room_id = Uuid::new_v4();
+
+            // Insert a minigroup.
+            let minigroup = {
+                let mut conn = state.get_conn().await.expect("Failed to get conn");
+
+                let time = (
+                    Bound::Included(now - Duration::hours(1)),
+                    Bound::Excluded(now - Duration::minutes(10)),
+                );
+
+                let minigroup_scope = format!("minigroup-{}", random_string());
+
+                factory::Minigroup::new(
+                    minigroup_scope,
+                    USR_AUDIENCE.to_string(),
+                    time.into(),
+                    conference_room_id,
+                    event_room_id,
+                )
+                .insert(&mut conn)
+                .await
+            };
+
+            let minigroup_id = minigroup.id();
+
+            let dumps = vec![
+                "s3://minigroup.origin.dev.example.com/rtc1.mjr".to_owned(),
+                "s3://minigroup.origin.dev.example.com/rtc2.mjr".to_owned(),
+            ];
+
+            state
+                .tq_client_mock()
+                .expect_create_task()
+                .times(2)
+                .returning(|_, _| Ok(()));
+
+            // Handle uploading two RTCs.
+            let rtc1_id = Uuid::new_v4();
+            let uri1 = "s3://minigroup.origin.dev.example.com/rtc1.webm";
+            let agent1 = TestAgent::new("web", "user1", USR_AUDIENCE);
+
+            let rtc1 = MjrDumpsUploadResult::Ready(MjrDumpsUploadReadyData {
+                id: rtc1_id,
+                uri: uri1.to_string(),
+                created_by: agent1.agent_id().to_owned(),
+                dumps_uris: dumps.clone(),
+            });
+
+            let rtc2_id = Uuid::new_v4();
+            let uri2 = "s3://minigroup.origin.dev.example.com/rtc2.webm";
+            let agent2 = TestAgent::new("web", "user2", USR_AUDIENCE);
+
+            let rtc2 = MjrDumpsUploadResult::Ready(MjrDumpsUploadReadyData {
+                id: rtc2_id,
+                uri: uri2.to_string(),
                 created_by: agent2.agent_id().to_owned(),
+                dumps_uris: dumps.clone(),
             });
 
             let state = Arc::new(state);
 
             MinigroupPostprocessingStrategy::new(state.clone(), minigroup)
-                .handle_upload(vec![rtc1, rtc2])
+                .handle_mjr_dumps_upload(vec![rtc1, rtc2])
                 .await
                 .expect("Failed to handle upload");
 
@@ -500,9 +704,8 @@ mod tests {
                 .find(|recording| recording.rtc_id() == rtc1_id)
                 .expect("Recording 1 not found");
 
-            assert_eq!(recording1.stream_uri(), uri1);
-            assert!(datetimes_almost_eq(recording1.started_at(), started_at1));
-            assert_eq!(recording1.segments(), &segments1);
+            assert_eq!(recording1.stream_uri(), None);
+            assert_eq!(recording1.segments(), None);
             assert_eq!(recording1.created_by(), agent1.agent_id());
 
             let recording2 = recordings
@@ -510,12 +713,8 @@ mod tests {
                 .find(|recording| recording.rtc_id() == rtc2_id)
                 .expect("Recording 2 not found");
 
-            assert_eq!(recording2.stream_uri(), uri2);
-            assert!(datetimes_almost_eq(
-                recording2.started_at(),
-                now - Duration::minutes(50)
-            ));
-            assert_eq!(recording2.segments(), &segments2);
+            assert_eq!(recording2.stream_uri(), None);
+            assert_eq!(recording2.segments(), None);
             assert_eq!(recording2.created_by(), agent2.agent_id());
         }
     }
@@ -577,22 +776,22 @@ mod tests {
                 let recording1 = factory::Recording::new(
                     minigroup.id(),
                     Uuid::new_v4(),
-                    "s3://minigroup.origin.dev.example.com/rtc1.webm".to_string(),
-                    segments1,
-                    now - Duration::hours(1),
                     agent1.agent_id().to_owned(),
                 )
+                .stream_uri("s3://minigroup.origin.dev.example.com/rtc1.webm".to_string())
+                .segments(segments1)
+                .started_at(now - Duration::hours(1))
                 .insert(&mut conn)
                 .await;
 
                 let recording2 = factory::Recording::new(
                     minigroup.id(),
                     Uuid::new_v4(),
-                    "s3://minigroup.origin.dev.example.com/rtc2.webm".to_string(),
-                    vec![(Bound::Included(0), Bound::Excluded(2700000))].into(),
-                    now - Duration::minutes(50),
                     agent2.agent_id().to_owned(),
                 )
+                .stream_uri("s3://minigroup.origin.dev.example.com/rtc2.webm".to_string())
+                .segments(vec![(Bound::Included(0), Bound::Excluded(2700000))].into())
+                .started_at(now - Duration::minutes(50))
                 .insert(&mut conn)
                 .await;
 
@@ -663,14 +862,14 @@ mod tests {
                 });
 
             // Set up tq client mock.
-            let uri1 = recording1.stream_uri().to_string();
-            let uri2 = recording2.stream_uri().to_string();
+            let uri1 = recording1.stream_uri().unwrap().clone();
+            let uri2 = recording2.stream_uri().unwrap().clone();
 
             let expected_task = TqTask::TranscodeMinigroupToHls {
                 streams: vec![
                     TranscodeMinigroupToHlsStream::new(recording1.rtc_id(), uri1)
                         .offset(0)
-                        .segments(recording1.segments().to_owned())
+                        .segments(recording1.segments().unwrap().to_owned())
                         .pin_segments(
                             vec![
                                 (Bound::Included(0), Bound::Excluded(1200000)),
@@ -680,7 +879,7 @@ mod tests {
                         ),
                     TranscodeMinigroupToHlsStream::new(recording2.rtc_id(), uri2)
                         .offset(600000)
-                        .segments(recording2.segments().to_owned())
+                        .segments(recording2.segments().unwrap().to_owned())
                         .pin_segments(
                             vec![(Bound::Included(600000), Bound::Excluded(900000))].into(),
                         ),
@@ -742,10 +941,7 @@ mod tests {
 
                 assert!(updated_recording.adjusted_at().is_some());
 
-                assert_eq!(
-                    updated_recording.modified_segments(),
-                    Some(recording.segments())
-                );
+                assert_eq!(updated_recording.modified_segments(), recording.segments());
             }
         }
     }
@@ -805,22 +1001,22 @@ mod tests {
                 let recording1 = factory::Recording::new(
                     minigroup.id(),
                     Uuid::new_v4(),
-                    "s3://minigroup.origin.dev.example.com/rtc1.webm".to_string(),
-                    segments1,
-                    now - Duration::hours(1),
                     agent1.agent_id().to_owned(),
                 )
+                .stream_uri("s3://minigroup.origin.dev.example.com/rtc1.webm".to_string())
+                .segments(segments1)
+                .started_at(now - Duration::hours(1))
                 .insert(&mut conn)
                 .await;
 
                 let recording2 = factory::Recording::new(
                     minigroup.id(),
                     Uuid::new_v4(),
-                    "s3://minigroup.origin.dev.example.com/rtc2.webm".to_string(),
-                    vec![(Bound::Included(0), Bound::Excluded(2700000))].into(),
-                    now - Duration::minutes(50),
                     agent2.agent_id().to_owned(),
                 )
+                .stream_uri("s3://minigroup.origin.dev.example.com/rtc2.webm".to_string())
+                .segments(vec![(Bound::Included(0), Bound::Excluded(2700000))].into())
+                .started_at(now - Duration::minutes(50))
                 .insert(&mut conn)
                 .await;
 
@@ -831,10 +1027,10 @@ mod tests {
             let state = Arc::new(state);
 
             MinigroupPostprocessingStrategy::new(state.clone(), minigroup.clone())
-                .handle_transcoding_completion(TaskCompleteResult::Success(
-                    TaskCompleteSuccess::TranscodeMinigroupToHls(TranscodeMinigroupToHlsSuccess {
+                .handle_transcoding_completion(TranscodeSuccess::TranscodeMinigroupToHls(
+                    TranscodeMinigroupToHlsSuccess {
                         recording_duration: "3000.0".to_string(),
-                    }),
+                    },
                 ))
                 .await
                 .expect("Failed to handle tq transcoding completion");
