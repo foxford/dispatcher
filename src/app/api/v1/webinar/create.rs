@@ -144,7 +144,10 @@ async fn do_create(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{db::class::WebinarReadQuery, test_helpers::{db::LocalPostgres, prelude::*}};
+    use crate::{
+        db::class::WebinarReadQuery,
+        test_helpers::{db::LocalPostgres, prelude::*},
+    };
     use chrono::Duration;
     use mockall::predicate as pred;
     use uuid::Uuid;

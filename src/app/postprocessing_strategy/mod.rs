@@ -73,7 +73,7 @@ pub enum TranscodeSuccess {
     TranscodeStreamToHls(TranscodeStreamToHlsSuccess),
     TranscodeMinigroupToHls(TranscodeMinigroupToHlsSuccess),
 }
- 
+
 #[derive(Debug)]
 pub struct UploadedStream {
     pub id: Uuid,
