@@ -424,7 +424,7 @@ impl EventClient for MqttEventClient {
             room_id,
             kind: "chat_disabled",
             set: "chat_disabled",
-            data: serde_json::json!({"value": "true"}),
+            data: serde_json::json!({"value": true}),
         };
         let msg = if let OutgoingMessage::Request(msg) =
             OutgoingRequest::multicast(payload, reqp, &self.event_account_id, &self.api_version)
