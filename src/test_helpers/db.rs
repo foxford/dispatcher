@@ -1,7 +1,5 @@
-use std::env::var;
-
+use sqlx::pool::PoolConnection;
 use sqlx::postgres::{PgPool, PgPoolOptions, Postgres};
-use sqlx::{pool::PoolConnection, Executor};
 use testcontainers::{
     clients,
     images::{self, generic::WaitFor},

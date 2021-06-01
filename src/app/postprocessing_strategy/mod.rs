@@ -58,10 +58,9 @@ pub(crate) enum MjrDumpsUploadResult {
 #[derive(Debug, Deserialize)]
 pub(crate) struct MjrDumpsUploadReadyData {
     pub(self) id: Uuid,
-    // #[serde(deserialize_with = "crate::db::recording::serde::segments::deserialize")]
     pub(self) created_by: AgentId,
     pub(self) uri: String,
-    pub(self) dumps_uris: Vec<String>,
+    pub(self) mjr_dumps_uris: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -74,7 +73,7 @@ pub enum TranscodeSuccess {
     TranscodeStreamToHls(TranscodeStreamToHlsSuccess),
     TranscodeMinigroupToHls(TranscodeMinigroupToHlsSuccess),
 }
-
+ 
 #[derive(Debug)]
 pub struct UploadedStream {
     pub id: Uuid,

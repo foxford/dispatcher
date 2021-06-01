@@ -54,7 +54,7 @@ impl super::PostprocessingStrategy for WebinarPostprocessingStrategy {
             .create_task(
                 &self.webinar,
                 TqTask::ConvertMjrDumpsToStream {
-                    dumps_uris: dump.dumps_uris,
+                    mjr_dumps_uris: dump.mjr_dumps_uris,
                     stream_uri: dump.uri,
                     stream_id: dump.id,
                 },
@@ -202,8 +202,11 @@ impl super::PostprocessingStrategy for WebinarPostprocessingStrategy {
             .event_client()
             .adjust_room(
                 self.webinar.event_room_id(),
-                rtc.started_at().expect("Must present after upload"),
-                rtc.segments().expect("Must present after upload").clone(),
+                rtc.started_at()
+                    .ok_or_else(|| anyhow!("Missing started at after ipload"))?,
+                rtc.segments()
+                    .ok_or_else(|| anyhow!("Missing segments after upload"))?
+                    .clone(),
                 PREROLL_OFFSET,
             )
             .await

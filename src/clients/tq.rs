@@ -34,7 +34,7 @@ pub enum Task {
         host_stream_id: Uuid,
     },
     ConvertMjrDumpsToStream {
-        dumps_uris: Vec<String>,
+        mjr_dumps_uris: Vec<String>,
         stream_uri: String,
         stream_id: Uuid,
     },

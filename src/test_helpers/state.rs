@@ -39,25 +39,6 @@ pub struct TestState {
 }
 
 impl TestState {
-    pub async fn new(authz: TestAuthz) -> Self {
-        let config = crate::config::load("App.sample.toml").expect("Failed to load config");
-
-        let agent = TestAgent::new(&config.agent_label, config.id.label(), config.id.audience());
-
-        let address = agent.address().to_owned();
-
-        Self {
-            db_pool: TestDb::new().await,
-            config,
-            agent,
-            publisher: Arc::new(TestPublisher::new(address)),
-            conference_client: Arc::new(MockConferenceClient::new()),
-            event_client: Arc::new(MockEventClient::new()),
-            tq_client: Arc::new(MockTqClient::new()),
-            authz: authz.into(),
-        }
-    }
-
     pub fn new_with_pool(db_pool: TestDb, authz: TestAuthz) -> Self {
         let config = crate::config::load("App.sample.toml").expect("Failed to load config");
 

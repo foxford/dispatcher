@@ -265,7 +265,7 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
                 .create_task(
                     &self.minigroup,
                     TqTask::ConvertMjrDumpsToStream {
-                        dumps_uris: dump.dumps_uris,
+                        mjr_dumps_uris: dump.mjr_dumps_uris,
                         stream_uri: dump.uri,
                         stream_id: dump.id,
                     },
@@ -674,7 +674,7 @@ mod tests {
                 id: rtc1_id,
                 uri: uri1.to_string(),
                 created_by: agent1.agent_id().to_owned(),
-                dumps_uris: dumps.clone(),
+                mjr_dumps_uris: dumps.clone(),
             });
 
             let rtc2_id = Uuid::new_v4();
@@ -685,7 +685,7 @@ mod tests {
                 id: rtc2_id,
                 uri: uri2.to_string(),
                 created_by: agent2.agent_id().to_owned(),
-                dumps_uris: dumps.clone(),
+                mjr_dumps_uris: dumps.clone(),
             });
 
             let state = Arc::new(state);
