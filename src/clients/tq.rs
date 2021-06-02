@@ -206,6 +206,12 @@ impl TqClient for HttpTqClient {
         class: &crate::db::class::Object,
         task: Task,
     ) -> Result<(), ClientError> {
+        let route = format!(
+            "/api/v1/audiences/{}/tasks/{}",
+            class.audience(),
+            task.template().to_owned() + class.scope()
+        );
+
         let task = TaskPayload {
             audience: class.audience().to_owned(),
             tags: class.tags().map(ToOwned::to_owned),
@@ -213,12 +219,6 @@ impl TqClient for HttpTqClient {
             template: task.template().into(),
             bindings: task,
         };
-
-        let route = format!(
-            "/api/v1/audiences/{}/tasks/{}",
-            class.audience(),
-            class.scope()
-        );
 
         let url = self.base_url.join(&route).map_err(|e| {
             ClientError::HttpError(format!(
