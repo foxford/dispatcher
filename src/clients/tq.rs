@@ -110,7 +110,7 @@ pub enum TaskCompleteResult {
     #[serde(rename = "success")]
     Success(TaskCompleteSuccess),
     #[serde(rename = "failure")]
-    Failure { error: JsonValue },
+    Failure { error: Option<JsonValue> },
 }
 
 impl From<TaskComplete> for TaskCompleteResult {
