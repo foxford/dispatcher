@@ -221,7 +221,7 @@ impl MessageHandler {
                 }
             }
             TaskCompleteResult::Failure { error } => {
-                bail!("Tq task error: {:#}", error)
+                bail!("Tq task error: {:?}", error)
             }
         }
     }
