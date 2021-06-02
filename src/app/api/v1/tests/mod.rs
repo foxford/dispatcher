@@ -4,19 +4,11 @@ use http::StatusCode;
 use tide::http::{Method, Request, Url};
 
 use super::*;
-use crate::{
-    app::error::ErrorKind,
-    test_helpers::{db::LocalPostgres, prelude::*},
-};
+use crate::{app::error::ErrorKind, test_helpers::prelude::*};
 
 #[async_std::test]
 async fn test_healthz() {
-    let postgres = LocalPostgres::new();
-    let handle = postgres.run();
-    let state = TestState::new_with_pool(
-        TestDb::new_with_local_postgres(&handle).await,
-        TestAuthz::new(),
-    );
+    let state = TestState::new(TestAuthz::new()).await;
     let state = Arc::new(state) as Arc<dyn AppContext>;
     let mut app = tide::with_state(state);
     app.at("/test/healthz").get(healthz);
@@ -72,9 +64,7 @@ async fn test_api_rollback() {
     authz.set_audience(SVC_AUDIENCE);
     authz.allow(agent.account_id(), vec!["scopes"], "rollback");
 
-    let postgres = LocalPostgres::new();
-    let handle = postgres.run();
-    let state = TestState::new_with_pool(TestDb::new_with_local_postgres(&handle).await, authz);
+    let state = TestState::new(authz).await;
     let state = Arc::new(state) as Arc<dyn AppContext>;
     let mut app = tide::with_state(state.clone());
 

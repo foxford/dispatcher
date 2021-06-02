@@ -144,10 +144,7 @@ async fn do_create(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        db::class::WebinarReadQuery,
-        test_helpers::{db::LocalPostgres, prelude::*},
-    };
+    use crate::{db::class::WebinarReadQuery, test_helpers::prelude::*};
     use chrono::Duration;
     use mockall::predicate as pred;
     use uuid::Uuid;
@@ -159,10 +156,7 @@ mod tests {
         let mut authz = TestAuthz::new();
         authz.allow(agent.account_id(), vec!["classrooms"], "create");
 
-        let postgres = LocalPostgres::new();
-        let handle = postgres.run();
-        let mut state =
-            TestState::new_with_pool(TestDb::new_with_local_postgres(&handle).await, authz);
+        let mut state = TestState::new(authz).await;
         let event_room_id = Uuid::new_v4();
         let conference_room_id = Uuid::new_v4();
 
@@ -202,10 +196,7 @@ mod tests {
         let mut authz = TestAuthz::new();
         authz.allow(agent.account_id(), vec!["classrooms"], "create");
 
-        let postgres = LocalPostgres::new();
-        let handle = postgres.run();
-        let mut state =
-            TestState::new_with_pool(TestDb::new_with_local_postgres(&handle).await, authz);
+        let mut state = TestState::new(authz).await;
         let event_room_id = Uuid::new_v4();
         let conference_room_id = Uuid::new_v4();
 
@@ -248,12 +239,7 @@ mod tests {
     async fn create_webinar_unauthorized() {
         let agent = TestAgent::new("web", "user1", USR_AUDIENCE);
 
-        let postgres = LocalPostgres::new();
-        let handle = postgres.run();
-        let state = TestState::new_with_pool(
-            TestDb::new_with_local_postgres(&handle).await,
-            TestAuthz::new(),
-        );
+        let state = TestState::new(TestAuthz::new()).await;
 
         let scope = random_string();
 

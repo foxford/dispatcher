@@ -443,9 +443,9 @@ mod tests {
         use chrono::{DateTime, Duration, Utc};
         use uuid::Uuid;
 
+        use crate::app::AppContext;
         use crate::db::recording::{RecordingListQuery, Segments};
         use crate::test_helpers::prelude::*;
-        use crate::{app::AppContext, test_helpers::db::LocalPostgres};
 
         use super::super::super::{
             MjrDumpsUploadReadyData, MjrDumpsUploadResult, PostprocessingStrategy,
@@ -454,13 +454,8 @@ mod tests {
 
         #[async_std::test]
         async fn handle_upload_stream() {
-            let postgres = LocalPostgres::new();
-            let handle = postgres.run();
             let now = Utc::now();
-            let mut state = TestState::new_with_pool(
-                TestDb::new_with_local_postgres(&handle).await,
-                TestAuthz::new(),
-            );
+            let mut state = TestState::new(TestAuthz::new()).await;
             let conference_room_id = Uuid::new_v4();
             let event_room_id = Uuid::new_v4();
 
@@ -487,6 +482,7 @@ mod tests {
             };
             let rtc1_id = Uuid::new_v4();
             let rtc2_id = Uuid::new_v4();
+
             let minigroup_id = minigroup.id();
 
             {
@@ -620,13 +616,8 @@ mod tests {
 
         #[async_std::test]
         async fn handle_upload_mjr() {
-            let postgres = LocalPostgres::new();
-            let handle = postgres.run();
             let now = Utc::now();
-            let mut state = TestState::new_with_pool(
-                TestDb::new_with_local_postgres(&handle).await,
-                TestAuthz::new(),
-            );
+            let mut state = TestState::new(TestAuthz::new()).await;
             let conference_room_id = Uuid::new_v4();
             let event_room_id = Uuid::new_v4();
 
@@ -734,27 +725,22 @@ mod tests {
         use chrono::{Duration, Utc};
         use uuid::Uuid;
 
+        use crate::app::AppContext;
         use crate::clients::event::test_helpers::EventBuilder;
         use crate::clients::event::{EventData, EventRoomResponse, HostEventData, PinEventData};
         use crate::db::class::MinigroupReadQuery;
         use crate::db::recording::{RecordingListQuery, Segments};
         use crate::test_helpers::prelude::*;
-        use crate::{app::AppContext, test_helpers::db::LocalPostgres};
 
         use super::super::super::PostprocessingStrategy;
         use super::super::*;
 
         #[async_std::test]
         async fn handle_adjust() {
-            let postgres = LocalPostgres::new();
-            let handle = postgres.run();
             let now = Utc::now();
-            let mut state = TestState::new_with_pool(
-                TestDb::new_with_local_postgres(&handle).await,
-                TestAuthz::new(),
-            );
             let agent1 = TestAgent::new("web", "user1", USR_AUDIENCE);
             let agent2 = TestAgent::new("web", "user2", USR_AUDIENCE);
+            let mut state = TestState::new(TestAuthz::new()).await;
             let event_room_id = Uuid::new_v4();
             let original_event_room_id = Uuid::new_v4();
             let modified_event_room_id = Uuid::new_v4();
@@ -967,27 +953,19 @@ mod tests {
         use serde_json::json;
         use uuid::Uuid;
 
+        use crate::app::{AppContext, API_VERSION};
         use crate::db::recording::{RecordingListQuery, Segments};
         use crate::test_helpers::prelude::*;
-        use crate::{
-            app::{AppContext, API_VERSION},
-            test_helpers::db::LocalPostgres,
-        };
 
         use super::super::super::PostprocessingStrategy;
         use super::super::*;
 
         #[async_std::test]
         async fn handle_transcoding_completion() {
-            let postgres = LocalPostgres::new();
-            let handle = postgres.run();
             let now = Utc::now();
-            let state = TestState::new_with_pool(
-                TestDb::new_with_local_postgres(&handle).await,
-                TestAuthz::new(),
-            );
             let agent1 = TestAgent::new("web", "user1", USR_AUDIENCE);
             let agent2 = TestAgent::new("web", "user2", USR_AUDIENCE);
+            let state = TestState::new(TestAuthz::new()).await;
 
             // Insert a minigroup with recordings.
             let (minigroup, recording1, recording2) = {

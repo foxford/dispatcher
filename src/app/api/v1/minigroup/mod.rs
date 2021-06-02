@@ -351,10 +351,7 @@ async fn find_minigroup_by_scope(
 mod tests {
     mod create {
         use super::super::*;
-        use crate::{
-            db::class::MinigroupReadQuery,
-            test_helpers::{db::LocalPostgres, prelude::*},
-        };
+        use crate::{db::class::MinigroupReadQuery, test_helpers::prelude::*};
         use chrono::Duration;
         use mockall::predicate as pred;
 
@@ -365,10 +362,7 @@ mod tests {
             let mut authz = TestAuthz::new();
             authz.allow(agent.account_id(), vec!["classrooms"], "create");
 
-            let postgres = LocalPostgres::new();
-            let handle = postgres.run();
-            let mut state =
-                TestState::new_with_pool(TestDb::new_with_local_postgres(&handle).await, authz);
+            let mut state = TestState::new(authz).await;
             let event_room_id = Uuid::new_v4();
             let conference_room_id = Uuid::new_v4();
 
@@ -408,10 +402,7 @@ mod tests {
             let mut authz = TestAuthz::new();
             authz.allow(agent.account_id(), vec!["classrooms"], "create");
 
-            let postgres = LocalPostgres::new();
-            let handle = postgres.run();
-            let mut state =
-                TestState::new_with_pool(TestDb::new_with_local_postgres(&handle).await, authz);
+            let mut state = TestState::new(authz).await;
             let event_room_id = Uuid::new_v4();
             let conference_room_id = Uuid::new_v4();
 
@@ -454,12 +445,10 @@ mod tests {
         async fn create_minigroup_unauthorized() {
             let agent = TestAgent::new("web", "user1", USR_AUDIENCE);
 
-            let postgres = LocalPostgres::new();
-            let handle = postgres.run();
-            let state = TestState::new_with_pool(
-                TestDb::new_with_local_postgres(&handle).await,
-                TestAuthz::new(),
-            );
+            let state = TestState::new(TestAuthz::new()).await;
+            let event_room_id = Uuid::new_v4();
+            let conference_room_id = Uuid::new_v4();
+
             let scope = random_string();
 
             let state = Arc::new(state);
@@ -508,7 +497,7 @@ mod tests {
             state
                 .conference_client_mock()
                 .expect_create_room()
-                .withf(move |_time, _audience, policy, reserve, _tags| {
+                .withf(move |_time, audience, policy, reserve, _tags| {
                     assert_eq!(*policy, Some(String::from("owned")));
                     assert_eq!(*reserve, Some(10));
                     true
