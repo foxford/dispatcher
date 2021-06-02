@@ -51,6 +51,8 @@ struct WebinarVersion {
     stream_id: Uuid,
     #[serde(skip_serializing_if = "Option::is_none")]
     tags: Option<JsonValue>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    room_events_uri: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -128,6 +130,7 @@ pub async fn read(req: Request<Arc<dyn AppContext>>) -> AppResult {
                 stream_id: recording.rtc_id(),
                 event_room_id: og_event_id,
                 tags: webinar.tags().map(ToOwned::to_owned),
+                room_events_uri: None,
             });
         }
 
@@ -138,6 +141,7 @@ pub async fn read(req: Request<Arc<dyn AppContext>>) -> AppResult {
                     stream_id: recording.rtc_id(),
                     event_room_id: md_event_id,
                     tags: webinar.tags().map(ToOwned::to_owned),
+                    room_events_uri: webinar.room_events_uri().cloned(),
                 });
             }
 
@@ -206,6 +210,7 @@ pub async fn read_by_scope(req: Request<Arc<dyn AppContext>>) -> AppResult {
                 stream_id: recording.rtc_id(),
                 event_room_id: og_event_id,
                 tags: webinar.tags().map(ToOwned::to_owned),
+                room_events_uri: None,
             });
         }
 
@@ -215,6 +220,7 @@ pub async fn read_by_scope(req: Request<Arc<dyn AppContext>>) -> AppResult {
                 stream_id: recording.rtc_id(),
                 event_room_id: md_event_id,
                 tags: webinar.tags().map(ToOwned::to_owned),
+                room_events_uri: webinar.room_events_uri().cloned(),
             });
         }
 

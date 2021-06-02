@@ -146,7 +146,8 @@ impl MinigroupInsertQuery {
                 conference_room_id,
                 original_event_room_id,
                 modified_event_room_id,
-                reserve
+                reserve,
+                room_events_uri
             "#,
             self.scope,
             self.audience,

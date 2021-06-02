@@ -79,6 +79,10 @@ impl MessageHandler {
                 .handle_transcoding_completion(data, audience)
                 .await
                 .error(AppErrorKind::TranscodingFlowFailed),
+            Some("room.dump_events") => self
+                .handle_dump_events(data)
+                .await
+                .error(AppErrorKind::TranscodingFlowFailed),
             val => {
                 debug!(
                     crate::LOG,
@@ -192,6 +196,23 @@ impl MessageHandler {
             .await
     }
 
+    async fn handle_dump_events(&self, data: IncomingEvent<String>) -> Result<()> {
+        let payload = data.extract_payload();
+        let dump_events: DumpEvents = serde_json::from_str(&payload)?;
+        match dump_events.result {
+            DumpEventsResult::Success { room_id, s3_uri } => {
+                let mut conn = self.ctx.get_conn().await?;
+                crate::db::class::UpdateDumpEventsQuery::new(room_id, s3_uri)
+                    .execute(&mut conn)
+                    .await?;
+                Ok(())
+            }
+            DumpEventsResult::Error { error } => {
+                bail!("Dump failed, err = {:#?}", error);
+            }
+        }
+    }
+
     async fn get_class_from_tags(&self, audience: &str, tags: Option<&JsonValue>) -> Result<Class> {
         let maybe_scope = tags.and_then(|tags| {
             tags.get("scope")
@@ -231,4 +252,19 @@ struct ClassStop {
     tags: Option<JsonValue>,
     scope: String,
     id: Uuid,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(tag = "status", content = "result")]
+#[serde(rename_all = "snake_case")]
+enum DumpEventsResult {
+    Success { room_id: Uuid, s3_uri: String },
+    Error { error: JsonValue },
+}
+
+#[derive(Deserialize, Debug)]
+struct DumpEvents {
+    tags: Option<JsonValue>,
+    #[serde(flatten)]
+    result: DumpEventsResult,
 }

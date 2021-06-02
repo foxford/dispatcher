@@ -160,6 +160,7 @@ pub trait EventClient: Sync + Send {
 
     async fn lock_chat(&self, room_id: Uuid) -> Result<(), ClientError>;
     async fn list_events(&self, room_id: Uuid, kind: &str) -> Result<Vec<Event>, ClientError>;
+    async fn dump_room(&self, event_room_id: Uuid) -> Result<(), ClientError>;
 }
 
 pub struct MqttEventClient {
@@ -235,6 +236,11 @@ struct EventAdjustPayload {
     #[serde(with = "crate::db::recording::serde::segments")]
     segments: Segments,
     offset: i64,
+}
+
+#[derive(Serialize)]
+struct EventDumpEventsPayload {
+    id: Uuid,
 }
 
 #[derive(Debug, Serialize)]
@@ -505,6 +511,37 @@ impl EventClient for MqttEventClient {
         }
 
         Ok(events)
+    }
+
+    async fn dump_room(&self, room_id: Uuid) -> Result<(), ClientError> {
+        let reqp = self.build_reqp("room.dump_events")?;
+        let payload = EventDumpEventsPayload { id: room_id };
+        let msg = if let OutgoingMessage::Request(msg) =
+            OutgoingRequest::multicast(payload, reqp, &self.event_account_id, &self.api_version)
+        {
+            msg
+        } else {
+            unreachable!()
+        };
+
+        let request = self.dispatcher.request::<_, JsonValue>(msg);
+        let payload_result = if let Some(dur) = self.timeout {
+            async_std::future::timeout(dur, request)
+                .await
+                .map_err(|_| ClientError::TimeoutError)?
+        } else {
+            request.await
+        };
+
+        let payload = payload_result.map_err(|e| ClientError::PayloadError(e.to_string()))?;
+
+        match payload.properties().status() {
+            ResponseStatus::ACCEPTED => Ok(()),
+            status => {
+                let e = format!("Wrong status, expected 202, got {:?}", status);
+                Err(ClientError::PayloadError(e))
+            }
+        }
     }
 }
 
