@@ -1,8 +1,10 @@
 use std::env::var;
+use std::sync::Once;
 
 use sqlx::postgres::{PgPool, PgPoolOptions, Postgres};
 use sqlx::{pool::PoolConnection, Executor};
 
+static DB_TRUNCATE: Once = Once::new();
 #[derive(Clone)]
 pub struct TestDb {
     pool: PgPool,
@@ -20,13 +22,15 @@ impl TestDb {
             .expect("Failed to connect to the DB");
 
         // todo: we should actually run every test in transaction, but thats not possible for now, maybe in sqlx 0.6
-        {
-            let mut conn = pool.acquire().await.expect("Failed to get DB connection");
+        DB_TRUNCATE.call_once(|| {
+            async_std::task::block_on(async {
+                let mut conn = pool.acquire().await.expect("Failed to get DB connection");
 
-            conn.execute("TRUNCATE class CASCADE;")
-                .await
-                .expect("Failed to truncate class table");
-        }
+                conn.execute("TRUNCATE class CASCADE;")
+                    .await
+                    .expect("Failed to truncate class table");
+            })
+        });
         Self { pool }
     }
 
