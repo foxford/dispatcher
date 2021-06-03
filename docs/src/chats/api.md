@@ -9,6 +9,7 @@ Route                                     | Method | Short description
 /api/v1/audiences/:audience/chats/:scope  | GET    | [Reads](#read-chat) chat.
 /api/v1/chats                             | POST   | [Creates](#create-chat) chat and corresponding room in event.
 /api/v1/chats/convert                     | POST   | [Creates](#convert-chat) chat with already existing event room.
+/api/v1/chats/:chat_id/events             | POST   | [Creates](#create-chat-event) event in the room.
 
 ### Create chat
 
@@ -60,3 +61,19 @@ tags                   | json object | +        | Arbitrary tags
 event_room_id          | uuid        |          | Event room uuid
 
 Response: status 201 and chat object as payload.
+
+### Create chat event
+
+Parameters:
+
+Name          | Type    | Default    | Description
+------------- | ------- | ---------- | -----------------------------
+type          | string  | _required_ | The event type.
+set           | string  |       type | Collection set's name.
+label         | string  | _optional_ | Collection item's label.
+attribute     | string  | _optional_ | An attribute for authorization and filtering.
+data          | json    | _required_ | The event JSON payload.
+is_claim      | boolean |      false | Whether to notify the tenant.
+is_persistent | boolean |       true | Whether to persist the event.
+
+Response: status **201** and empty payload.

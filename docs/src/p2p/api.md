@@ -9,6 +9,7 @@ Route                                   | Method | Short description
 /api/v1/audiences/:audience/p2p/:scope  | GET    | [Reads](#read-p2p) p2p.
 /api/v1/p2p                             | POST   | [Creates](#create-p2p) p2p and required rooms in other services.
 /api/v1/p2p/convert                     | POST   | [Creates](#convert-p2p) p2p with already existing event and conference rooms.
+/api/v1/p2p/:p2p_id/events              | POST   | [Creates](#create-p2p-event) event in the room.
 
 ### Create p2p
 
@@ -61,3 +62,19 @@ conference_room_id     | uuid        |          | Conference room uuid
 event_room_id          | uuid        |          | Event room uuid
 
 Response: status 201 and p2p object as payload.
+
+### Create p2p event
+
+Parameters:
+
+Name          | Type    | Default    | Description
+------------- | ------- | ---------- | -----------------------------
+type          | string  | _required_ | The event type.
+set           | string  |       type | Collection set's name.
+label         | string  | _optional_ | Collection item's label.
+attribute     | string  | _optional_ | An attribute for authorization and filtering.
+data          | json    | _required_ | The event JSON payload.
+is_claim      | boolean |      false | Whether to notify the tenant.
+is_persistent | boolean |       true | Whether to persist the event.
+
+Response: status **201** and empty payload.

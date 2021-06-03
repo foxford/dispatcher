@@ -12,6 +12,7 @@ Route                                           | Method | Short description
 /api/v1/webinars/convert                        | POST   | [Creates](#convert-webinar) webinar with already existing event and conference rooms.
 /api/v1/webinars/:webinar_id/download           | GET    | [Downloads](#download-webinar) webinar source file.
 /api/v1/webinars/:webinar_id/recreate           | POST   | [Recreates](#move-webinar) webinar rooms.
+/api/v1/webinars/:webinar_id/events             | POST   | [Creates](#create-webinar-event) event in the room.
 
 ### Create webinar
 
@@ -117,3 +118,20 @@ Attribute              | Type        | Optional | Description
 time                   | [int, int]  | +        | New time
 
 Response: status 200 and webinar object as payload.
+
+
+### Create webinar event
+
+Parameters:
+
+Name          | Type    | Default    | Description
+------------- | ------- | ---------- | -----------------------------
+type          | string  | _required_ | The event type.
+set           | string  |       type | Collection set's name.
+label         | string  | _optional_ | Collection item's label.
+attribute     | string  | _optional_ | An attribute for authorization and filtering.
+data          | json    | _required_ | The event JSON payload.
+is_claim      | boolean |      false | Whether to notify the tenant.
+is_persistent | boolean |       true | Whether to persist the event.
+
+Response: status **201** and empty payload.
