@@ -5,7 +5,6 @@ use anyhow::Context;
 use async_std::prelude::FutureExt;
 use chrono::Utc;
 use serde_derive::Serialize;
-use serde_json::Value as JsonValue;
 use tide::{Request, Response};
 use uuid::Uuid;
 
@@ -16,20 +15,22 @@ use crate::app::AppContext;
 use crate::db::class::BoundedDateTimeTuple;
 use crate::db::class::Object as Class;
 
-use super::{extract_id, extract_param, validate_token, AppResult};
+use super::{
+    extract_id, extract_param, validate_token, AppResult, ClassroomVersion, RealTimeObject,
+};
 
 #[derive(Serialize)]
 struct WebinarObject {
     id: String,
     real_time: RealTimeObject,
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    on_demand: Vec<WebinarVersion>,
+    on_demand: Vec<ClassroomVersion>,
     #[serde(skip_serializing_if = "Option::is_none")]
     status: Option<String>,
 }
 
 impl WebinarObject {
-    pub fn add_version(&mut self, version: WebinarVersion) {
+    pub fn add_version(&mut self, version: ClassroomVersion) {
         self.on_demand.push(version);
     }
 
@@ -42,37 +43,8 @@ impl WebinarObject {
     }
 }
 
-#[derive(Serialize)]
-struct WebinarVersion {
-    version: &'static str,
-    event_room_id: Uuid,
-    // TODO: this is deprecated and should be removed eventually
-    // right now its necessary to generate HLS links
-    stream_id: Uuid,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    tags: Option<JsonValue>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    room_events_uri: Option<String>,
-}
-
-#[derive(Serialize)]
-struct RealTimeObject {
-    conference_room_id: Uuid,
-    event_room_id: Uuid,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    fallback_uri: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    rtc_id: Option<Uuid>,
-}
-
-impl RealTimeObject {
-    pub fn set_rtc_id(&mut self, rtc_id: Uuid) {
-        self.rtc_id = Some(rtc_id);
-    }
-}
-
-impl From<Class> for WebinarObject {
-    fn from(obj: Class) -> WebinarObject {
+impl From<&Class> for WebinarObject {
+    fn from(obj: &Class) -> WebinarObject {
         WebinarObject {
             id: obj.scope().to_owned(),
             real_time: RealTimeObject {
@@ -119,13 +91,13 @@ pub async fn read(req: Request<Arc<dyn AppContext>>) -> AppResult {
         .context("Failed to find recording")
         .error(AppErrorKind::DbQueryFailed)?;
 
-    let mut webinar_obj: WebinarObject = webinar.clone().into();
+    let mut webinar_obj: WebinarObject = (&webinar).into();
 
     if let Some(recording) = recordings.first() {
         // BEWARE: the order is significant
         // as of now its expected that modified version is second
         if let Some(og_event_id) = webinar.original_event_room_id() {
-            webinar_obj.add_version(WebinarVersion {
+            webinar_obj.add_version(ClassroomVersion {
                 version: "original",
                 stream_id: recording.rtc_id(),
                 event_room_id: og_event_id,
@@ -136,7 +108,7 @@ pub async fn read(req: Request<Arc<dyn AppContext>>) -> AppResult {
 
         if recording.transcoded_at().is_some() {
             if let Some(md_event_id) = webinar.modified_event_room_id() {
-                webinar_obj.add_version(WebinarVersion {
+                webinar_obj.add_version(ClassroomVersion {
                     version: "modified",
                     stream_id: recording.rtc_id(),
                     event_room_id: md_event_id,
@@ -201,11 +173,11 @@ pub async fn read_by_scope(req: Request<Arc<dyn AppContext>>) -> AppResult {
         .context("Failed to find recording")
         .error(AppErrorKind::DbQueryFailed)?;
 
-    let mut webinar_obj: WebinarObject = webinar.clone().into();
+    let mut webinar_obj: WebinarObject = (&webinar).into();
 
     if let Some(recording) = recordings.first() {
         if let Some(og_event_id) = webinar.original_event_room_id() {
-            webinar_obj.add_version(WebinarVersion {
+            webinar_obj.add_version(ClassroomVersion {
                 version: "original",
                 stream_id: recording.rtc_id(),
                 event_room_id: og_event_id,
@@ -215,7 +187,7 @@ pub async fn read_by_scope(req: Request<Arc<dyn AppContext>>) -> AppResult {
         }
 
         if let Some(md_event_id) = webinar.modified_event_room_id() {
-            webinar_obj.add_version(WebinarVersion {
+            webinar_obj.add_version(ClassroomVersion {
                 version: "modified",
                 stream_id: recording.rtc_id(),
                 event_room_id: md_event_id,
