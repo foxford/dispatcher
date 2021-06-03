@@ -328,21 +328,18 @@ fn build_stream(
     let mut pin_start = None;
 
     for event in pin_events {
-        match event.data() {
-            EventData::Pin(data) => {
-                // Shift from the event room's dimension to the recording's dimension.
-                let occurred_at = event.occurred_at() as i64 / NS_IN_MS - event_room_offset;
+        if let EventData::Pin(data) = event.data() {
+            // Shift from the event room's dimension to the recording's dimension.
+            let occurred_at = event.occurred_at() as i64 / NS_IN_MS - event_room_offset;
 
-                if data.agent_id() == recording.created_by() && pin_start.is_none() {
-                    // Stream has got pinned.
-                    pin_start = Some(occurred_at);
-                } else if let Some(pinned_at) = pin_start {
-                    // Stream has got unpinned.
-                    pin_segments.push((Bound::Included(pinned_at), Bound::Excluded(occurred_at)));
-                    pin_start = None;
-                }
+            if data.agent_id() == recording.created_by() && pin_start.is_none() {
+                // Stream has got pinned.
+                pin_start = Some(occurred_at);
+            } else if let Some(pinned_at) = pin_start {
+                // Stream has got unpinned.
+                pin_segments.push((Bound::Included(pinned_at), Bound::Excluded(occurred_at)));
+                pin_start = None;
             }
-            _ => (),
         }
     }
 

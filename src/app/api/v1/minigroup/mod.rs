@@ -451,8 +451,6 @@ mod tests {
             let agent = TestAgent::new("web", "user1", USR_AUDIENCE);
 
             let state = TestState::new(TestAuthz::new()).await;
-            let event_room_id = Uuid::new_v4();
-            let conference_room_id = Uuid::new_v4();
 
             let scope = random_string();
 
@@ -502,7 +500,7 @@ mod tests {
             state
                 .conference_client_mock()
                 .expect_create_room()
-                .withf(move |_time, audience, policy, reserve, _tags| {
+                .withf(move |_time, _audience, policy, reserve, _tags| {
                     assert_eq!(*policy, Some(String::from("owned")));
                     assert_eq!(*reserve, Some(10));
                     true
