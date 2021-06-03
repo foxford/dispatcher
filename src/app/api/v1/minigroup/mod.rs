@@ -19,20 +19,32 @@ use crate::clients::{
 use crate::db::class::BoundedDateTimeTuple;
 use crate::db::class::Object as Class;
 
-use super::{extract_id, extract_param, validate_token, AppResult};
+use super::{
+    extract_id, extract_param, validate_token, AppResult, ClassroomVersion, RealTimeObject,
+};
 
 #[derive(Serialize)]
 struct MinigroupObject {
     id: String,
     real_time: RealTimeObject,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    on_demand: Vec<ClassroomVersion>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    status: Option<String>,
 }
 
-#[derive(Serialize)]
-struct RealTimeObject {
-    conference_room_id: Uuid,
-    event_room_id: Uuid,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    rtc_id: Option<Uuid>,
+impl MinigroupObject {
+    pub fn add_version(&mut self, version: ClassroomVersion) {
+        self.on_demand.push(version);
+    }
+
+    pub fn set_status(&mut self, status: &str) {
+        self.status = Some(status.to_owned());
+    }
+
+    pub fn set_rtc_id(&mut self, rtc_id: Uuid) {
+        self.real_time.set_rtc_id(rtc_id);
+    }
 }
 
 impl From<&Class> for MinigroupObject {
@@ -43,7 +55,10 @@ impl From<&Class> for MinigroupObject {
                 conference_room_id: obj.conference_room_id(),
                 event_room_id: obj.event_room_id(),
                 rtc_id: None,
+                fallback_uri: None,
             },
+            on_demand: vec![],
+            status: None,
         }
     }
 }
@@ -68,7 +83,55 @@ pub async fn read(req: Request<Arc<dyn AppContext>>) -> AppResult {
         )
         .await?;
 
-    let minigroup_obj: MinigroupObject = (&minigroup).into();
+    let mut conn = req
+        .state()
+        .get_conn()
+        .await
+        .error(AppErrorKind::DbConnAcquisitionFailed)?;
+
+    let recordings = crate::db::recording::RecordingListQuery::new(minigroup.id())
+        .execute(&mut conn)
+        .await
+        .context("Failed to find recording")
+        .error(AppErrorKind::DbQueryFailed)?;
+
+    let mut minigroup_obj: MinigroupObject = (&minigroup).into();
+
+    if let Some(recording) = recordings.first() {
+        // BEWARE: the order is significant
+        // as of now its expected that modified version is second
+        if let Some(og_event_id) = minigroup.original_event_room_id() {
+            minigroup_obj.add_version(ClassroomVersion {
+                version: "original",
+                stream_id: recording.rtc_id(),
+                event_room_id: og_event_id,
+                tags: minigroup.tags().map(ToOwned::to_owned),
+                room_events_uri: None,
+            });
+        }
+
+        minigroup_obj.set_rtc_id(recording.rtc_id());
+
+        if recording.transcoded_at().is_some() {
+            if let Some(md_event_id) = minigroup.modified_event_room_id() {
+                minigroup_obj.add_version(ClassroomVersion {
+                    version: "modified",
+                    stream_id: recording.rtc_id(),
+                    event_room_id: md_event_id,
+                    tags: minigroup.tags().map(ToOwned::to_owned),
+                    room_events_uri: minigroup.room_events_uri().cloned(),
+                });
+            }
+
+            minigroup_obj.set_status("transcoded");
+        } else if recording.adjusted_at().is_some() {
+            minigroup_obj.set_status("adjusted");
+        } else {
+            minigroup_obj.set_status("finished");
+        }
+    } else {
+        minigroup_obj.set_status("real-time");
+    }
 
     let body = serde_json::to_string(&minigroup_obj)
         .context("Failed to serialize minigroup")
