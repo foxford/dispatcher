@@ -111,7 +111,7 @@ impl super::PostprocessingStrategy for WebinarPostprocessingStrategy {
                                 .stream_uri()
                                 .ok_or_else(|| {
                                     anyhow!(
-                                        "Missing stream_uri in adjust for, {}",
+                                        "Missing stream_uri in adjust for {}",
                                         recording.rtc_id()
                                     )
                                 })?
@@ -203,7 +203,7 @@ impl super::PostprocessingStrategy for WebinarPostprocessingStrategy {
             .adjust_room(
                 self.webinar.event_room_id(),
                 rtc.started_at()
-                    .ok_or_else(|| anyhow!("Missing started at after ipload"))?,
+                    .ok_or_else(|| anyhow!("Missing started at after upload"))?,
                 rtc.segments()
                     .ok_or_else(|| anyhow!("Missing segments after upload"))?
                     .clone(),
