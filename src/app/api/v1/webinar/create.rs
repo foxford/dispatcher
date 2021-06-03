@@ -57,8 +57,7 @@ async fn do_create(
         Some(Bound::Included(t)) | Some(Bound::Excluded(t)) => {
             (Bound::Included(t), Bound::Unbounded)
         }
-        Some(Bound::Unbounded) => (Bound::Unbounded, Bound::Unbounded),
-        None => (Bound::Unbounded, Bound::Unbounded),
+        Some(Bound::Unbounded) | None => (Bound::Included(Utc::now()), Bound::Unbounded),
     };
     let conference_fut = state.conference_client().create_room(
         conference_time,
