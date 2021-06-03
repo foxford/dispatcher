@@ -45,7 +45,7 @@ jobs:
         - CARGO_INCREMENTAL=0
 
     - stage: check
-      name: Compilation
+      name: Tests
       env:
         - RUST_BACKTRACE=1
         - PGPORT=5433
@@ -55,18 +55,18 @@ jobs:
       script:
         - cargo install sqlx-cli --version 0.5.2
         - cargo sqlx database create && cargo sqlx migrate run
-        - cargo build
+        - cargo test
 
-    # Note: there isn't any doc yet.
-    # - stage: build
-    #   name: Docs
-    #   install: cargo install mdbook --vers ^0.4
-    #   script:
-    #     - ./deploy.init.sh
-    #     - mdbook build docs
-    #     - ./deploy/ci-mdbook.sh
     - stage: build
-      name: Build
+      name: Docs
+      install: cargo install mdbook --vers ^0.4
+      script:
+        - ./deploy.init.sh
+        - mdbook build docs
+        - ./deploy/ci-mdbook.sh
+
+    - stage: build
+      name: Docker image build
       script:
         - ./deploy.init.sh
         - ./deploy/ci-install-tools.sh

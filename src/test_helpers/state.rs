@@ -3,6 +3,7 @@ use std::sync::{Arc, Mutex};
 
 use anyhow::Result;
 use async_trait::async_trait;
+use serde_json::json;
 use sqlx::pool::PoolConnection;
 use sqlx::postgres::Postgres;
 use svc_agent::error::Error as AgentError;
@@ -24,6 +25,7 @@ use super::agent::TestAgent;
 use super::authz::TestAuthz;
 use super::db::TestDb;
 use super::outgoing_envelope::OutgoingEnvelope;
+use super::SVC_AUDIENCE;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,9 +41,56 @@ pub struct TestState {
     authz: Authz,
 }
 
+fn build_config() -> Config {
+    let id = format!("dispatcher.{}", SVC_AUDIENCE);
+    let broker_id = format!("mqtt-gateway.{}", SVC_AUDIENCE);
+
+    let config = json!({
+        "id": id,
+        "agent_label": "alpha",
+        "broker_id": broker_id,
+        "default_frontend_base": "http://testing01.example.org",
+        "tenants": ["testing01.example.org"],
+        "id_token": {
+            "algorithm": "ES256",
+            "key": "data/keys/svc.private_key.p8.der.sample",
+        },
+        "authz": {},
+        "authn": {},
+        "mqtt": {
+            "uri": "mqtt://0.0.0.0:1883",
+            "clean_session": false,
+        },
+        "http": {
+            "listener_address": "0.0.0.0:3000"
+        },
+        "storage": {
+            "base_url": "http://localhost:4000/"
+        },
+        "conference_client": {
+            "account_id": "conference.dev.svc.example.org",
+            "timeout": 5,
+            "api_version": "v1"
+        },
+        "event_client": {
+            "account_id": "event.dev.svc.example.org",
+            "timeout": 5,
+            "api_version": "v1"
+        },
+        "tq_client": {
+            "base_url": "http://localhost:3000/",
+            "account_id": "tq.dev.svc.example.org",
+            "timeout": 5,
+            "api_version": "v1"
+        }
+    });
+
+    serde_json::from_value::<Config>(config).expect("Failed to parse test config")
+}
+
 impl TestState {
     pub async fn new(authz: TestAuthz) -> Self {
-        let config = crate::config::load().expect("Failed to load config");
+        let config = build_config();
 
         let agent = TestAgent::new(&config.agent_label, config.id.label(), config.id.audience());
 
@@ -60,7 +109,7 @@ impl TestState {
     }
 
     pub fn new_with_pool(db_pool: TestDb, authz: TestAuthz) -> Self {
-        let config = crate::config::load().expect("Failed to load config");
+        let config = build_config();
 
         let agent = TestAgent::new(&config.agent_label, config.id.label(), config.id.audience());
 
