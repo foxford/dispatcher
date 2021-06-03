@@ -158,9 +158,22 @@ pub trait EventClient: Sync + Send {
         offset: i64,
     ) -> Result<(), ClientError>;
 
-    async fn lock_chat(&self, room_id: Uuid) -> Result<(), ClientError>;
+    async fn create_event(&self, payload: String) -> Result<(), ClientError>;
     async fn list_events(&self, room_id: Uuid, kind: &str) -> Result<Vec<Event>, ClientError>;
     async fn dump_room(&self, event_room_id: Uuid) -> Result<(), ClientError>;
+
+    async fn lock_chat(&self, room_id: Uuid) -> Result<(), ClientError> {
+        let payload = ChatLockPayload {
+            room_id,
+            kind: "chat_disabled",
+            set: "chat_disabled",
+            data: serde_json::json!({"value": true}),
+        };
+
+        let payload = serde_json::to_string(&payload).unwrap();
+
+        self.create_event(payload).await
+    }
 }
 
 pub struct MqttEventClient {
@@ -423,15 +436,9 @@ impl EventClient for MqttEventClient {
         }
     }
 
-    async fn lock_chat(&self, room_id: Uuid) -> Result<(), ClientError> {
+    async fn create_event(&self, payload: String) -> Result<(), ClientError> {
         let reqp = self.build_reqp("event.create")?;
 
-        let payload = ChatLockPayload {
-            room_id,
-            kind: "chat_disabled",
-            set: "chat_disabled",
-            data: serde_json::json!({"value": true}),
-        };
         let msg = if let OutgoingMessage::Request(msg) =
             OutgoingRequest::multicast(payload, reqp, &self.event_account_id, &self.api_version)
         {

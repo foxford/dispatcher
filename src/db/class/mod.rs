@@ -131,6 +131,7 @@ enum ReadQueryPredicate {
     Scope { audience: String, scope: String },
     ConferenceRoom(Uuid),
     EventRoom(Uuid),
+    Id(Uuid),
 }
 
 pub struct ReadQuery {
@@ -159,6 +160,12 @@ impl ReadQuery {
         }
     }
 
+    pub fn by_id(id: Uuid) -> Self {
+        Self {
+            condition: ReadQueryPredicate::Id(id),
+        }
+    }
+
     pub async fn execute(self, conn: &mut PgConnection) -> sqlx::Result<Option<Object>> {
         use quaint::ast::{Comparable, Select};
         use quaint::visitor::{Postgres, Visitor};
@@ -175,6 +182,7 @@ impl ReadQuery {
             ReadQueryPredicate::EventRoom(_) => {
                 q.and_where("event_room_id".equals("_placeholder_"))
             }
+            ReadQueryPredicate::Id(_) => q.and_where("id".equals("_placeholder_")),
         };
 
         let (sql, _bindings) = Postgres::build(q);
@@ -184,6 +192,7 @@ impl ReadQuery {
             ReadQueryPredicate::Scope { audience, scope } => query.bind(audience).bind(scope),
             ReadQueryPredicate::ConferenceRoom(id) => query.bind(id),
             ReadQueryPredicate::EventRoom(id) => query.bind(id),
+            ReadQueryPredicate::Id(id) => query.bind(id),
         };
 
         query.fetch_optional(conn).await

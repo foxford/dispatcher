@@ -14,6 +14,11 @@ use uuid::Uuid;
 
 use super::FEATURE_POLICY;
 
+use crate::app::authz::AuthzObject;
+use crate::app::error::ErrorExt;
+use crate::app::error::ErrorKind as AppErrorKind;
+use crate::app::AppContext;
+
 type AppError = crate::app::error::Error;
 type AppResult = Result<tide::Response, AppError>;
 
@@ -41,6 +46,64 @@ where
 
 pub async fn healthz(_req: Request<Arc<dyn AppContext>>) -> tide::Result {
     Ok("Ok".into())
+}
+
+pub async fn create_event(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
+    let mut body = req
+        .body_json::<JsonValue>()
+        .await
+        .error(AppErrorKind::InvalidPayload)?;
+    let id = extract_id(&req).error(AppErrorKind::InvalidParameter)?;
+
+    let account_id = validate_token(&req).error(AppErrorKind::Unauthorized)?;
+    let state = req.state();
+
+    let class = find_class(state.as_ref(), id)
+        .await
+        .error(AppErrorKind::WebinarNotFound)?;
+
+    let object = AuthzObject::new(&["classrooms", &class.id().to_string()]).into();
+
+    state
+        .authz()
+        .authorize(
+            class.audience().to_owned(),
+            account_id.clone(),
+            object,
+            "update".into(),
+        )
+        .await?;
+
+    body["room_id"] = serde_json::to_value(class.event_room_id()).unwrap();
+
+    let payload = serde_json::to_string(&body)
+        .map_err(|e| anyhow!("Failed to serialize body, reason = {:?}", e))
+        .error(AppErrorKind::InvalidPayload)?;
+
+    if let Err(e) = state.event_client().create_event(payload).await {
+        error!(
+            crate::LOG,
+            "Failed to create event in event room, clasroom id = {:?}, err = {:?}", id, e
+        );
+    }
+
+    let response = Response::builder(201).build();
+
+    Ok(response)
+}
+
+pub async fn find_class(
+    state: &dyn AppContext,
+    id: Uuid,
+) -> anyhow::Result<crate::db::class::Object> {
+    let webinar = {
+        let mut conn = state.get_conn().await?;
+        crate::db::class::ReadQuery::by_id(id)
+            .execute(&mut conn)
+            .await?
+            .ok_or_else(|| anyhow!("Failed to find class"))?
+    };
+    Ok(webinar)
 }
 
 #[derive(Deserialize)]

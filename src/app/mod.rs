@@ -38,7 +38,8 @@ use api::v1::webinar::{
     recreate as recreate_webinar, update as update_webinar,
 };
 use api::{
-    redirect_to_frontend, rollback, v1::healthz, v1::redirect_to_frontend as redirect_to_frontend2,
+    redirect_to_frontend, rollback, v1::create_event, v1::healthz,
+    v1::redirect_to_frontend as redirect_to_frontend2,
 };
 pub use authz::AuthzObject;
 use info::{list_frontends, list_scopes};
@@ -272,6 +273,9 @@ fn bind_webinars_routes(app: &mut tide::Server<Arc<dyn AppContext>>) {
 
     app.at("/api/v1/webinars/:id/recreate")
         .post(AppEndpoint(recreate_webinar));
+
+    app.at("/api/v1/webinars/:id/events")
+        .post(AppEndpoint(create_event));
 }
 
 fn bind_p2p_routes(app: &mut tide::Server<Arc<dyn AppContext>>) {
@@ -289,6 +293,9 @@ fn bind_p2p_routes(app: &mut tide::Server<Arc<dyn AppContext>>) {
     app.at("/api/v1/p2p").post(AppEndpoint(create_p2p));
 
     app.at("/api/v1/p2p/convert").post(AppEndpoint(convert_p2p));
+
+    app.at("/api/v1/p2p/:id/events")
+        .post(AppEndpoint(create_event));
 }
 
 fn bind_minigroups_routes(app: &mut tide::Server<Arc<dyn AppContext>>) {
@@ -312,6 +319,9 @@ fn bind_minigroups_routes(app: &mut tide::Server<Arc<dyn AppContext>>) {
         .post(AppEndpoint(create_minigroup));
     app.at("/api/v1/minigroups/:id")
         .put(AppEndpoint(update_minigroup));
+
+    app.at("/api/v1/minigroups/:id/events")
+        .post(AppEndpoint(create_event));
 }
 
 fn bind_chat_routes(app: &mut tide::Server<Arc<dyn AppContext>>) {
@@ -332,6 +342,9 @@ fn bind_chat_routes(app: &mut tide::Server<Arc<dyn AppContext>>) {
 
     app.at("/api/v1/chats/convert")
         .post(AppEndpoint(convert_chat));
+
+    app.at("/api/v1/chats/:id/events")
+        .post(AppEndpoint(create_event));
 }
 
 fn bind_authz_routes(app: &mut tide::Server<Arc<dyn AppContext>>) {
