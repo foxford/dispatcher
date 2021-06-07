@@ -51,8 +51,9 @@ impl From<&Class> for MinigroupObject {
 pub async fn read(req: Request<Arc<dyn AppContext>>) -> AppResult {
     let account_id = validate_token(&req).error(AppErrorKind::Unauthorized)?;
     let state = req.state();
+    let id = extract_id(&req).error(AppErrorKind::InvalidParameter)?;
 
-    let minigroup = find_minigroup(&req)
+    let minigroup = find_minigroup(state.as_ref(), id)
         .await
         .error(AppErrorKind::WebinarNotFound)?;
 
@@ -245,8 +246,9 @@ pub async fn update(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
 
     let account_id = validate_token(&req).error(AppErrorKind::Unauthorized)?;
     let state = req.state();
+    let id = extract_id(&req).error(AppErrorKind::InvalidParameter)?;
 
-    let minigroup = find_minigroup(&req)
+    let minigroup = find_minigroup(state.as_ref(), id)
         .await
         .error(AppErrorKind::WebinarNotFound)?;
 
@@ -317,12 +319,11 @@ pub async fn update(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
 }
 
 async fn find_minigroup(
-    req: &Request<Arc<dyn AppContext>>,
+    state: &dyn AppContext,
+    id: Uuid,
 ) -> anyhow::Result<crate::db::class::Object> {
-    let id = extract_id(req)?;
-
     let minigroup = {
-        let mut conn = req.state().get_conn().await?;
+        let mut conn = state.get_conn().await?;
         crate::db::class::MinigroupReadQuery::by_id(id)
             .execute(&mut conn)
             .await?
@@ -346,6 +347,10 @@ async fn find_minigroup_by_scope(
     };
     Ok(minigroup)
 }
+
+pub use recreate::recreate;
+
+mod recreate;
 
 #[cfg(test)]
 mod tests {
