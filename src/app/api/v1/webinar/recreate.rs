@@ -1,12 +1,19 @@
-use super::update::WebinarUpdate;
 use super::*;
+
+use serde_derive::Deserialize;
+use sqlx::Acquire;
 
 use crate::app::api::v1::AppError;
 use crate::db::class::Object as WebinarObject;
-use sqlx::Acquire;
+
+#[derive(Deserialize)]
+pub(super) struct WebinarRecreate {
+    #[serde(default, with = "crate::serde::ts_seconds_option_bound_tuple")]
+    time: Option<BoundedDateTimeTuple>,
+}
 
 pub async fn recreate(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
-    let body: WebinarUpdate = req.body_json().await.error(AppErrorKind::InvalidPayload)?;
+    let body: WebinarRecreate = req.body_json().await.error(AppErrorKind::InvalidPayload)?;
 
     let account_id = validate_token(&req).error(AppErrorKind::Unauthorized)?;
     let id = extract_id(&req).error(AppErrorKind::InvalidParameter)?;
@@ -17,6 +24,8 @@ pub async fn recreate(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
         .error(AppErrorKind::WebinarNotFound)?;
 
     let object = AuthzObject::new(&["classrooms", &webinar.id().to_string()]).into();
+
+    let time = body.time.unwrap_or((Bound::Unbounded, Bound::Unbounded));
 
     state
         .authz()
@@ -29,11 +38,11 @@ pub async fn recreate(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
         .await?;
 
     let (event_room_id, conference_room_id) =
-        create_event_and_conference(req.state().as_ref(), &webinar, &body.time).await?;
+        create_event_and_conference(req.state().as_ref(), &webinar, &time).await?;
 
     let query = crate::db::class::WebinarRecreateQuery::new(
         webinar.id(),
-        body.time.into(),
+        time.into(),
         event_room_id,
         conference_room_id,
     );
@@ -86,7 +95,7 @@ async fn create_event_and_conference(
 ) -> Result<(Uuid, Uuid), AppError> {
     let conference_time = match time.0 {
         Bound::Included(t) | Bound::Excluded(t) => (Bound::Included(t), Bound::Unbounded),
-        Bound::Unbounded => (Bound::Unbounded, Bound::Unbounded),
+        Bound::Unbounded => (Bound::Included(Utc::now()), Bound::Unbounded),
     };
     let conference_fut = state.conference_client().create_room(
         conference_time,
