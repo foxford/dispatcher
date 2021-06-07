@@ -94,6 +94,14 @@ fn validate_client(
                     }
                     None => Err(anyhow!("Access to set {:?} isnt proxied", id)),
                 }
+            } else if id.starts_with("eventsdump.") {
+                match extract_event_room_id(id) {
+                    Some(event_room_id) => {
+                        let event_room_id = Uuid::from_str(event_room_id)?;
+                        Ok(AuthzReadQuery::by_event(event_room_id))
+                    }
+                    None => Err(anyhow!("Access to bucket {:?} isnt proxied", id)),
+                }
             } else if BUCKETS.iter().any(|prefix| id.starts_with(prefix)) {
                 match extract_rtc_id(id) {
                     Some(rtc_id) => {
@@ -361,6 +369,10 @@ fn extract_audience_and_scope(set_id: &str) -> Option<AudienceScope> {
 }
 
 fn extract_rtc_id(set_id: &str) -> Option<&str> {
+    set_id.find("::").and_then(|idx| set_id.get(idx + 2..))
+}
+
+fn extract_event_room_id(set_id: &str) -> Option<&str> {
     set_id.find("::").and_then(|idx| set_id.get(idx + 2..))
 }
 
