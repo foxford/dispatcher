@@ -17,10 +17,12 @@ use crate::clients::{
     conference::RoomUpdate as ConfRoomUpdate, event::RoomUpdate as EventRoomUpdate,
 };
 use crate::db::class::BoundedDateTimeTuple;
+use crate::db::class::MinigroupType;
 use crate::db::class::Object as Class;
 
 use super::{
-    extract_id, extract_param, validate_token, AppResult, ClassroomVersion, RealTimeObject,
+    extract_id, extract_param, find, find_by_scope, validate_token, AppResult, ClassroomVersion,
+    RealTimeObject,
 };
 
 #[derive(Serialize)]
@@ -68,7 +70,7 @@ pub async fn read(req: Request<Arc<dyn AppContext>>) -> AppResult {
     let state = req.state();
     let id = extract_id(&req).error(AppErrorKind::InvalidParameter)?;
 
-    let minigroup = find_minigroup(state.as_ref(), id)
+    let minigroup = find::<MinigroupType>(state.as_ref(), id)
         .await
         .error(AppErrorKind::WebinarNotFound)?;
 
@@ -142,9 +144,11 @@ pub async fn read(req: Request<Arc<dyn AppContext>>) -> AppResult {
 
 pub async fn read_by_scope(req: Request<Arc<dyn AppContext>>) -> AppResult {
     let state = req.state();
+    let audience = extract_param(&req, "audience").error(AppErrorKind::InvalidParameter)?;
+    let scope = extract_param(&req, "scope").error(AppErrorKind::InvalidParameter)?;
     let account_id = validate_token(&req).error(AppErrorKind::Unauthorized)?;
 
-    let minigroup = match find_minigroup_by_scope(&req).await {
+    let minigroup = match find_by_scope::<MinigroupType>(state.as_ref(), audience, scope).await {
         Ok(minigroup) => minigroup,
         Err(e) => {
             error!(crate::LOG, "Failed to find a minigroup, err = {:?}", e);
@@ -311,7 +315,7 @@ pub async fn update(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
     let state = req.state();
     let id = extract_id(&req).error(AppErrorKind::InvalidParameter)?;
 
-    let minigroup = find_minigroup(state.as_ref(), id)
+    let minigroup = find::<MinigroupType>(state.as_ref(), id)
         .await
         .error(AppErrorKind::WebinarNotFound)?;
 
@@ -381,36 +385,6 @@ pub async fn update(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
     Ok(response)
 }
 
-async fn find_minigroup(
-    state: &dyn AppContext,
-    id: Uuid,
-) -> anyhow::Result<crate::db::class::Object> {
-    let minigroup = {
-        let mut conn = state.get_conn().await?;
-        crate::db::class::MinigroupReadQuery::by_id(id)
-            .execute(&mut conn)
-            .await?
-            .ok_or_else(|| anyhow!("Failed to find minigroup"))?
-    };
-    Ok(minigroup)
-}
-
-async fn find_minigroup_by_scope(
-    req: &Request<Arc<dyn AppContext>>,
-) -> anyhow::Result<crate::db::class::Object> {
-    let audience = extract_param(req, "audience")?.to_owned();
-    let scope = extract_param(req, "scope")?.to_owned();
-
-    let minigroup = {
-        let mut conn = req.state().get_conn().await?;
-        crate::db::class::MinigroupReadQuery::by_scope(audience.clone(), scope.clone())
-            .execute(&mut conn)
-            .await?
-            .ok_or_else(|| anyhow!("Failed to find minigroup by scope"))?
-    };
-    Ok(minigroup)
-}
-
 pub use recreate::recreate;
 
 mod recreate;
@@ -454,7 +428,7 @@ mod tests {
             // Assert DB changes.
             let mut conn = state.get_conn().await.expect("Failed to get conn");
 
-            let new_minigroup = MinigroupReadQuery::by_scope(USR_AUDIENCE.to_string(), scope)
+            let new_minigroup = MinigroupReadQuery::by_scope(USR_AUDIENCE, &scope)
                 .execute(&mut conn)
                 .await
                 .expect("Failed to fetch minigroup")
@@ -500,7 +474,7 @@ mod tests {
             // Assert DB changes.
             let mut conn = state.get_conn().await.expect("Failed to get conn");
 
-            let new_minigroup = MinigroupReadQuery::by_scope(USR_AUDIENCE.to_string(), scope)
+            let new_minigroup = MinigroupReadQuery::by_scope(USR_AUDIENCE, &scope)
                 .execute(&mut conn)
                 .await
                 .expect("Failed to fetch minigroup")

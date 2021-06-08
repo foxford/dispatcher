@@ -5,58 +5,9 @@ use serde_json::Value as JsonValue;
 use sqlx::postgres::{types::PgRange, PgConnection};
 use uuid::Uuid;
 
-use super::{ClassType, Object, Time};
+use super::{ClassType, GenericReadQuery, Object, P2PType, Time};
 
-enum ReadQueryPredicate {
-    Id(Uuid),
-    Scope { audience: String, scope: String },
-}
-
-pub struct P2PReadQuery {
-    condition: ReadQueryPredicate,
-}
-
-impl P2PReadQuery {
-    pub fn by_id(id: Uuid) -> Self {
-        Self {
-            condition: ReadQueryPredicate::Id(id),
-        }
-    }
-
-    pub fn by_scope(audience: String, scope: String) -> Self {
-        Self {
-            condition: ReadQueryPredicate::Scope { audience, scope },
-        }
-    }
-
-    pub async fn execute(self, conn: &mut PgConnection) -> sqlx::Result<Option<Object>> {
-        use quaint::ast::{Comparable, Select};
-        use quaint::visitor::{Postgres, Visitor};
-
-        let q = Select::from_table("class");
-
-        let q = match self.condition {
-            ReadQueryPredicate::Id(_) => q.and_where("id".equals("_placeholder_")),
-            ReadQueryPredicate::Scope { .. } => q
-                .and_where("audience".equals("_placeholder_"))
-                .and_where("scope".equals("_placeholder_")),
-        };
-
-        let q = q.and_where("kind".equals("_placeholder_"));
-
-        let (sql, _bindings) = Postgres::build(q);
-
-        let query = sqlx::query_as(&sql);
-
-        let query = match self.condition {
-            ReadQueryPredicate::Id(id) => query.bind(id),
-            ReadQueryPredicate::Scope { audience, scope } => query.bind(audience).bind(scope),
-        };
-        let query = query.bind(ClassType::P2P);
-
-        query.fetch_optional(conn).await
-    }
-}
+pub type P2PReadQuery = GenericReadQuery<P2PType>;
 
 pub struct P2PInsertQuery {
     scope: String,

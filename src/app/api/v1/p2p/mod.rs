@@ -275,7 +275,7 @@ async fn find_p2p_by_scope(
 
     let p2p = {
         let mut conn = req.state().get_conn().await?;
-        crate::db::class::P2PReadQuery::by_scope(audience.clone(), scope.clone())
+        crate::db::class::P2PReadQuery::by_scope(&audience, &scope)
             .execute(&mut conn)
             .await?
             .ok_or_else(|| anyhow!("Failed to find p2p by scope"))?

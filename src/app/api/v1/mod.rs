@@ -17,6 +17,7 @@ use crate::app::authz::AuthzObject;
 use crate::app::error::ErrorExt;
 use crate::app::error::ErrorKind as AppErrorKind;
 use crate::app::AppContext;
+use crate::db::class::AsClassType;
 
 type AppError = crate::app::error::Error;
 type AppResult = Result<tide::Response, AppError>;
@@ -242,6 +243,35 @@ impl RealTimeObject {
     pub fn set_rtc_id(&mut self, rtc_id: Uuid) {
         self.rtc_id = Some(rtc_id);
     }
+}
+
+async fn find<T: AsClassType>(
+    state: &dyn AppContext,
+    id: Uuid,
+) -> anyhow::Result<crate::db::class::Object> {
+    let webinar = {
+        let mut conn = state.get_conn().await?;
+        crate::db::class::GenericReadQuery::<T>::by_id(id)
+            .execute(&mut conn)
+            .await?
+            .ok_or_else(|| anyhow!("Failed to find {}", T::to_str()))?
+    };
+    Ok(webinar)
+}
+
+async fn find_by_scope<T: AsClassType>(
+    state: &dyn AppContext,
+    audience: &str,
+    scope: &str,
+) -> anyhow::Result<crate::db::class::Object> {
+    let webinar = {
+        let mut conn = state.get_conn().await?;
+        crate::db::class::GenericReadQuery::<T>::by_scope(&audience, &scope)
+            .execute(&mut conn)
+            .await?
+            .ok_or_else(|| anyhow!("Failed to find {} by scope", T::to_str()))?
+    };
+    Ok(webinar)
 }
 
 pub mod authz;

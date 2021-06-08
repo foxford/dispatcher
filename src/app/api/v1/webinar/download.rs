@@ -9,7 +9,7 @@ pub async fn download(req: Request<Arc<dyn AppContext>>) -> AppResult {
     let id = extract_id(&req).error(AppErrorKind::InvalidParameter)?;
     let state = req.state();
 
-    let webinar = find_webinar(state.as_ref(), id)
+    let webinar = find::<WebinarType>(state.as_ref(), id)
         .await
         .error(AppErrorKind::WebinarNotFound)?;
 
