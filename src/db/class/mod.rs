@@ -1,4 +1,4 @@
-use std::ops::Bound;
+use std::{marker::PhantomData, ops::Bound};
 
 use chrono::serde::ts_seconds;
 use chrono::{DateTime, Utc};
@@ -16,6 +16,45 @@ pub enum ClassType {
     Webinar,
     P2P,
     Minigroup,
+}
+
+pub struct WebinarType;
+pub struct P2PType;
+pub struct MinigroupType;
+
+pub trait AsClassType {
+    fn as_class_type() -> ClassType;
+    fn to_str() -> &'static str;
+}
+
+impl AsClassType for WebinarType {
+    fn as_class_type() -> ClassType {
+        ClassType::Webinar
+    }
+
+    fn to_str() -> &'static str {
+        "webinar"
+    }
+}
+
+impl AsClassType for P2PType {
+    fn as_class_type() -> ClassType {
+        ClassType::P2P
+    }
+
+    fn to_str() -> &'static str {
+        "p2p"
+    }
+}
+
+impl AsClassType for MinigroupType {
+    fn as_class_type() -> ClassType {
+        ClassType::Minigroup
+    }
+
+    fn to_str() -> &'static str {
+        "minigroup"
+    }
 }
 
 #[derive(Clone, Debug, Serialize, sqlx::FromRow)]
@@ -128,10 +167,10 @@ impl From<&Time> for PgRange<DateTime<Utc>> {
 ////////////////////////////////////////////////////////////////////////////////
 
 enum ReadQueryPredicate {
+    Id(Uuid),
     Scope { audience: String, scope: String },
     ConferenceRoom(Uuid),
     EventRoom(Uuid),
-    Id(Uuid),
 }
 
 pub struct ReadQuery {
@@ -173,6 +212,7 @@ impl ReadQuery {
         let q = Select::from_table("class");
 
         let q = match self.condition {
+            ReadQueryPredicate::Id(_) => q.and_where("id".equals("_placeholder_")),
             ReadQueryPredicate::Scope { .. } => q
                 .and_where("audience".equals("_placeholder_"))
                 .and_where("scope".equals("_placeholder_")),
@@ -182,18 +222,82 @@ impl ReadQuery {
             ReadQueryPredicate::EventRoom(_) => {
                 q.and_where("event_room_id".equals("_placeholder_"))
             }
-            ReadQueryPredicate::Id(_) => q.and_where("id".equals("_placeholder_")),
         };
 
         let (sql, _bindings) = Postgres::build(q);
         let query = sqlx::query_as(&sql);
 
         let query = match self.condition {
+            ReadQueryPredicate::Id(id) => query.bind(id),
             ReadQueryPredicate::Scope { audience, scope } => query.bind(audience).bind(scope),
             ReadQueryPredicate::ConferenceRoom(id) => query.bind(id),
             ReadQueryPredicate::EventRoom(id) => query.bind(id),
-            ReadQueryPredicate::Id(id) => query.bind(id),
         };
+
+        query.fetch_optional(conn).await
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+pub struct GenericReadQuery<T: AsClassType> {
+    condition: ReadQueryPredicate,
+    class_type: ClassType,
+    phantom: PhantomData<T>,
+}
+
+impl<T: AsClassType> GenericReadQuery<T> {
+    pub fn by_id(id: Uuid) -> Self {
+        Self {
+            condition: ReadQueryPredicate::Id(id),
+            class_type: T::as_class_type(),
+            phantom: PhantomData,
+        }
+    }
+
+    pub fn by_scope(audience: &str, scope: &str) -> Self {
+        Self {
+            condition: ReadQueryPredicate::Scope {
+                audience: audience.to_owned(),
+                scope: scope.to_owned(),
+            },
+            class_type: T::as_class_type(),
+            phantom: PhantomData,
+        }
+    }
+
+    pub async fn execute(self, conn: &mut PgConnection) -> sqlx::Result<Option<Object>> {
+        use quaint::ast::{Comparable, Select};
+        use quaint::visitor::{Postgres, Visitor};
+
+        let q = Select::from_table("class");
+
+        let q = match self.condition {
+            ReadQueryPredicate::Id(_) => q.and_where("id".equals("_placeholder_")),
+            ReadQueryPredicate::Scope { .. } => q
+                .and_where("audience".equals("_placeholder_"))
+                .and_where("scope".equals("_placeholder_")),
+            ReadQueryPredicate::ConferenceRoom(_) => {
+                q.and_where("conference_room_id".equals("_placeholder_"))
+            }
+            ReadQueryPredicate::EventRoom(_) => {
+                q.and_where("event_room_id".equals("_placeholder_"))
+            }
+        };
+
+        let q = q.and_where("kind".equals("_placeholder_"));
+
+        let (sql, _bindings) = Postgres::build(q);
+        let query = sqlx::query_as(&sql);
+
+        let query = match self.condition {
+            ReadQueryPredicate::Id(id) => query.bind(id),
+            ReadQueryPredicate::Scope { audience, scope } => query.bind(audience).bind(scope),
+            ReadQueryPredicate::ConferenceRoom(id) => query.bind(id),
+            ReadQueryPredicate::EventRoom(id) => query.bind(id),
+        };
+
+        let query = query.bind(self.class_type);
 
         query.fetch_optional(conn).await
     }

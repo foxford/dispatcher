@@ -3,6 +3,7 @@ use super::*;
 use serde_derive::Deserialize;
 use sqlx::Acquire;
 
+use super::find;
 use crate::app::api::v1::AppError;
 use crate::db::class::Object as WebinarObject;
 
@@ -19,7 +20,7 @@ pub async fn recreate(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
     let id = extract_id(&req).error(AppErrorKind::InvalidParameter)?;
     let state = req.state();
 
-    let webinar = find_minigroup(state.as_ref(), id)
+    let webinar = find::<MinigroupType>(state.as_ref(), id)
         .await
         .error(AppErrorKind::WebinarNotFound)?;
 

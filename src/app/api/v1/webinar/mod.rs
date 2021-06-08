@@ -14,9 +14,11 @@ use crate::app::error::ErrorKind as AppErrorKind;
 use crate::app::AppContext;
 use crate::db::class::BoundedDateTimeTuple;
 use crate::db::class::Object as Class;
+use crate::db::class::WebinarType;
 
 use super::{
-    extract_id, extract_param, validate_token, AppResult, ClassroomVersion, RealTimeObject,
+    extract_id, extract_param, find, find_by_scope, validate_token, AppResult, ClassroomVersion,
+    RealTimeObject,
 };
 
 #[derive(Serialize)]
@@ -64,7 +66,7 @@ pub async fn read(req: Request<Arc<dyn AppContext>>) -> AppResult {
     let state = req.state();
     let id = extract_id(&req).error(AppErrorKind::InvalidParameter)?;
 
-    let webinar = find_webinar(state.as_ref(), id)
+    let webinar = find::<WebinarType>(state.as_ref(), id)
         .await
         .error(AppErrorKind::WebinarNotFound)?;
 
@@ -141,7 +143,7 @@ pub async fn read_by_scope(req: Request<Arc<dyn AppContext>>) -> AppResult {
 
     let account_id = validate_token(&req).error(AppErrorKind::Unauthorized)?;
 
-    let webinar = match find_webinar_by_scope(state.as_ref(), audience, scope).await {
+    let webinar = match find_by_scope::<WebinarType>(state.as_ref(), audience, scope).await {
         Ok(webinar) => webinar,
         Err(e) => {
             error!(crate::LOG, "Failed to find a webinar, err = {:?}", e);
@@ -219,35 +221,6 @@ pub async fn read_by_scope(req: Request<Arc<dyn AppContext>>) -> AppResult {
 
 pub async fn options(_req: Request<Arc<dyn AppContext>>) -> tide::Result {
     Ok(Response::builder(200).build())
-}
-
-async fn find_webinar(
-    state: &dyn AppContext,
-    id: Uuid,
-) -> anyhow::Result<crate::db::class::Object> {
-    let webinar = {
-        let mut conn = state.get_conn().await?;
-        crate::db::class::WebinarReadQuery::by_id(id)
-            .execute(&mut conn)
-            .await?
-            .ok_or_else(|| anyhow!("Failed to find webinar"))?
-    };
-    Ok(webinar)
-}
-
-async fn find_webinar_by_scope(
-    state: &dyn AppContext,
-    audience: &str,
-    scope: &str,
-) -> anyhow::Result<crate::db::class::Object> {
-    let webinar = {
-        let mut conn = state.get_conn().await?;
-        crate::db::class::WebinarReadQuery::by_scope(audience.to_owned(), scope.to_owned())
-            .execute(&mut conn)
-            .await?
-            .ok_or_else(|| anyhow!("Failed to find webinar by scope"))?
-    };
-    Ok(webinar)
 }
 
 pub use convert::convert;

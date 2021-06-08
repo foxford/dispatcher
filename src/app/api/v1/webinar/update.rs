@@ -18,7 +18,7 @@ use crate::clients::{
 };
 use crate::db::class::BoundedDateTimeTuple;
 
-use super::{extract_id, find_webinar, validate_token, AppResult};
+use super::*;
 
 #[derive(Deserialize)]
 pub(super) struct WebinarUpdate {
@@ -42,7 +42,7 @@ async fn do_update(
     id: Uuid,
     body: WebinarUpdate,
 ) -> AppResult {
-    let webinar = find_webinar(state, id)
+    let webinar = find::<WebinarType>(state, id)
         .await
         .error(AppErrorKind::WebinarNotFound)?;
 
