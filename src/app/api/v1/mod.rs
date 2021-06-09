@@ -5,7 +5,7 @@ use anyhow::Context;
 use async_trait::async_trait;
 use futures::Future;
 use percent_encoding::{percent_encode, NON_ALPHANUMERIC};
-use serde_derive::{Deserialize, Serialize};
+use serde_derive::Deserialize;
 use serde_json::Value as JsonValue;
 use svc_agent::AccountId;
 use tide::{Endpoint, Request, Response};
@@ -216,35 +216,6 @@ fn extract_id(req: &Request<Arc<dyn AppContext>>) -> anyhow::Result<Uuid> {
     Ok(id)
 }
 
-#[derive(Serialize)]
-pub struct ClassroomVersion {
-    version: &'static str,
-    event_room_id: Uuid,
-    // TODO: this is deprecated and should be removed eventually
-    // right now its necessary to generate HLS links
-    stream_id: Uuid,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    tags: Option<JsonValue>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    room_events_uri: Option<String>,
-}
-
-#[derive(Serialize)]
-pub struct RealTimeObject {
-    conference_room_id: Uuid,
-    event_room_id: Uuid,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    fallback_uri: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    rtc_id: Option<Uuid>,
-}
-
-impl RealTimeObject {
-    pub fn set_rtc_id(&mut self, rtc_id: Uuid) {
-        self.rtc_id = Some(rtc_id);
-    }
-}
-
 async fn find<T: AsClassType>(
     state: &dyn AppContext,
     id: Uuid,
@@ -276,6 +247,7 @@ async fn find_by_scope<T: AsClassType>(
 
 pub mod authz;
 pub mod chat;
+pub mod class;
 pub mod minigroup;
 pub mod p2p;
 #[cfg(test)]

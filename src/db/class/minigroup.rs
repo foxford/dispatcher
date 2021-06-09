@@ -1,7 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde_json::Value as JsonValue;
 use sqlx::postgres::{types::PgRange, PgConnection};
-use sqlx::Done;
 use uuid::Uuid;
 
 use super::{ClassType, Object, Time};
@@ -117,72 +116,5 @@ impl MinigroupInsertQuery {
         )
         .fetch_one(conn)
         .await
-    }
-}
-
-pub struct MinigroupUpdateQuery {
-    id: Uuid,
-    time: Option<Time>,
-    reserve: Option<i32>,
-}
-
-impl MinigroupUpdateQuery {
-    pub fn new(id: Uuid) -> Self {
-        Self {
-            id,
-            time: None,
-            reserve: None,
-        }
-    }
-
-    pub fn time(mut self, time: Time) -> Self {
-        self.time = Some(time);
-        self
-    }
-
-    pub fn reserve(mut self, reserve: i32) -> Self {
-        self.reserve = Some(reserve);
-        self
-    }
-
-    pub async fn execute(&self, conn: &mut PgConnection) -> sqlx::Result<u64> {
-        use quaint::ast::{Comparable, Conjuctive, Update};
-        use quaint::visitor::{Postgres, Visitor};
-
-        let q = Update::table("class");
-        let q = match (&self.time, &self.reserve) {
-            (Some(_), Some(_)) => q
-                .set("time", "__placeholder_time__")
-                .set("reserve", "__placeholder__"),
-            (Some(_), None) => q.set("time", "__placeholder__"),
-            (None, Some(_)) => q.set("reserve", "__placeholder__"),
-            (None, None) => q,
-        };
-
-        let q = q.so_that(
-            "id".equals("__placeholder__")
-                .and("kind".equals("__placeholder__")),
-        );
-
-        let (sql, _bindings) = Postgres::build(q);
-
-        let query = sqlx::query(&sql);
-
-        let query = match &self.time {
-            Some(t) => {
-                let t: PgRange<DateTime<Utc>> = t.into();
-                query.bind(t)
-            }
-            None => query,
-        };
-
-        let query = match &self.reserve {
-            Some(r) => query.bind(r),
-            None => query,
-        };
-
-        let query = query.bind(self.id).bind(ClassType::Minigroup);
-
-        query.execute(conn).await.map(|done| done.rows_affected())
     }
 }
