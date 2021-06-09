@@ -9,13 +9,13 @@ use serde_derive::{Deserialize, Serialize};
 use tide::{Request, Response};
 use uuid::Uuid;
 
-use crate::app::authz::AuthzObject;
 use crate::app::error::ErrorExt;
 use crate::app::error::ErrorKind as AppErrorKind;
 use crate::app::AppContext;
 use crate::db::class::Object as Class;
+use crate::{app::authz::AuthzObject, db::class::P2PType};
 
-use super::{extract_id, extract_param, validate_token, AppResult};
+use super::{extract_id, extract_param, find, find_by_scope, validate_token, AppResult};
 
 #[derive(Serialize)]
 struct P2PObject {
@@ -45,11 +45,22 @@ impl From<Class> for P2PObject {
 }
 
 pub async fn read_p2p(req: Request<Arc<dyn AppContext>>) -> AppResult {
-    read(&req, find_p2p(&req)).await
+    let state = req.state();
+    let id = extract_id(&req).error(AppErrorKind::InvalidParameter)?;
+
+    read(&req, find::<P2PType>(state.as_ref(), id)).await
 }
 
 pub async fn read_by_scope(req: Request<Arc<dyn AppContext>>) -> AppResult {
-    read(&req, find_p2p_by_scope(&req)).await
+    let audience = extract_param(&req, "audience").error(AppErrorKind::InvalidParameter)?;
+    let scope = extract_param(&req, "scope").error(AppErrorKind::InvalidParameter)?;
+    let state = req.state();
+
+    read(
+        &req,
+        find_by_scope::<P2PType>(state.as_ref(), audience, scope),
+    )
+    .await
 }
 
 pub async fn read(
@@ -252,33 +263,4 @@ pub async fn convert(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
     let response = Response::builder(201).body(body).build();
 
     Ok(response)
-}
-
-async fn find_p2p(req: &Request<Arc<dyn AppContext>>) -> AnyResult<crate::db::class::Object> {
-    let id = extract_id(req)?;
-
-    let p2p = {
-        let mut conn = req.state().get_conn().await?;
-        crate::db::class::P2PReadQuery::by_id(id)
-            .execute(&mut conn)
-            .await?
-            .ok_or_else(|| anyhow!("Failed to find p2p by scope"))?
-    };
-    Ok(p2p)
-}
-
-async fn find_p2p_by_scope(
-    req: &Request<Arc<dyn AppContext>>,
-) -> AnyResult<crate::db::class::Object> {
-    let audience = extract_param(req, "audience")?.to_owned();
-    let scope = extract_param(req, "scope")?.to_owned();
-
-    let p2p = {
-        let mut conn = req.state().get_conn().await?;
-        crate::db::class::P2PReadQuery::by_scope(&audience, &scope)
-            .execute(&mut conn)
-            .await?
-            .ok_or_else(|| anyhow!("Failed to find p2p by scope"))?
-    };
-    Ok(p2p)
 }

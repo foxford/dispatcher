@@ -4,178 +4,25 @@ use std::sync::Arc;
 use anyhow::Context;
 use async_std::prelude::FutureExt;
 use chrono::Utc;
-use serde_derive::{Deserialize, Serialize};
+use serde_derive::Deserialize;
 use svc_agent::AccountId;
 use tide::{Request, Response};
-use uuid::Uuid;
 
+use crate::app::api::v1::class::{read as read_generic, read_by_scope as read_by_scope_generic};
 use crate::app::authz::AuthzObject;
 use crate::app::error::ErrorExt;
 use crate::app::error::ErrorKind as AppErrorKind;
 use crate::app::AppContext;
-use crate::clients::{
-    conference::RoomUpdate as ConfRoomUpdate, event::RoomUpdate as EventRoomUpdate,
-};
 use crate::db::class::BoundedDateTimeTuple;
 use crate::db::class::MinigroupType;
-use crate::db::class::Object as Class;
 
-use super::{
-    extract_id, extract_param, find, find_by_scope, validate_token, AppResult, ClassroomVersion,
-    RealTimeObject,
-};
-
-#[derive(Serialize)]
-struct MinigroupObject {
-    id: String,
-    real_time: RealTimeObject,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    on_demand: Vec<ClassroomVersion>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    status: Option<String>,
-}
-
-impl MinigroupObject {
-    pub fn add_version(&mut self, version: ClassroomVersion) {
-        self.on_demand.push(version);
-    }
-
-    pub fn set_status(&mut self, status: &str) {
-        self.status = Some(status.to_owned());
-    }
-
-    pub fn set_rtc_id(&mut self, rtc_id: Uuid) {
-        self.real_time.set_rtc_id(rtc_id);
-    }
-}
-
-impl From<&Class> for MinigroupObject {
-    fn from(obj: &Class) -> Self {
-        Self {
-            id: obj.scope().to_owned(),
-            real_time: RealTimeObject {
-                conference_room_id: obj.conference_room_id(),
-                event_room_id: obj.event_room_id(),
-                rtc_id: None,
-                fallback_uri: None,
-            },
-            on_demand: vec![],
-            status: None,
-        }
-    }
-}
-
+use super::{validate_token, AppResult};
 pub async fn read(req: Request<Arc<dyn AppContext>>) -> AppResult {
-    let account_id = validate_token(&req).error(AppErrorKind::Unauthorized)?;
-    let state = req.state();
-    let id = extract_id(&req).error(AppErrorKind::InvalidParameter)?;
-
-    let minigroup = find::<MinigroupType>(state.as_ref(), id)
-        .await
-        .error(AppErrorKind::WebinarNotFound)?;
-
-    let object = AuthzObject::new(&["classrooms", &minigroup.id().to_string()]).into();
-    state
-        .authz()
-        .authorize(
-            minigroup.audience().to_owned(),
-            account_id.clone(),
-            object,
-            "read".into(),
-        )
-        .await?;
-
-    let mut conn = req
-        .state()
-        .get_conn()
-        .await
-        .error(AppErrorKind::DbConnAcquisitionFailed)?;
-
-    let recordings = crate::db::recording::RecordingListQuery::new(minigroup.id())
-        .execute(&mut conn)
-        .await
-        .context("Failed to find recording")
-        .error(AppErrorKind::DbQueryFailed)?;
-
-    let mut minigroup_obj: MinigroupObject = (&minigroup).into();
-
-    if let Some(recording) = recordings.first() {
-        // BEWARE: the order is significant
-        // as of now its expected that modified version is second
-        if let Some(og_event_id) = minigroup.original_event_room_id() {
-            minigroup_obj.add_version(ClassroomVersion {
-                version: "original",
-                stream_id: recording.rtc_id(),
-                event_room_id: og_event_id,
-                tags: minigroup.tags().map(ToOwned::to_owned),
-                room_events_uri: None,
-            });
-        }
-
-        minigroup_obj.set_rtc_id(recording.rtc_id());
-
-        if recording.transcoded_at().is_some() {
-            if let Some(md_event_id) = minigroup.modified_event_room_id() {
-                minigroup_obj.add_version(ClassroomVersion {
-                    version: "modified",
-                    stream_id: recording.rtc_id(),
-                    event_room_id: md_event_id,
-                    tags: minigroup.tags().map(ToOwned::to_owned),
-                    room_events_uri: minigroup.room_events_uri().cloned(),
-                });
-            }
-
-            minigroup_obj.set_status("transcoded");
-        } else if recording.adjusted_at().is_some() {
-            minigroup_obj.set_status("adjusted");
-        } else {
-            minigroup_obj.set_status("finished");
-        }
-    } else {
-        minigroup_obj.set_status("real-time");
-    }
-
-    let body = serde_json::to_string(&minigroup_obj)
-        .context("Failed to serialize minigroup")
-        .error(AppErrorKind::SerializationFailed)?;
-    let response = Response::builder(200).body(body).build();
-    Ok(response)
+    read_generic::<MinigroupType>(req).await
 }
 
 pub async fn read_by_scope(req: Request<Arc<dyn AppContext>>) -> AppResult {
-    let state = req.state();
-    let audience = extract_param(&req, "audience").error(AppErrorKind::InvalidParameter)?;
-    let scope = extract_param(&req, "scope").error(AppErrorKind::InvalidParameter)?;
-    let account_id = validate_token(&req).error(AppErrorKind::Unauthorized)?;
-
-    let minigroup = match find_by_scope::<MinigroupType>(state.as_ref(), audience, scope).await {
-        Ok(minigroup) => minigroup,
-        Err(e) => {
-            error!(crate::LOG, "Failed to find a minigroup, err = {:?}", e);
-            return Ok(tide::Response::builder(404).body("Not found").build());
-        }
-    };
-
-    let object = AuthzObject::new(&["classrooms", &minigroup.id().to_string()]).into();
-
-    state
-        .authz()
-        .authorize(
-            minigroup.audience().to_owned(),
-            account_id.clone(),
-            object,
-            "read".into(),
-        )
-        .await?;
-
-    let minigroup_obj: MinigroupObject = (&minigroup).into();
-
-    let body = serde_json::to_string(&minigroup_obj)
-        .context("Failed to serialize minigroup")
-        .error(AppErrorKind::SerializationFailed)?;
-
-    let response = Response::builder(200).body(body).build();
-    Ok(response)
+    read_by_scope_generic::<MinigroupType>(req).await
 }
 
 #[derive(Deserialize)]
@@ -302,98 +149,11 @@ async fn do_create(
     Ok(response)
 }
 
-#[derive(Deserialize)]
-struct MinigroupUpdate {
-    #[serde(with = "crate::serde::ts_seconds_option_bound_tuple")]
-    time: Option<BoundedDateTimeTuple>,
-    reserve: Option<i32>,
-}
-
-pub async fn update(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
-    let body: MinigroupUpdate = req.body_json().await.error(AppErrorKind::InvalidPayload)?;
-
-    let account_id = validate_token(&req).error(AppErrorKind::Unauthorized)?;
-    let state = req.state();
-    let id = extract_id(&req).error(AppErrorKind::InvalidParameter)?;
-
-    let minigroup = find::<MinigroupType>(state.as_ref(), id)
-        .await
-        .error(AppErrorKind::WebinarNotFound)?;
-
-    let object = AuthzObject::new(&["classrooms", &minigroup.id().to_string()]).into();
-
-    state
-        .authz()
-        .authorize(
-            minigroup.audience().to_owned(),
-            account_id.clone(),
-            object,
-            "update".into(),
-        )
-        .await?;
-
-    if let Some(time) = &body.time {
-        let conference_time = match time.0 {
-            Bound::Included(t) | Bound::Excluded(t) => (Bound::Included(t), time.1),
-            Bound::Unbounded => (Bound::Unbounded, Bound::Unbounded),
-        };
-        let conference_fut = req.state().conference_client().update_room(
-            minigroup.conference_room_id(),
-            ConfRoomUpdate {
-                time: Some(conference_time),
-                reserve: body.reserve,
-                classroom_id: None,
-            },
-        );
-
-        let event_time = (Bound::Included(Utc::now()), Bound::Unbounded);
-        let event_fut = req.state().event_client().update_room(
-            minigroup.event_room_id(),
-            EventRoomUpdate {
-                time: Some(event_time),
-                classroom_id: None,
-            },
-        );
-
-        event_fut
-            .try_join(conference_fut)
-            .await
-            .context("Services requests")
-            .error(AppErrorKind::MqttRequestFailed)?;
-    }
-
-    let mut query = crate::db::class::MinigroupUpdateQuery::new(minigroup.id());
-    if let Some(t) = body.time {
-        query = query.time(t.into());
-    }
-
-    if let Some(r) = body.reserve {
-        query = query.reserve(r);
-    }
-
-    let mut conn = req
-        .state()
-        .get_conn()
-        .await
-        .error(AppErrorKind::DbQueryFailed)?;
-    let minigroup = query
-        .execute(&mut conn)
-        .await
-        .context("Failed to update minigroup")
-        .error(AppErrorKind::DbQueryFailed)?;
-
-    let body = serde_json::to_string(&minigroup)
-        .context("Failed to serialize minigroup")
-        .error(AppErrorKind::SerializationFailed)?;
-
-    let response = Response::builder(200).body(body).build();
-
-    Ok(response)
-}
-
 pub use recreate::recreate;
+pub use update::update;
 
 mod recreate;
+mod update;
 
 #[cfg(test)]
 mod tests {
@@ -402,6 +162,7 @@ mod tests {
         use crate::{db::class::MinigroupReadQuery, test_helpers::prelude::*};
         use chrono::Duration;
         use mockall::predicate as pred;
+        use uuid::Uuid;
 
         #[async_std::test]
         async fn create_minigroup_no_time() {

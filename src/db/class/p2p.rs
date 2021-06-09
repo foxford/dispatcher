@@ -5,9 +5,7 @@ use serde_json::Value as JsonValue;
 use sqlx::postgres::{types::PgRange, PgConnection};
 use uuid::Uuid;
 
-use super::{ClassType, GenericReadQuery, Object, P2PType, Time};
-
-pub type P2PReadQuery = GenericReadQuery<P2PType>;
+use super::{ClassType, Object, Time};
 
 pub struct P2PInsertQuery {
     scope: String,
