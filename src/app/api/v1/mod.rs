@@ -76,16 +76,14 @@ pub async fn create_event(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
 
     body["room_id"] = serde_json::to_value(class.event_room_id()).unwrap();
 
-    let payload = serde_json::to_string(&body)
-        .map_err(|e| anyhow!("Failed to serialize body, reason = {:?}", e))
-        .error(AppErrorKind::InvalidPayload)?;
-
-    if let Err(e) = state.event_client().create_event(payload).await {
+    let result = state.event_client().create_event(body).await;
+    if let Err(e) = &result {
         error!(
             crate::LOG,
             "Failed to create event in event room, clasroom id = {:?}, err = {:?}", id, e
         );
     }
+    result.map_err(|e| anyhow!("Failed to create event, reason = {:?}", e)).error(AppErrorKind::InvalidPayload)?;
 
     let response = Response::builder(201).body("{}").build();
 
