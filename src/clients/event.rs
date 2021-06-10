@@ -158,7 +158,7 @@ pub trait EventClient: Sync + Send {
         offset: i64,
     ) -> Result<(), ClientError>;
 
-    async fn create_event(&self, payload: String) -> Result<(), ClientError>;
+    async fn create_event(&self, payload: JsonValue) -> Result<(), ClientError>;
     async fn list_events(&self, room_id: Uuid, kind: &str) -> Result<Vec<Event>, ClientError>;
     async fn dump_room(&self, event_room_id: Uuid) -> Result<(), ClientError>;
 
@@ -170,7 +170,7 @@ pub trait EventClient: Sync + Send {
             data: serde_json::json!({"value": true}),
         };
 
-        let payload = serde_json::to_string(&payload).unwrap();
+        let payload = serde_json::to_value(&payload).unwrap();
 
         self.create_event(payload).await
     }
@@ -436,7 +436,7 @@ impl EventClient for MqttEventClient {
         }
     }
 
-    async fn create_event(&self, payload: String) -> Result<(), ClientError> {
+    async fn create_event(&self, payload: JsonValue) -> Result<(), ClientError> {
         let reqp = self.build_reqp("event.create")?;
 
         let msg = if let OutgoingMessage::Request(msg) =
@@ -461,7 +461,7 @@ impl EventClient for MqttEventClient {
         match payload.properties().status() {
             ResponseStatus::CREATED => Ok(()),
             status => {
-                let e = format!("Wrong status, expected 201, got {:?}", status);
+                let e = format!("Wrong status, expected 201, got {:?}, payload = {:?}", status, payload.payload());
                 Err(ClientError::PayloadError(e))
             }
         }
