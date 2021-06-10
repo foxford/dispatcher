@@ -87,7 +87,7 @@ pub async fn create_event(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
         );
     }
 
-    let response = Response::builder(201).build();
+    let response = Response::builder(201).body("{}").build();
 
     Ok(response)
 }
