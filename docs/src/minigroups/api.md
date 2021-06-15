@@ -59,7 +59,7 @@ All parameters are optional but at least one is expected
 Свойство               | Тип         | Optional | Description
 ---------------------- | ----------- | -------- | -------------------------------------------------
 time                   | [int, int]  | +        | New time
-host                   | string      | +        | Host account id
+reserve                | int         | +        | New reserve
 
 Response: status 200 and minigroup object as payload.
 

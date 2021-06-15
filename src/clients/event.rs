@@ -461,7 +461,11 @@ impl EventClient for MqttEventClient {
         match payload.properties().status() {
             ResponseStatus::CREATED => Ok(()),
             status => {
-                let e = format!("Wrong status, expected 201, got {:?}, payload = {:?}", status, payload.payload());
+                let e = format!(
+                    "Wrong status, expected 201, got {:?}, payload = {:?}",
+                    status,
+                    payload.payload()
+                );
                 Err(ClientError::PayloadError(e))
             }
         }

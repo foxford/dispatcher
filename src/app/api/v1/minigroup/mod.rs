@@ -306,6 +306,7 @@ async fn do_create(
 struct MinigroupUpdate {
     #[serde(with = "crate::serde::ts_seconds_option_bound_tuple")]
     time: Option<BoundedDateTimeTuple>,
+    reserve: Option<i32>,
 }
 
 pub async fn update(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
@@ -340,6 +341,7 @@ pub async fn update(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
             minigroup.conference_room_id(),
             ConfRoomUpdate {
                 time: Some(conference_time),
+                reserve: body.reserve,
                 classroom_id: None,
             },
         );
@@ -360,9 +362,13 @@ pub async fn update(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
             .error(AppErrorKind::MqttRequestFailed)?;
     }
 
-    let mut query = crate::db::class::MinigroupTimeUpdateQuery::new(minigroup.id());
+    let mut query = crate::db::class::MinigroupUpdateQuery::new(minigroup.id());
     if let Some(t) = body.time {
-        query.time(t.into());
+        query = query.time(t.into());
+    }
+
+    if let Some(r) = body.reserve {
+        query = query.reserve(r);
     }
 
     let mut conn = req

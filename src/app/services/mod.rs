@@ -26,6 +26,7 @@ pub async fn update_classroom_id(
             conference_id,
             ConfRoomUpdate {
                 time: None,
+                reserve: None,
                 classroom_id: Some(classroom_id),
             },
         );
