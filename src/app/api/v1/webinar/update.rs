@@ -11,19 +11,20 @@ use uuid::Uuid;
 
 use crate::app::authz::AuthzObject;
 use crate::app::error::ErrorExt;
-use crate::app::error::ErrorKind as AppErrorKind;
+use crate::app::error::{Error as AppError, ErrorKind as AppErrorKind};
 use crate::app::AppContext;
 use crate::clients::{
     conference::RoomUpdate as ConfRoomUpdate, event::RoomUpdate as EventRoomUpdate,
 };
-use crate::db::class::BoundedDateTimeTuple;
+use crate::db::class::{BoundedDateTimeTuple, Object as Webinar};
 
 use super::*;
 
 #[derive(Deserialize)]
 pub(super) struct WebinarUpdate {
-    #[serde(with = "crate::serde::ts_seconds_bound_tuple")]
-    pub(super) time: BoundedDateTimeTuple,
+    #[serde(with = "crate::serde::ts_seconds_option_bound_tuple")]
+    pub(super) time: Option<BoundedDateTimeTuple>,
+    pub(super) reserve: Option<i32>,
 }
 
 pub async fn update(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
@@ -58,14 +59,51 @@ async fn do_update(
         )
         .await?;
 
-    let conference_time = match body.time.0 {
-        Bound::Included(t) | Bound::Excluded(t) => (Bound::Included(t), body.time.1),
+    if let Some(t) = body.time {
+        update_services(&webinar, state, t, body.reserve).await?;
+    }
+
+    let mut query = crate::db::class::WebinarUpdateQuery::new(webinar.id());
+
+    if let Some(t) = body.time {
+        query = query.time(t.into());
+    }
+
+    if let Some(r) = body.reserve {
+        query = query.reserve(r);
+    }
+
+    let mut conn = state.get_conn().await.error(AppErrorKind::DbQueryFailed)?;
+    let webinar = query
+        .execute(&mut conn)
+        .await
+        .context("Failed to update webinar")
+        .error(AppErrorKind::DbQueryFailed)?;
+
+    let body = serde_json::to_string(&webinar)
+        .context("Failed to serialize webinar")
+        .error(AppErrorKind::SerializationFailed)?;
+
+    let response = Response::builder(200).body(body).build();
+
+    Ok(response)
+}
+
+async fn update_services(
+    webinar: &Webinar,
+    state: &dyn AppContext,
+    time: BoundedDateTimeTuple,
+    reserve: Option<i32>,
+) -> Result<(), AppError> {
+    let conference_time = match time.0 {
+        Bound::Included(t) | Bound::Excluded(t) => (Bound::Included(t), time.1),
         Bound::Unbounded => (Bound::Unbounded, Bound::Unbounded),
     };
     let conference_fut = state.conference_client().update_room(
         webinar.conference_room_id(),
         ConfRoomUpdate {
             time: Some(conference_time),
+            reserve,
             classroom_id: None,
         },
     );
@@ -84,23 +122,7 @@ async fn do_update(
         .await
         .context("Services requests")
         .error(AppErrorKind::MqttRequestFailed)?;
-
-    let query = crate::db::class::WebinarTimeUpdateQuery::new(webinar.id(), body.time.into());
-
-    let mut conn = state.get_conn().await.error(AppErrorKind::DbQueryFailed)?;
-    let webinar = query
-        .execute(&mut conn)
-        .await
-        .context("Failed to update webinar")
-        .error(AppErrorKind::DbQueryFailed)?;
-
-    let body = serde_json::to_string(&webinar)
-        .context("Failed to serialize webinar")
-        .error(AppErrorKind::SerializationFailed)?;
-
-    let response = Response::builder(200).body(body).build();
-
-    Ok(response)
+    Ok(())
 }
 
 #[cfg(test)]
@@ -133,10 +155,11 @@ mod tests {
 
         let state = Arc::new(state);
         let body = WebinarUpdate {
-            time: (
+            time: Some((
                 Bound::Included(Utc::now() + Duration::hours(2)),
                 Bound::Unbounded,
-            ),
+            )),
+            reserve: None,
         };
 
         do_update(state.as_ref(), agent.account_id(), webinar.id(), body)
@@ -178,10 +201,11 @@ mod tests {
 
         let state = Arc::new(state);
         let body = WebinarUpdate {
-            time: (
+            time: Some((
                 Bound::Included(Utc::now() + Duration::hours(2)),
                 Bound::Unbounded,
-            ),
+            )),
+            reserve: None,
         };
 
         do_update(state.as_ref(), agent.account_id(), webinar.id(), body)

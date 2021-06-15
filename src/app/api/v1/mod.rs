@@ -83,7 +83,9 @@ pub async fn create_event(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
             "Failed to create event in event room, clasroom id = {:?}, err = {:?}", id, e
         );
     }
-    result.map_err(|e| anyhow!("Failed to create event, reason = {:?}", e)).error(AppErrorKind::InvalidPayload)?;
+    result
+        .map_err(|e| anyhow!("Failed to create event, reason = {:?}", e))
+        .error(AppErrorKind::InvalidPayload)?;
 
     let response = Response::builder(201).body("{}").build();
 

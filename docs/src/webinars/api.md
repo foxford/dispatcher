@@ -62,6 +62,7 @@ Parameters:
 Attribute              | Type        | Optional | Description
 ---------------------- | ----------- | -------- | -------------------------------------------------
 time                   | [int, int]  | +        | New time
+reserve                | int         | +        | New reserve
 
 Response: status 200 and webinar object as payload.
 

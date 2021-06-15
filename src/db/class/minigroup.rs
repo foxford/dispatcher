@@ -1,6 +1,7 @@
 use chrono::{DateTime, Utc};
 use serde_json::Value as JsonValue;
 use sqlx::postgres::{types::PgRange, PgConnection};
+use sqlx::Done;
 use uuid::Uuid;
 
 use super::{ClassType, Object, Time};
@@ -119,38 +120,53 @@ impl MinigroupInsertQuery {
     }
 }
 
-pub struct MinigroupTimeUpdateQuery {
+pub struct MinigroupUpdateQuery {
     id: Uuid,
     time: Option<Time>,
+    reserve: Option<i32>,
 }
 
-impl MinigroupTimeUpdateQuery {
+impl MinigroupUpdateQuery {
     pub fn new(id: Uuid) -> Self {
-        Self { id, time: None }
+        Self {
+            id,
+            time: None,
+            reserve: None,
+        }
     }
 
-    pub fn time(&mut self, time: Time) -> &mut Self {
+    pub fn time(mut self, time: Time) -> Self {
         self.time = Some(time);
         self
     }
 
-    pub async fn execute(&self, conn: &mut PgConnection) -> sqlx::Result<Object> {
-        use quaint::ast::{Comparable, Update};
+    pub fn reserve(mut self, reserve: i32) -> Self {
+        self.reserve = Some(reserve);
+        self
+    }
+
+    pub async fn execute(&self, conn: &mut PgConnection) -> sqlx::Result<u64> {
+        use quaint::ast::{Comparable, Conjuctive, Update};
         use quaint::visitor::{Postgres, Visitor};
 
         let q = Update::table("class");
-        let q = match self.time {
-            Some(_) => q.set("time", "__placeholder__"),
-            None => q,
+        let q = match (&self.time, &self.reserve) {
+            (Some(_), Some(_)) => q
+                .set("time", "__placeholder_time__")
+                .set("reserve", "__placeholder__"),
+            (Some(_), None) => q.set("time", "__placeholder__"),
+            (None, Some(_)) => q.set("reserve", "__placeholder__"),
+            (None, None) => q,
         };
 
-        let q = q
-            .so_that("id".equals(self.id))
-            .so_that("kind".equals("__placeholder__"));
+        let q = q.so_that(
+            "id".equals("__placeholder__")
+                .and("kind".equals("__placeholder__")),
+        );
 
         let (sql, _bindings) = Postgres::build(q);
 
-        let query = sqlx::query_as(&sql);
+        let query = sqlx::query(&sql);
 
         let query = match &self.time {
             Some(t) => {
@@ -160,8 +176,13 @@ impl MinigroupTimeUpdateQuery {
             None => query,
         };
 
-        let query = query.bind(self.id);
+        let query = match &self.reserve {
+            Some(r) => query.bind(r),
+            None => query,
+        };
 
-        query.fetch_one(conn).await
+        let query = query.bind(self.id).bind(ClassType::Minigroup);
+
+        query.execute(conn).await.map(|done| done.rows_affected())
     }
 }
