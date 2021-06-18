@@ -51,7 +51,7 @@ Attribute              | Type        | Optional | Description
 id                     | string      |          | Webinar scope
 real_time              | json object | +        | `event_room_id` and `conference_room_id` fields
 on_demand              | json array  | +        | Array with original and modified stream versions. Modified stream contains `room_events_uri` with s3 link to dumped events.
-status                 | string      | +        | Webinar state, possible values: `transcoded`, `adjusted`, `finished`, `realtime`
+status                 | string      | +        | Webinar state, possible values: `transcoded`, `adjusted`, `finished`, `real-time`
 
 Response: status 200 and webinar object as payload.
 
