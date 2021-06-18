@@ -7,7 +7,7 @@ use isahc::config::Configurable;
 #[cfg(test)]
 use mockall::{automock, predicate::*};
 use serde_derive::{Deserialize, Serialize};
-use serde_json::Value as JsonValue;
+use serde_json::{json, Value as JsonValue};
 use uuid::Uuid;
 
 use super::ClientError;
@@ -199,7 +199,10 @@ impl TqClient for HttpTqClient {
     ) -> Result<(), ClientError> {
         let task = TaskPayload {
             audience: class.audience().to_owned(),
-            tags: class.tags().map(ToOwned::to_owned),
+            tags: class
+                .tags()
+                .map(ToOwned::to_owned)
+                .or_else(|| Some(json!({"scope": class.scope().to_owned()}))),
             priority: PRIORITY.into(),
             template: task.template().into(),
             bindings: task,
