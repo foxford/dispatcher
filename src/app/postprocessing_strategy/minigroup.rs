@@ -686,7 +686,7 @@ mod tests {
                         .offset(600000)
                         .segments(recording2.segments().to_owned())
                         .pin_segments(
-                            vec![(Bound::Included(600000), Bound::Excluded(900000))].into(),
+                            vec![(Bound::Included(600001), Bound::Excluded(900001))].into(),
                         ),
                 ],
                 host_stream_id: recording1.rtc_id(),
