@@ -109,6 +109,14 @@ struct P2P {
 
 pub async fn create(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
     let body: P2P = req.body_json().await.error(AppErrorKind::InvalidPayload)?;
+    let log = crate::LOG.new(slog::o!(
+        "audience" => body.audience.clone(),
+        "scope" => body.scope.clone(),
+    ));
+    info!(
+        log,
+        "Creating p2p, audience = {}, scope = {}", body.audience, body.scope
+    );
 
     let account_id = validate_token(&req).error(AppErrorKind::Unauthorized)?;
     let state = req.state();
@@ -125,6 +133,8 @@ pub async fn create(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
         )
         .await?;
 
+    info!(log, "Authorized p2p create");
+
     let conference_fut = req.state().conference_client().create_room(
         (Bound::Included(Utc::now()), Bound::Unbounded),
         body.audience.clone(),
@@ -134,7 +144,7 @@ pub async fn create(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
     );
 
     let event_fut = req.state().event_client().create_room(
-        (Bound::Unbounded, Bound::Unbounded),
+        (Bound::Included(Utc::now()), Bound::Unbounded),
         body.audience.clone(),
         Some(false),
         body.tags.clone(),
@@ -145,6 +155,11 @@ pub async fn create(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
         .await
         .context("Services requests")
         .error(AppErrorKind::MqttRequestFailed)?;
+
+    info!(
+        log,
+        "Created event room = {}, conference room = {}", event_room_id, conference_room_id
+    );
 
     let query = crate::db::class::P2PInsertQuery::new(
         body.scope,
@@ -170,6 +185,8 @@ pub async fn create(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
         .context("Failed to insert p2p")
         .error(AppErrorKind::DbQueryFailed)?;
 
+    info!(log, "Inserted p2p into db, id = {}", p2p.id());
+
     crate::app::services::update_classroom_id(
         req.state().as_ref(),
         p2p.id(),
@@ -178,6 +195,8 @@ pub async fn create(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
     )
     .await
     .error(AppErrorKind::MqttRequestFailed)?;
+
+    info!(log, "Successfully updated classroom room id");
 
     let body = serde_json::to_string_pretty(&p2p)
         .context("Failed to serialize p2p")

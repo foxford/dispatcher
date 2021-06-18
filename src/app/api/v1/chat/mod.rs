@@ -3,6 +3,7 @@ use std::ops::Bound;
 use std::sync::Arc;
 
 use anyhow::{Context, Result as AnyResult};
+use chrono::Utc;
 use serde_derive::{Deserialize, Serialize};
 use tide::{Request, Response};
 use uuid::Uuid;
@@ -108,7 +109,7 @@ pub async fn create(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
         .state()
         .event_client()
         .create_room(
-            (Bound::Unbounded, Bound::Unbounded),
+            (Bound::Included(Utc::now()), Bound::Unbounded),
             body.audience.clone(),
             Some(true),
             body.tags.clone(),
