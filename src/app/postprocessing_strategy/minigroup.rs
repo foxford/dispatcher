@@ -15,7 +15,6 @@ use svc_agent::{
 };
 use uuid::Uuid;
 
-use crate::app::AppContext;
 use crate::clients::event::{Event, EventData, RoomAdjustResult};
 use crate::clients::tq::{
     Task as TqTask, TaskCompleteResult, TaskCompleteSuccess, TranscodeMinigroupToHlsStream,
@@ -23,6 +22,7 @@ use crate::clients::tq::{
 };
 use crate::db::class::Object as Class;
 use crate::db::recording::{BoundedOffsetTuples, Object as Recording};
+use crate::{app::AppContext, clients::conference::ConfigSnapshot};
 
 use super::{shared_helpers, RtcUploadReadyData, RtcUploadResult};
 
@@ -161,6 +161,14 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
                     .await
                     .context("Failed to get pin events for room")?;
 
+                // Fetch writer config snapshots for building muted segments.
+                let mute_events = self
+                    .ctx
+                    .conference_client()
+                    .read_config_snapshots(self.minigroup.conference_room_id())
+                    .await
+                    .context("Failed to get writer config snapshots for room")?;
+
                 // Build streams for template bindings.
                 let streams = recordings
                     .iter()
@@ -171,7 +179,13 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
                         let recording_offset =
                             recording.started_at() - earliest_recording.started_at();
 
-                        build_stream(recording, &pin_events, event_room_offset, recording_offset)
+                        build_stream(
+                            recording,
+                            &pin_events,
+                            event_room_offset,
+                            recording_offset,
+                            &mute_events,
+                        )
                     })
                     .collect::<Vec<_>>();
 
@@ -313,6 +327,7 @@ fn build_stream(
     pin_events: &[Event],
     event_room_offset: Duration,
     recording_offset: Duration,
+    configs_changes: &[ConfigSnapshot],
 ) -> TranscodeMinigroupToHlsStream {
     let event_room_offset = event_room_offset.num_milliseconds();
     let mut pin_segments = vec![];
@@ -349,10 +364,63 @@ fn build_stream(
         }
     }
 
+    let changes = configs_changes
+        .iter()
+        .filter(|snapshot| snapshot.rtc_id == recording.rtc_id())
+        .collect::<Vec<_>>();
+    let mut video_mute_start = None;
+    let mut audio_mute_start = None;
+    let mut video_mute_segments = vec![];
+    let mut audio_mute_segments = vec![];
+
+    for change in changes {
+        if change.send_video == Some(false) && video_mute_start.is_none() {
+            video_mute_start = Some(change);
+        }
+
+        if change.send_video == Some(true) && video_mute_start.is_some() {
+            let start = video_mute_start.take().unwrap();
+            let muted_at = (start.created_at - recording.started_at()).num_milliseconds();
+            let unmuted_at = (change.created_at - recording.started_at()).num_milliseconds();
+            video_mute_segments.push((Bound::Included(muted_at), Bound::Excluded(unmuted_at)));
+        }
+
+        if change.send_audio == Some(false) && audio_mute_start.is_none() {
+            audio_mute_start = Some(change);
+        }
+
+        if change.send_audio == Some(true) && audio_mute_start.is_some() {
+            let start = audio_mute_start.take().unwrap();
+            let muted_at = (start.created_at - recording.started_at()).num_milliseconds();
+            let unmuted_at = (change.created_at - recording.started_at()).num_milliseconds();
+            audio_mute_segments.push((Bound::Included(muted_at), Bound::Excluded(unmuted_at)));
+        }
+    }
+
+    if let Some(start) = video_mute_start {
+        let recording_end = recording.segments().last().map(|range| range.end);
+
+        if let Some(Bound::Excluded(recording_end)) = recording_end {
+            let muted_at = (start.created_at - recording.started_at()).num_milliseconds();
+            video_mute_segments.push((Bound::Included(muted_at), Bound::Excluded(recording_end)));
+        }
+    }
+
+    if let Some(start) = audio_mute_start {
+        let recording_end = recording.segments().last().map(|range| range.end);
+
+        if let Some(Bound::Excluded(recording_end)) = recording_end {
+            let muted_at = (start.created_at - recording.started_at()).num_milliseconds();
+            audio_mute_segments.push((Bound::Included(muted_at), Bound::Excluded(recording_end)));
+        }
+    }
+
     TranscodeMinigroupToHlsStream::new(recording.rtc_id(), recording.stream_uri().to_owned())
         .offset(recording_offset.num_milliseconds() as u64)
         .segments(recording.segments().to_owned())
         .pin_segments(pin_segments.into())
+        .video_mute_segments(video_mute_segments.into())
+        .audio_mute_segments(audio_mute_segments.into())
 }
 
 #[derive(Debug, PartialEq, Deserialize, Serialize)]
@@ -561,6 +629,7 @@ mod tests {
             let event_room_id = Uuid::new_v4();
             let original_event_room_id = Uuid::new_v4();
             let modified_event_room_id = Uuid::new_v4();
+            let conference_room_id = Uuid::new_v4();
 
             // Insert a minigroup with recordings.
             let (minigroup, recording1, recording2) = {
@@ -577,7 +646,7 @@ mod tests {
                     minigroup_scope,
                     USR_AUDIENCE.to_string(),
                     time.into(),
-                    Uuid::new_v4(),
+                    conference_room_id,
                     event_room_id,
                 )
                 .insert(&mut conn)
@@ -615,6 +684,12 @@ mod tests {
             };
 
             let minigroup_id = minigroup.id();
+
+            state
+                .conference_client_mock()
+                .expect_read_config_snapshots()
+                .with(mockall::predicate::eq(conference_room_id))
+                .returning(move |_room_id| Ok(vec![]));
 
             // Set up event client mock.
             state
@@ -779,6 +854,7 @@ mod tests {
             let event_room_id = Uuid::new_v4();
             let original_event_room_id = Uuid::new_v4();
             let modified_event_room_id = Uuid::new_v4();
+            let conference_room_id = Uuid::new_v4();
 
             // Insert a minigroup with recordings.
             let (minigroup, recording1, recording2) = {
@@ -795,7 +871,7 @@ mod tests {
                     minigroup_scope,
                     USR_AUDIENCE.to_string(),
                     time.into(),
-                    Uuid::new_v4(),
+                    conference_room_id,
                     event_room_id,
                 )
                 .insert(&mut conn)
@@ -833,6 +909,12 @@ mod tests {
             };
 
             let minigroup_id = minigroup.id();
+
+            state
+                .conference_client_mock()
+                .expect_read_config_snapshots()
+                .with(mockall::predicate::eq(conference_room_id))
+                .returning(move |_room_id| Ok(vec![]));
 
             // Set up event client mock.
             state

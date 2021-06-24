@@ -4,7 +4,8 @@ use std::time::Duration;
 
 use anyhow::Result;
 use async_trait::async_trait;
-use chrono::Utc;
+use chrono::serde::ts_milliseconds;
+use chrono::{DateTime, Utc};
 #[cfg(test)]
 use mockall::{automock, predicate::*};
 use serde_derive::{Deserialize, Serialize};
@@ -29,6 +30,15 @@ pub struct RoomUpdate {
     pub classroom_id: Option<Uuid>,
 }
 
+#[derive(Clone, Debug, Deserialize)]
+pub struct ConfigSnapshot {
+    pub send_video: Option<bool>,
+    pub send_audio: Option<bool>,
+    pub rtc_id: Uuid,
+    #[serde(with = "ts_milliseconds")]
+    pub created_at: DateTime<Utc>,
+}
+
 #[cfg_attr(test, automock)]
 #[async_trait]
 pub trait ConferenceClient: Sync + Send {
@@ -44,6 +54,8 @@ pub trait ConferenceClient: Sync + Send {
     ) -> Result<Uuid, ClientError>;
 
     async fn update_room(&self, id: Uuid, update: RoomUpdate) -> Result<(), ClientError>;
+
+    async fn read_config_snapshots(&self, id: Uuid) -> Result<Vec<ConfigSnapshot>, ClientError>;
 }
 
 pub struct MqttConferenceClient {
@@ -116,6 +128,11 @@ struct ConferenceRoomUpdatePayload {
 #[derive(Serialize)]
 struct ConferenceRoomReadPayload {
     id: Uuid,
+}
+
+#[derive(Serialize)]
+struct ConferenceWriterConfigSnapshotReadPayload {
+    room_id: Uuid,
 }
 
 #[derive(Deserialize)]
@@ -241,5 +258,36 @@ impl ConferenceClient for MqttConferenceClient {
                 "Conference room update returned non 200 status".into(),
             )),
         }
+    }
+
+    async fn read_config_snapshots(
+        &self,
+        room_id: Uuid,
+    ) -> Result<Vec<ConfigSnapshot>, ClientError> {
+        let reqp = self.build_reqp("writer_config_snapshot.read")?;
+
+        let payload = ConferenceWriterConfigSnapshotReadPayload { room_id };
+        let msg = if let OutgoingMessage::Request(msg) = OutgoingRequest::multicast(
+            payload,
+            reqp,
+            &self.conference_account_id,
+            &self.api_version,
+        ) {
+            msg
+        } else {
+            unreachable!()
+        };
+
+        let request = self.dispatcher.request::<_, Vec<ConfigSnapshot>>(msg);
+        let payload_result = if let Some(dur) = self.timeout {
+            async_std::future::timeout(dur, request)
+                .await
+                .map_err(|_e| ClientError::TimeoutError)?
+        } else {
+            request.await
+        };
+        let payload = payload_result.map_err(|e| ClientError::PayloadError(e.to_string()))?;
+
+        Ok(payload.extract_payload())
     }
 }
