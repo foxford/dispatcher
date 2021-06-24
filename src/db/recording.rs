@@ -70,11 +70,21 @@ impl Object {
 
 pub type BoundedOffsetTuples = Vec<(Bound<i64>, Bound<i64>)>;
 
-#[derive(Clone, Debug, PartialEq, Deserialize, Serialize, sqlx::Type)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize, sqlx::Type, Default)]
 #[sqlx(transparent)]
 #[serde(from = "BoundedOffsetTuples")]
 #[serde(into = "BoundedOffsetTuples")]
 pub struct Segments(Vec<PgRange<i64>>);
+
+impl Segments {
+    pub fn last(&self) -> Option<&PgRange<i64>> {
+        self.0.last()
+    }
+
+    pub fn empty() -> Segments {
+        Segments(vec![])
+    }
+}
 
 impl From<BoundedOffsetTuples> for Segments {
     fn from(segments: BoundedOffsetTuples) -> Self {

@@ -56,6 +56,10 @@ pub struct TranscodeMinigroupToHlsStream {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(serialize_with = "crate::db::recording::serde::segments_option")]
     pin_segments: Option<Segments>,
+    #[serde(with = "crate::db::recording::serde::segments")]
+    video_mute_segments: Segments,
+    #[serde(with = "crate::db::recording::serde::segments")]
+    audio_mute_segments: Segments,
 }
 
 impl TranscodeMinigroupToHlsStream {
@@ -66,6 +70,8 @@ impl TranscodeMinigroupToHlsStream {
             offset: None,
             segments: None,
             pin_segments: None,
+            video_mute_segments: Segments::empty(),
+            audio_mute_segments: Segments::empty(),
         }
     }
 
@@ -86,6 +92,20 @@ impl TranscodeMinigroupToHlsStream {
     pub fn pin_segments(self, pin_segments: Segments) -> Self {
         Self {
             pin_segments: Some(pin_segments),
+            ..self
+        }
+    }
+
+    pub fn video_mute_segments(self, video_mute_segments: Segments) -> Self {
+        Self {
+            video_mute_segments,
+            ..self
+        }
+    }
+
+    pub fn audio_mute_segments(self, audio_mute_segments: Segments) -> Self {
+        Self {
+            audio_mute_segments,
             ..self
         }
     }
