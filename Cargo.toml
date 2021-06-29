@@ -1,6 +1,6 @@
 [package]
 name = "dispatcher"
-version = "0.2.4"
+version = "0.2.7"
 authors = ["Andrei Nesterov <ae.nesterov@gmail.com>"]
 description = "Service managing classrooms"
 readme = "README.md"
@@ -28,7 +28,7 @@ sqlx = { version = "0.4", features = [
 serde = "1.0"
 serde_derive = "1.0"
 serde_json = "1.0"
-svc-agent = { version = "0.15", features = ["sqlx"] }
+svc-agent = { version = "0.17", features = ["sqlx"] }
 svc-authn = { version = "0.6", features = ["jose", "sqlx"] }
 svc-error = { version = "0.1", features = [
     "svc-agent",

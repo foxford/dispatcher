@@ -97,6 +97,7 @@ impl HostEventData {
 
 #[derive(Deserialize)]
 pub struct RoomAdjust {
+    room_id: Option<Uuid>,
     tags: Option<JsonValue>,
     #[serde(flatten)]
     result: RoomAdjustResult,
@@ -105,6 +106,10 @@ pub struct RoomAdjust {
 impl RoomAdjust {
     pub fn tags(&self) -> Option<&JsonValue> {
         self.tags.as_ref()
+    }
+
+    pub fn room_id(&self) -> Option<Uuid> {
+        self.room_id
     }
 }
 
@@ -158,9 +163,22 @@ pub trait EventClient: Sync + Send {
         offset: i64,
     ) -> Result<(), ClientError>;
 
-    async fn lock_chat(&self, room_id: Uuid) -> Result<(), ClientError>;
+    async fn create_event(&self, payload: JsonValue) -> Result<(), ClientError>;
     async fn list_events(&self, room_id: Uuid, kind: &str) -> Result<Vec<Event>, ClientError>;
     async fn dump_room(&self, event_room_id: Uuid) -> Result<(), ClientError>;
+
+    async fn lock_chat(&self, room_id: Uuid) -> Result<(), ClientError> {
+        let payload = ChatLockPayload {
+            room_id,
+            kind: "chat_disabled",
+            set: "chat_disabled",
+            data: serde_json::json!({"value": true}),
+        };
+
+        let payload = serde_json::to_value(&payload).unwrap();
+
+        self.create_event(payload).await
+    }
 }
 
 pub struct MqttEventClient {
@@ -423,15 +441,9 @@ impl EventClient for MqttEventClient {
         }
     }
 
-    async fn lock_chat(&self, room_id: Uuid) -> Result<(), ClientError> {
+    async fn create_event(&self, payload: JsonValue) -> Result<(), ClientError> {
         let reqp = self.build_reqp("event.create")?;
 
-        let payload = ChatLockPayload {
-            room_id,
-            kind: "chat_disabled",
-            set: "chat_disabled",
-            data: serde_json::json!({"value": true}),
-        };
         let msg = if let OutgoingMessage::Request(msg) =
             OutgoingRequest::multicast(payload, reqp, &self.event_account_id, &self.api_version)
         {
@@ -454,7 +466,11 @@ impl EventClient for MqttEventClient {
         match payload.properties().status() {
             ResponseStatus::CREATED => Ok(()),
             status => {
-                let e = format!("Wrong status, expected 201, got {:?}", status);
+                let e = format!(
+                    "Wrong status, expected 201, got {:?}, payload = {:?}",
+                    status,
+                    payload.payload()
+                );
                 Err(ClientError::PayloadError(e))
             }
         }

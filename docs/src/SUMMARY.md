@@ -15,3 +15,5 @@
         - [API](p2p/api.md)
     - [Minigroups](minigroups/overview.md)
         - [API](minigroups/api.md)
+    - [Chats](chats/overview.md)
+        - [API](chats/api.md)

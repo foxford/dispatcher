@@ -57,8 +57,7 @@ async fn do_create(
         Some(Bound::Included(t)) | Some(Bound::Excluded(t)) => {
             (Bound::Included(t), Bound::Unbounded)
         }
-        Some(Bound::Unbounded) => (Bound::Unbounded, Bound::Unbounded),
-        None => (Bound::Unbounded, Bound::Unbounded),
+        Some(Bound::Unbounded) | None => (Bound::Included(Utc::now()), Bound::Unbounded),
     };
     let conference_fut = state.conference_client().create_room(
         conference_time,
@@ -180,7 +179,7 @@ mod tests {
         // Assert DB changes.
         let mut conn = state.get_conn().await.expect("Failed to get conn");
 
-        let new_webinar = WebinarReadQuery::by_scope(USR_AUDIENCE.to_string(), scope)
+        let new_webinar = WebinarReadQuery::by_scope(USR_AUDIENCE, &scope)
             .execute(&mut conn)
             .await
             .expect("Failed to fetch webinar")
@@ -226,7 +225,7 @@ mod tests {
         // Assert DB changes.
         let mut conn = state.get_conn().await.expect("Failed to get conn");
 
-        let new_webinar = WebinarReadQuery::by_scope(USR_AUDIENCE.to_string(), scope)
+        let new_webinar = WebinarReadQuery::by_scope(USR_AUDIENCE, &scope)
             .execute(&mut conn)
             .await
             .expect("Failed to fetch webinar")

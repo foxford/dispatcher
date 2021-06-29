@@ -6,7 +6,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, Duration, Utc};
 use serde_derive::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
-use sqlx::{Acquire, PgConnection};
+use sqlx::{postgres::PgConnection, Acquire};
 use svc_agent::{
     mqtt::{
         IntoPublishableMessage, OutgoingEvent, OutgoingEventProperties, ShortTermTimingProperties,
@@ -158,23 +158,15 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
                     .collect::<Vec<_>>();
 
                 // Find host stream id.
-                let host_events = self
-                    .ctx
-                    .event_client()
-                    .list_events(modified_room_id, HOST_EVENT_TYPE)
-                    .await
-                    .context("Failed to get host events for room")?;
-
-                let host = match host_events.first().map(|event| event.data()) {
+                let host = match self.find_host(modified_event_room.id).await? {
                     // Host has not been set, skip transcoding.
                     None => return Ok(()),
-                    Some(EventData::Host(data)) => data.agent_id(),
-                    Some(other) => bail!("Got unexpected host event data: {:?}", other),
+                    Some(agent_id) => agent_id,
                 };
 
                 let maybe_host_recording = recordings
                     .iter()
-                    .find(|recording| &recording.created_by == host);
+                    .find(|recording| recording.created_by == host);
 
                 let host_stream_id = match maybe_host_recording {
                     // Host has been set but there's no recording, skip transcoding.
@@ -276,6 +268,23 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
     }
 }
 
+impl MinigroupPostprocessingStrategy {
+    async fn find_host(&self, event_room_id: Uuid) -> Result<Option<AgentId>> {
+        let host_events = self
+            .ctx
+            .event_client()
+            .list_events(event_room_id, HOST_EVENT_TYPE)
+            .await
+            .context("Failed to get host events for room")?;
+
+        match host_events.first().map(|event| event.data()) {
+            None => Ok(None),
+            Some(EventData::Host(data)) => Ok(Some(data.agent_id().to_owned())),
+            Some(other) => bail!("Got unexpected host event data: {:?}", other),
+        }
+    }
+}
+
 async fn insert_recordings(
     conn: &mut PgConnection,
     class_id: Uuid,
@@ -367,21 +376,18 @@ fn build_stream(
     let mut pin_start = None;
 
     for event in pin_events {
-        match event.data() {
-            EventData::Pin(data) => {
-                // Shift from the event room's dimension to the recording's dimension.
-                let occurred_at = event.occurred_at() as i64 / NS_IN_MS - event_room_offset;
+        if let EventData::Pin(data) = event.data() {
+            // Shift from the event room's dimension to the recording's dimension.
+            let occurred_at = event.occurred_at() as i64 / NS_IN_MS - event_room_offset;
 
-                if data.agent_id() == &recording.created_by && pin_start.is_none() {
-                    // Stream has got pinned.
-                    pin_start = Some(occurred_at);
-                } else if let Some(pinned_at) = pin_start {
-                    // Stream has got unpinned.
-                    pin_segments.push((Bound::Included(pinned_at), Bound::Excluded(occurred_at)));
-                    pin_start = None;
-                }
+            if data.agent_id() == &recording.created_by && pin_start.is_none() {
+                // Stream has got pinned.
+                pin_start = Some(occurred_at);
+            } else if let Some(pinned_at) = pin_start {
+                // Stream has got unpinned.
+                pin_segments.push((Bound::Included(pinned_at), Bound::Excluded(occurred_at)));
+                pin_start = None;
             }
-            _ => (),
         }
     }
 
@@ -444,8 +450,10 @@ mod tests {
         use uuid::Uuid;
 
         use crate::app::AppContext;
+        use crate::clients::event::test_helpers::EventBuilder;
+        use crate::clients::event::{EventData, HostEventData};
         use crate::db::recording::{RecordingListQuery, Segments};
-        use crate::test_helpers::prelude::*;
+        use crate::test_helpers::{prelude::*, shared_helpers::random_string};
 
         use super::super::super::{
             MjrDumpsUploadReadyData, MjrDumpsUploadResult, PostprocessingStrategy,
@@ -458,6 +466,9 @@ mod tests {
             let mut state = TestState::new(TestAuthz::new()).await;
             let conference_room_id = Uuid::new_v4();
             let event_room_id = Uuid::new_v4();
+            let agent1 = TestAgent::new("web", "user1", USR_AUDIENCE);
+            let agent1_clone = agent1.clone();
+            let agent2 = TestAgent::new("web", "user2", USR_AUDIENCE);
 
             // Insert a minigroup.
             let minigroup = {
@@ -500,8 +511,34 @@ mod tests {
             };
 
             // Set up event client mock.
-            let expected_started_at = now - Duration::hours(1);
-            let expected_segments = vec![(Bound::Included(0), Bound::Excluded(3000000))].into();
+            let started_at1 = now - Duration::hours(1);
+
+            let segments1: Segments = vec![
+                (Bound::Included(0), Bound::Excluded(1500000)),
+                (Bound::Included(1800000), Bound::Excluded(3000000)),
+            ]
+            .into();
+
+            let expected_segments = segments1.clone();
+
+            state
+                .event_client_mock()
+                .expect_list_events()
+                .withf(move |room_id: &Uuid, _kind: &str| {
+                    assert_eq!(*room_id, event_room_id);
+                    true
+                })
+                .returning(move |_, kind| match kind {
+                    HOST_EVENT_TYPE => Ok(vec![EventBuilder::new()
+                        .room_id(event_room_id)
+                        .set(HOST_EVENT_TYPE.to_string())
+                        .data(EventData::Host(HostEventData::new(
+                            agent1_clone.agent_id().to_owned(),
+                        )))
+                        .occurred_at(0)
+                        .build()]),
+                    other => panic!("Event client mock got unknown kind: {}", other),
+                });
 
             state
                 .event_client_mock()
@@ -512,7 +549,7 @@ mod tests {
                           segments: &Segments,
                           offset: &i64| {
                         assert_eq!(*room_id, event_room_id);
-                        assert_eq!(*started_at, expected_started_at);
+                        assert_eq!(*started_at, started_at1);
                         assert_eq!(segments, &expected_segments);
                         assert_eq!(*offset, PREROLL_OFFSET);
                         true
@@ -522,14 +559,6 @@ mod tests {
 
             // Handle uploading two RTCs.
             let uri1 = "s3://minigroup.origin.dev.example.com/rtc1.webm";
-            let started_at1 = now - Duration::hours(1);
-            let agent1 = TestAgent::new("web", "user1", USR_AUDIENCE);
-
-            let segments1: Segments = vec![
-                (Bound::Included(0), Bound::Excluded(1500000)),
-                (Bound::Included(1800000), Bound::Excluded(3000000)),
-            ]
-            .into();
 
             let stream1 = UploadedStream {
                 id: rtc1_id,
@@ -541,7 +570,6 @@ mod tests {
             let uri2 = "s3://minigroup.origin.dev.example.com/rtc2.webm";
             let started_at2 = now - Duration::minutes(50);
             let segments2: Segments = vec![(Bound::Included(0), Bound::Excluded(2700000))].into();
-            let agent2 = TestAgent::new("web", "user2", USR_AUDIENCE);
 
             let stream2 = UploadedStream {
                 id: rtc2_id,
@@ -730,7 +758,7 @@ mod tests {
         use crate::clients::event::{EventData, EventRoomResponse, HostEventData, PinEventData};
         use crate::db::class::MinigroupReadQuery;
         use crate::db::recording::{RecordingListQuery, Segments};
-        use crate::test_helpers::prelude::*;
+        use crate::test_helpers::{prelude::*, shared_helpers::random_string};
 
         use super::super::super::PostprocessingStrategy;
         use super::super::*;
@@ -880,7 +908,7 @@ mod tests {
                         .offset(600000)
                         .segments(recording2.segments().unwrap().to_owned())
                         .pin_segments(
-                            vec![(Bound::Included(600000), Bound::Excluded(900000))].into(),
+                            vec![(Bound::Included(600001), Bound::Excluded(900001))].into(),
                         ),
                 ],
                 host_stream_id: recording1.rtc_id(),
@@ -955,7 +983,7 @@ mod tests {
 
         use crate::app::{AppContext, API_VERSION};
         use crate::db::recording::{RecordingListQuery, Segments};
-        use crate::test_helpers::prelude::*;
+        use crate::test_helpers::{prelude::*, shared_helpers::random_string};
 
         use super::super::super::PostprocessingStrategy;
         use super::super::*;

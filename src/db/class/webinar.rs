@@ -4,58 +4,11 @@ use sqlx::postgres::{types::PgRange, PgConnection};
 use uuid::Uuid;
 
 use super::{ClassType, Object, Time};
+#[cfg(test)]
+use super::{GenericReadQuery, WebinarType};
 
-enum ReadQueryPredicate {
-    Id(Uuid),
-    Scope { audience: String, scope: String },
-}
-
-pub struct WebinarReadQuery {
-    condition: ReadQueryPredicate,
-}
-
-impl WebinarReadQuery {
-    pub fn by_id(id: Uuid) -> Self {
-        Self {
-            condition: ReadQueryPredicate::Id(id),
-        }
-    }
-
-    pub fn by_scope(audience: String, scope: String) -> Self {
-        Self {
-            condition: ReadQueryPredicate::Scope { audience, scope },
-        }
-    }
-
-    pub async fn execute(self, conn: &mut PgConnection) -> sqlx::Result<Option<Object>> {
-        use quaint::ast::{Comparable, Select};
-        use quaint::visitor::{Postgres, Visitor};
-
-        let q = Select::from_table("class");
-
-        let q = match self.condition {
-            ReadQueryPredicate::Id(_) => q.and_where("id".equals("_placeholder_")),
-            ReadQueryPredicate::Scope { .. } => q
-                .and_where("audience".equals("_placeholder_"))
-                .and_where("scope".equals("_placeholder_")),
-        };
-
-        let q = q.and_where("kind".equals("_placeholder_"));
-
-        let (sql, _bindings) = Postgres::build(q);
-
-        let query = sqlx::query_as(&sql);
-
-        let query = match self.condition {
-            ReadQueryPredicate::Id(id) => query.bind(id),
-            ReadQueryPredicate::Scope { audience, scope } => query.bind(audience).bind(scope),
-        };
-
-        let query = query.bind(ClassType::Webinar);
-
-        query.fetch_optional(conn).await
-    }
-}
+#[cfg(test)]
+pub type WebinarReadQuery = GenericReadQuery<WebinarType>;
 
 pub struct WebinarInsertQuery {
     scope: String,
@@ -162,101 +115,6 @@ impl WebinarInsertQuery {
             self.modified_event_room_id,
             self.reserve,
             self.room_events_uri,
-        )
-        .fetch_one(conn)
-        .await
-    }
-}
-
-pub struct WebinarTimeUpdateQuery {
-    id: Uuid,
-    time: Time,
-}
-
-impl WebinarTimeUpdateQuery {
-    pub fn new(id: Uuid, time: Time) -> Self {
-        Self { id, time }
-    }
-
-    pub async fn execute(self, conn: &mut PgConnection) -> sqlx::Result<Object> {
-        let time: PgRange<DateTime<Utc>> = self.time.into();
-
-        sqlx::query_as!(
-            Object,
-            r#"
-            UPDATE class
-            SET time = $2
-            WHERE id = $1
-            RETURNING
-                id,
-                scope,
-                kind AS "kind!: ClassType",
-                audience,
-                time AS "time!: Time",
-                tags,
-                preserve_history,
-                created_at,
-                event_room_id,
-                conference_room_id,
-                original_event_room_id,
-                modified_event_room_id,
-                reserve,
-                room_events_uri
-            "#,
-            self.id,
-            time,
-        )
-        .fetch_one(conn)
-        .await
-    }
-}
-
-pub struct WebinarRecreateQuery {
-    id: Uuid,
-    time: Time,
-    event_room_id: Uuid,
-    conference_room_id: Uuid,
-}
-
-impl WebinarRecreateQuery {
-    pub fn new(id: Uuid, time: Time, event_room_id: Uuid, conference_room_id: Uuid) -> Self {
-        Self {
-            id,
-            time,
-            event_room_id,
-            conference_room_id,
-        }
-    }
-
-    pub async fn execute(self, conn: &mut PgConnection) -> sqlx::Result<Object> {
-        let time: PgRange<DateTime<Utc>> = self.time.into();
-
-        sqlx::query_as!(
-            Object,
-            r#"
-            UPDATE class
-            SET time = $2, event_room_id = $3, conference_room_id = $4, original_event_room_id = NULL, modified_event_room_id = NULL
-            WHERE id = $1
-            RETURNING
-                id,
-                scope,
-                kind AS "kind!: ClassType",
-                audience,
-                time AS "time!: Time",
-                tags,
-                preserve_history,
-                created_at,
-                event_room_id,
-                conference_room_id,
-                original_event_room_id,
-                modified_event_room_id,
-                reserve,
-                room_events_uri
-            "#,
-            self.id,
-            time,
-            self.event_room_id,
-            self.conference_room_id,
         )
         .fetch_one(conn)
         .await

@@ -27,7 +27,7 @@ use api::v1::chat::{
 };
 use api::v1::minigroup::{
     create as create_minigroup, read as read_minigroup, read_by_scope as read_minigroup_by_scope,
-    update as update_minigroup,
+    recreate as recreate_minigroup, update as update_minigroup,
 };
 use api::v1::p2p::{
     convert as convert_p2p, create as create_p2p, read_by_scope as read_p2p_by_scope, read_p2p,
@@ -38,7 +38,8 @@ use api::v1::webinar::{
     recreate as recreate_webinar, update as update_webinar,
 };
 use api::{
-    redirect_to_frontend, rollback, v1::healthz, v1::redirect_to_frontend as redirect_to_frontend2,
+    redirect_to_frontend, rollback, v1::create_event, v1::healthz,
+    v1::redirect_to_frontend as redirect_to_frontend2,
 };
 pub use authz::AuthzObject;
 use info::{list_frontends, list_scopes};
@@ -117,8 +118,8 @@ pub async fn run(db: PgPool, authz_cache: Option<Box<dyn AuthzCache>>) -> Result
                         message_handler_.handle_event(data, topic).await;
                     }
                     AgentNotification::Message(_, _) => (),
-                    AgentNotification::Disconnection => {
-                        error!(crate::LOG, "Disconnected from broker")
+                    AgentNotification::ConnectionError => {
+                        error!(crate::LOG, "Connection to broker errored")
                     }
                     AgentNotification::Reconnection => {
                         error!(crate::LOG, "Reconnected to broker");
@@ -138,9 +139,14 @@ pub async fn run(db: PgPool, authz_cache: Option<Box<dyn AuthzCache>>) -> Result
                     AgentNotification::Pubcomp(_) => (),
                     AgentNotification::Suback(_) => (),
                     AgentNotification::Unsuback(_) => (),
-                    AgentNotification::Abort(err) => {
-                        error!(crate::LOG, "MQTT client aborted: {:?}", err);
-                    }
+                    AgentNotification::Connect(_) => (),
+                    AgentNotification::Connack(_) => (),
+                    AgentNotification::Pubrel(_) => (),
+                    AgentNotification::Subscribe(_) => (),
+                    AgentNotification::Unsubscribe(_) => (),
+                    AgentNotification::PingReq => (),
+                    AgentNotification::PingResp => (),
+                    AgentNotification::Disconnect => (),
                 }
             });
         }
@@ -272,6 +278,9 @@ fn bind_webinars_routes(app: &mut tide::Server<Arc<dyn AppContext>>) {
 
     app.at("/api/v1/webinars/:id/recreate")
         .post(AppEndpoint(recreate_webinar));
+
+    app.at("/api/v1/webinars/:id/events")
+        .post(AppEndpoint(create_event));
 }
 
 fn bind_p2p_routes(app: &mut tide::Server<Arc<dyn AppContext>>) {
@@ -289,6 +298,9 @@ fn bind_p2p_routes(app: &mut tide::Server<Arc<dyn AppContext>>) {
     app.at("/api/v1/p2p").post(AppEndpoint(create_p2p));
 
     app.at("/api/v1/p2p/convert").post(AppEndpoint(convert_p2p));
+
+    app.at("/api/v1/p2p/:id/events")
+        .post(AppEndpoint(create_event));
 }
 
 fn bind_minigroups_routes(app: &mut tide::Server<Arc<dyn AppContext>>) {
@@ -305,10 +317,16 @@ fn bind_minigroups_routes(app: &mut tide::Server<Arc<dyn AppContext>>) {
         .with(cors())
         .get(AppEndpoint(read_minigroup_by_scope));
 
+    app.at("/api/v1/minigroups/:id/recreate")
+        .post(AppEndpoint(recreate_minigroup));
+
     app.at("/api/v1/minigroups")
         .post(AppEndpoint(create_minigroup));
     app.at("/api/v1/minigroups/:id")
         .put(AppEndpoint(update_minigroup));
+
+    app.at("/api/v1/minigroups/:id/events")
+        .post(AppEndpoint(create_event));
 }
 
 fn bind_chat_routes(app: &mut tide::Server<Arc<dyn AppContext>>) {
@@ -329,6 +347,9 @@ fn bind_chat_routes(app: &mut tide::Server<Arc<dyn AppContext>>) {
 
     app.at("/api/v1/chats/convert")
         .post(AppEndpoint(convert_chat));
+
+    app.at("/api/v1/chats/:id/events")
+        .post(AppEndpoint(create_event));
 }
 
 fn bind_authz_routes(app: &mut tide::Server<Arc<dyn AppContext>>) {

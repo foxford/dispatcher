@@ -25,6 +25,7 @@ use crate::db::class::BoundedDateTimeTuple;
 
 pub struct RoomUpdate {
     pub time: Option<BoundedDateTimeTuple>,
+    pub reserve: Option<i32>,
     pub classroom_id: Option<Uuid>,
 }
 

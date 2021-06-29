@@ -176,9 +176,12 @@ impl MessageHandler {
         let payload = data.extract_payload();
         let room_adjust: RoomAdjust = serde_json::from_str(&payload)?;
 
-        let class = self
-            .get_class_from_tags(&audience, room_adjust.tags())
-            .await?;
+        let class = if let Some(uuid) = room_adjust.room_id() {
+            self.get_class_by_room_id(uuid).await?
+        } else {
+            self.get_class_from_tags(&audience, room_adjust.tags())
+                .await?
+        };
 
         postprocessing_strategy::get(self.ctx.clone(), class)?
             .handle_adjust(room_adjust.into())
@@ -259,6 +262,15 @@ impl MessageHandler {
         } else {
             bail!("No scope specified in tags = {:?}", tags);
         }
+    }
+
+    async fn get_class_by_room_id(&self, room_id: Uuid) -> Result<Class> {
+        let mut conn = self.ctx.get_conn().await?;
+
+        crate::db::class::ReadQuery::by_event_room(room_id)
+            .execute(&mut conn)
+            .await?
+            .ok_or_else(|| anyhow!("Class not found by modified event room id = {}", room_id))
     }
 }
 

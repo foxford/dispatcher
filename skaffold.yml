@@ -2,10 +2,10 @@ apiVersion: skaffold/v2beta11
 kind: Config
 build:
   artifacts:
-  - image: netologygroup/dispatcher-migration
+  - image: foxford/dispatcher-migration
     docker:
       dockerfile: docker/migration.dockerfile
-  - image: netologygroup/dispatcher
+  - image: foxford/dispatcher
     docker:
       dockerfile: docker/Dockerfile
   tagPolicy:

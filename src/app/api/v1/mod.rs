@@ -1,17 +1,23 @@
 use std::str::FromStr;
 use std::sync::Arc;
 
-use crate::app::AppContext;
 use anyhow::Context;
 use async_trait::async_trait;
 use futures::Future;
 use percent_encoding::{percent_encode, NON_ALPHANUMERIC};
 use serde_derive::Deserialize;
+use serde_json::Value as JsonValue;
 use svc_agent::AccountId;
 use tide::{Endpoint, Request, Response};
 use uuid::Uuid;
 
 use super::FEATURE_POLICY;
+
+use crate::app::authz::AuthzObject;
+use crate::app::error::ErrorExt;
+use crate::app::error::ErrorKind as AppErrorKind;
+use crate::app::AppContext;
+use crate::db::class::AsClassType;
 
 type AppError = crate::app::error::Error;
 type AppResult = Result<tide::Response, AppError>;
@@ -40,6 +46,64 @@ where
 
 pub async fn healthz(_req: Request<Arc<dyn AppContext>>) -> tide::Result {
     Ok("Ok".into())
+}
+
+pub async fn create_event(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
+    let mut body = req
+        .body_json::<JsonValue>()
+        .await
+        .error(AppErrorKind::InvalidPayload)?;
+    let id = extract_id(&req).error(AppErrorKind::InvalidParameter)?;
+
+    let account_id = validate_token(&req).error(AppErrorKind::Unauthorized)?;
+    let state = req.state();
+
+    let class = find_class(state.as_ref(), id)
+        .await
+        .error(AppErrorKind::WebinarNotFound)?;
+
+    let object = AuthzObject::new(&["classrooms", &class.id().to_string()]).into();
+
+    state
+        .authz()
+        .authorize(
+            class.audience().to_owned(),
+            account_id.clone(),
+            object,
+            "update".into(),
+        )
+        .await?;
+
+    body["room_id"] = serde_json::to_value(class.event_room_id()).unwrap();
+
+    let result = state.event_client().create_event(body).await;
+    if let Err(e) = &result {
+        error!(
+            crate::LOG,
+            "Failed to create event in event room, clasroom id = {:?}, err = {:?}", id, e
+        );
+    }
+    result
+        .map_err(|e| anyhow!("Failed to create event, reason = {:?}", e))
+        .error(AppErrorKind::InvalidPayload)?;
+
+    let response = Response::builder(201).body("{}").build();
+
+    Ok(response)
+}
+
+pub async fn find_class(
+    state: &dyn AppContext,
+    id: Uuid,
+) -> anyhow::Result<crate::db::class::Object> {
+    let webinar = {
+        let mut conn = state.get_conn().await?;
+        crate::db::class::ReadQuery::by_id(id)
+            .execute(&mut conn)
+            .await?
+            .ok_or_else(|| anyhow!("Failed to find class"))?
+    };
+    Ok(webinar)
 }
 
 #[derive(Deserialize)]
@@ -152,8 +216,38 @@ fn extract_id(req: &Request<Arc<dyn AppContext>>) -> anyhow::Result<Uuid> {
     Ok(id)
 }
 
+async fn find<T: AsClassType>(
+    state: &dyn AppContext,
+    id: Uuid,
+) -> anyhow::Result<crate::db::class::Object> {
+    let webinar = {
+        let mut conn = state.get_conn().await?;
+        crate::db::class::GenericReadQuery::<T>::by_id(id)
+            .execute(&mut conn)
+            .await?
+            .ok_or_else(|| anyhow!("Failed to find {}", T::to_str()))?
+    };
+    Ok(webinar)
+}
+
+async fn find_by_scope<T: AsClassType>(
+    state: &dyn AppContext,
+    audience: &str,
+    scope: &str,
+) -> anyhow::Result<crate::db::class::Object> {
+    let webinar = {
+        let mut conn = state.get_conn().await?;
+        crate::db::class::GenericReadQuery::<T>::by_scope(&audience, &scope)
+            .execute(&mut conn)
+            .await?
+            .ok_or_else(|| anyhow!("Failed to find {} by scope", T::to_str()))?
+    };
+    Ok(webinar)
+}
+
 pub mod authz;
 pub mod chat;
+pub mod class;
 pub mod minigroup;
 pub mod p2p;
 #[cfg(test)]

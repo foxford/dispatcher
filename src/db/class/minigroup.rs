@@ -4,58 +4,11 @@ use sqlx::postgres::{types::PgRange, PgConnection};
 use uuid::Uuid;
 
 use super::{ClassType, Object, Time};
+#[cfg(test)]
+use super::{GenericReadQuery, MinigroupType};
 
-enum ReadQueryPredicate {
-    Id(Uuid),
-    Scope { audience: String, scope: String },
-}
-
-pub struct MinigroupReadQuery {
-    condition: ReadQueryPredicate,
-}
-
-impl MinigroupReadQuery {
-    pub fn by_id(id: Uuid) -> Self {
-        Self {
-            condition: ReadQueryPredicate::Id(id),
-        }
-    }
-
-    pub fn by_scope(audience: String, scope: String) -> Self {
-        Self {
-            condition: ReadQueryPredicate::Scope { audience, scope },
-        }
-    }
-
-    pub async fn execute(self, conn: &mut PgConnection) -> sqlx::Result<Option<Object>> {
-        use quaint::ast::{Comparable, Select};
-        use quaint::visitor::{Postgres, Visitor};
-
-        let q = Select::from_table("class");
-
-        let q = match self.condition {
-            ReadQueryPredicate::Id(_) => q.and_where("id".equals("_placeholder_")),
-            ReadQueryPredicate::Scope { .. } => q
-                .and_where("audience".equals("_placeholder_"))
-                .and_where("scope".equals("_placeholder_")),
-        };
-
-        let q = q.and_where("kind".equals("_placeholder_"));
-
-        let (sql, _bindings) = Postgres::build(q);
-
-        let query = sqlx::query_as(&sql);
-
-        let query = match self.condition {
-            ReadQueryPredicate::Id(id) => query.bind(id),
-            ReadQueryPredicate::Scope { audience, scope } => query.bind(audience).bind(scope),
-        };
-
-        let query = query.bind(ClassType::Minigroup);
-
-        query.fetch_optional(conn).await
-    }
-}
+#[cfg(test)]
+pub type MinigroupReadQuery = GenericReadQuery<MinigroupType>;
 
 pub struct MinigroupInsertQuery {
     scope: String,
@@ -163,52 +116,5 @@ impl MinigroupInsertQuery {
         )
         .fetch_one(conn)
         .await
-    }
-}
-
-pub struct MinigroupTimeUpdateQuery {
-    id: Uuid,
-    time: Option<Time>,
-}
-
-impl MinigroupTimeUpdateQuery {
-    pub fn new(id: Uuid) -> Self {
-        Self { id, time: None }
-    }
-
-    pub fn time(&mut self, time: Time) -> &mut Self {
-        self.time = Some(time);
-        self
-    }
-
-    pub async fn execute(&self, conn: &mut PgConnection) -> sqlx::Result<Object> {
-        use quaint::ast::{Comparable, Update};
-        use quaint::visitor::{Postgres, Visitor};
-
-        let q = Update::table("class");
-        let q = match self.time {
-            Some(_) => q.set("time", "__placeholder__"),
-            None => q,
-        };
-
-        let q = q
-            .so_that("id".equals(self.id))
-            .so_that("kind".equals("__placeholder__"));
-
-        let (sql, _bindings) = Postgres::build(q);
-
-        let query = sqlx::query_as(&sql);
-
-        let query = match &self.time {
-            Some(t) => {
-                let t: PgRange<DateTime<Utc>> = t.into();
-                query.bind(t)
-            }
-            None => query,
-        };
-
-        let query = query.bind(self.id);
-
-        query.fetch_one(conn).await
     }
 }

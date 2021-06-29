@@ -9,6 +9,7 @@ Route                                           | Method | Short description
 /api/v1/audiences/:audience/minigroups/:scope   | GET    | [Reads](#read-minigroup) minigroup.
 /api/v1/minigroups                              | POST   | [Creates](#create-minigroup) minigroup and required rooms in other services.
 /api/v1/minigroups/:minigroup_id                | PUT    | [Updates](#update-minigroup) minigroup.
+/api/v1/minigroups/:minigroup_id/events         | POST   | [Creates](#create-minigroup-event) event in the room.
 
 ### Create minigroup
 
@@ -58,6 +59,22 @@ All parameters are optional but at least one is expected
 Свойство               | Тип         | Optional | Description
 ---------------------- | ----------- | -------- | -------------------------------------------------
 time                   | [int, int]  | +        | New time
-host                   | string      | +        | Host account id
+reserve                | int         | +        | New reserve
 
 Response: status 200 and minigroup object as payload.
+
+### Create minigroup event
+
+Parameters:
+
+Name          | Type    | Default    | Description
+------------- | ------- | ---------- | -----------------------------
+type          | string  | _required_ | The event type.
+set           | string  |       type | Collection set's name.
+label         | string  | _optional_ | Collection item's label.
+attribute     | string  | _optional_ | An attribute for authorization and filtering.
+data          | json    | _required_ | The event JSON payload.
+is_claim      | boolean |      false | Whether to notify the tenant.
+is_persistent | boolean |       true | Whether to persist the event.
+
+Response: status **201** and empty payload.
