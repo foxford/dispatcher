@@ -118,8 +118,8 @@ pub async fn run(db: PgPool, authz_cache: Option<Box<dyn AuthzCache>>) -> Result
                         message_handler_.handle_event(data, topic).await;
                     }
                     AgentNotification::Message(_, _) => (),
-                    AgentNotification::Disconnection => {
-                        error!(crate::LOG, "Disconnected from broker")
+                    AgentNotification::ConnectionError => {
+                        error!(crate::LOG, "Connection to broker errored")
                     }
                     AgentNotification::Reconnection => {
                         error!(crate::LOG, "Reconnected to broker");
@@ -139,9 +139,14 @@ pub async fn run(db: PgPool, authz_cache: Option<Box<dyn AuthzCache>>) -> Result
                     AgentNotification::Pubcomp(_) => (),
                     AgentNotification::Suback(_) => (),
                     AgentNotification::Unsuback(_) => (),
-                    AgentNotification::Abort(err) => {
-                        error!(crate::LOG, "MQTT client aborted: {:?}", err);
-                    }
+                    AgentNotification::Connect(_) => (),
+                    AgentNotification::Connack(_) => (),
+                    AgentNotification::Pubrel(_) => (),
+                    AgentNotification::Subscribe(_) => (),
+                    AgentNotification::Unsubscribe(_) => (),
+                    AgentNotification::PingReq => (),
+                    AgentNotification::PingResp => (),
+                    AgentNotification::Disconnect => (),
                 }
             });
         }
