@@ -12,6 +12,8 @@ jobs:
   ci:
 
     runs-on: ubuntu-latest
+    container: debian
+    
     services:
       postgres:
         image: postgres
@@ -32,6 +34,8 @@ jobs:
           override: true
           components: rustfmt, clippy
     - uses: Swatinem/rust-cache@v1
+      with: 
+        cache-on-failure: true
     - name: clippy
       run: cargo clippy # -- -D warnings
     - name: fmt
