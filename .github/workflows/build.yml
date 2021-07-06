@@ -14,7 +14,7 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: Install awscli
-      run: apt update && apt install -y awscli
+      run: sudo apt update && sudo apt install -y awscli
     - name: Install latest stable
       uses: actions-rs/toolchain@v1
       with:
