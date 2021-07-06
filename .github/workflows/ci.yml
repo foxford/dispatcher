@@ -13,7 +13,7 @@ jobs:
 
     runs-on: ubuntu-latest
     container: debian
-    
+
     services:
       postgres:
         image: postgres
@@ -27,6 +27,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
+    - name: Install curl
+      run: apt-get update && apt-get install -y curl
     - name: Install latest stable
       uses: actions-rs/toolchain@v1
       with:
