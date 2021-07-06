@@ -28,10 +28,10 @@ jobs:
     - name: Build
       run: ./deploy.init.sh && mdbook build docs && ./deploy/ci-mdbook.sh && ./deploy/ci-install-tools.sh && ./deploy/ci-build.sh
       env:
-        GITHUB_TOKEN: ${{ _GITHUB_TOKEN }}
-        AWS_ACCESS_KEY_ID: ${{ AWS_ACCESS_KEY_ID }}
-        AWS_ENDPOINT: ${{ AWS_ENDPOINT }}
-        AWS_REGION: ${{ AWS_REGION }}
-        AWS_SECRET_ACCESS_KEY: ${{ AWS_SECRET_ACCESS_KEY }}
-        DOCKER_PASSWORD: ${{ DOCKER_PASSWORD }}
-        DOCKER_USERNAME: ${{ DOCKER_USERNAME }}
+        GITHUB_TOKEN: ${{ secrets._GITHUB_TOKEN }}
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_ENDPOINT: ${{ secrets.AWS_ENDPOINT }}
+        AWS_REGION: ${{ secrets.AWS_REGION }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+        DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
