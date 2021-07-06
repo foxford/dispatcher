@@ -16,7 +16,7 @@ jobs:
     - name: Install awscli
       run: sudo apt update && sudo apt install -y awscli
     - name: Install mdbook
-      run : curl -L https://github.com/rust-lang/mdBook/releases/download/v0.4.10/mdbook-v0.4.10-x86_64-unknown-linux-gnu.tar.gz | tar -xz
+      run : curl -L https://github.com/rust-lang/mdBook/releases/download/v0.4.10/mdbook-v0.4.10-x86_64-unknown-linux-gnu.tar.gz | tar -xz && echo "$HOME" >> $GITHUB_PATH
     - name: Build
       run: ./deploy.init.sh && mdbook build docs && ./deploy/ci-mdbook.sh && ./deploy/ci-install-tools.sh && ./deploy/ci-build.sh
       env:
