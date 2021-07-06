@@ -41,5 +41,5 @@ jobs:
     - name: Run tests
       run: cargo sqlx database create && cargo sqlx migrate run && cargo test --verbose
       env:
-        - PGPORT=5433
-        - DATABASE_URL=postgres:postgres//postgres@localhost:5433/dispatcher.test
+        PGPORT: 5433
+        DATABASE_URL: postgres:postgres//postgres@localhost:5433/dispatcher.test
