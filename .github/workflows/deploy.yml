@@ -19,6 +19,7 @@ jobs:
     - uses: actions/checkout@v2
       with:
         ref: ${{ github.event.inputs.version }}
+        fetch-depth: 0
     - uses: satackey/action-docker-layer-caching@46d2c640b1d8ef50d185452ad6fb324e6bd1d052
       continue-on-error: true
     - name: Deploy

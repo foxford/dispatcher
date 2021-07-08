@@ -1,7 +1,5 @@
 # Dispatcher
 
-[![Build Status][travis-img]][travis]
-
 [travis]:https://travis-ci.com/netology-group/dispatcher?branch=master
 [travis-img]:https://travis-ci.com/netology-group/dispatcher.png?branch=master
 
