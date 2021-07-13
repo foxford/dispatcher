@@ -123,7 +123,6 @@ impl Object {
         self.reserve
     }
 
-    #[cfg(test)]
     pub fn time(&self) -> &Time {
         &self.time
     }
@@ -162,6 +161,17 @@ impl From<Time> for PgRange<DateTime<Utc>> {
 impl From<&Time> for PgRange<DateTime<Utc>> {
     fn from(time: &Time) -> PgRange<DateTime<Utc>> {
         time.0.clone()
+    }
+}
+
+impl Time {
+    pub fn end(&self) -> Option<&DateTime<Utc>> {
+        use std::ops::RangeBounds;
+        match self.0.end_bound() {
+            Bound::Included(t) => Some(t),
+            Bound::Excluded(t) => Some(t),
+            Bound::Unbounded => None,
+        }
     }
 }
 
@@ -465,7 +475,7 @@ impl TimeUpdateQuery {
     }
 
     pub async fn execute(self, conn: &mut PgConnection) -> sqlx::Result<u64> {
-        use quaint::ast::{Comparable, Conjuctive, Update};
+        use quaint::ast::{Comparable, Update};
         use quaint::visitor::{Postgres, Visitor};
 
         let q = Update::table("class");
@@ -500,6 +510,47 @@ impl TimeUpdateQuery {
         let query = query.bind(self.id);
 
         query.execute(conn).await.map(|done| done.rows_affected())
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+pub struct RoomCloseQuery {
+    id: Uuid,
+}
+
+impl RoomCloseQuery {
+    pub fn new(id: Uuid) -> Self {
+        Self { id }
+    }
+
+    pub async fn execute(self, conn: &mut PgConnection) -> sqlx::Result<Object> {
+        sqlx::query_as!(
+            Object,
+            r#"
+            UPDATE class
+            SET time = TSTZRANGE(LOWER(time), LEAST(UPPER(time), NOW()))
+            WHERE id = $1
+            RETURNING
+                id,
+                scope,
+                kind AS "kind!: ClassType",
+                audience,
+                time AS "time!: Time",
+                tags,
+                preserve_history,
+                created_at,
+                event_room_id,
+                conference_room_id,
+                original_event_room_id,
+                modified_event_room_id,
+                reserve,
+                room_events_uri
+            "#,
+            self.id
+        )
+        .fetch_one(conn)
+        .await
     }
 }
 

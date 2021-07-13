@@ -130,6 +130,10 @@ impl MessageHandler {
             ClassType::Webinar => "webinar.close",
         };
 
+        crate::db::class::RoomCloseQuery::new(class.id())
+            .execute(&mut conn)
+            .await?;
+
         let timing = ShortTermTimingProperties::new(chrono::Utc::now());
         let props = OutgoingEventProperties::new(label, timing);
         let path = format!("audiences/{}/events", class.audience());
