@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::Context;
+use chrono::Utc;
 use serde_derive::Serialize;
 use serde_json::Value as JsonValue;
 use svc_authn::AccountId;
@@ -21,7 +22,7 @@ struct ClassResponseBody {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     on_demand: Vec<ClassroomVersion>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    status: Option<String>,
+    status: Option<ClassStatus>,
 }
 
 impl ClassResponseBody {
@@ -29,8 +30,8 @@ impl ClassResponseBody {
         self.on_demand.push(version);
     }
 
-    pub fn set_status(&mut self, status: &str) {
-        self.status = Some(status.to_owned());
+    pub fn set_status(&mut self, status: ClassStatus) {
+        self.status = Some(status);
     }
 
     pub fn set_rtc_id(&mut self, rtc_id: Uuid) {
@@ -75,6 +76,16 @@ pub struct RealTimeObject {
     fallback_uri: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     rtc_id: Option<Uuid>,
+}
+
+#[derive(Serialize, Clone, Copy)]
+#[serde(rename_all = "kebab-case")]
+enum ClassStatus {
+    Transcoded,
+    Adjusted,
+    Finished,
+    RealTime,
+    Closed,
 }
 
 impl RealTimeObject {
@@ -158,6 +169,7 @@ async fn do_read_inner<T: AsClassType>(
 
     let mut class_body: ClassResponseBody = (&class).into();
 
+    let class_end = class.time().end();
     if let Some(recording) = recordings.first() {
         // BEWARE: the order is significant
         // as of now its expected that modified version is second
@@ -184,14 +196,16 @@ async fn do_read_inner<T: AsClassType>(
                 });
             }
 
-            class_body.set_status("transcoded");
+            class_body.set_status(ClassStatus::Transcoded);
         } else if recording.adjusted_at().is_some() {
-            class_body.set_status("adjusted");
+            class_body.set_status(ClassStatus::Adjusted);
         } else {
-            class_body.set_status("finished");
+            class_body.set_status(ClassStatus::Finished);
         }
+    } else if class_end.map(|t| Utc::now() > *t).unwrap_or(false) {
+        class_body.set_status(ClassStatus::Closed);
     } else {
-        class_body.set_status("real-time");
+        class_body.set_status(ClassStatus::RealTime);
     }
 
     let body = serde_json::to_string(&class_body)
