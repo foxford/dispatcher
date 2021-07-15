@@ -516,7 +516,7 @@ mod tests {
             };
 
             // Set up event client mock.
-            let started_at1 = now - Duration::hours(1);
+            let started_at1: DateTime<Utc> = now - Duration::hours(1);
 
             let segments1: Segments = vec![
                 (Bound::Included(0), Bound::Excluded(1500000)),
@@ -545,7 +545,6 @@ mod tests {
                         .build()]),
                     other => panic!("Event client mock got unknown kind: {}", other),
                 });
-
             state
                 .event_client_mock()
                 .expect_adjust_room()
@@ -555,7 +554,7 @@ mod tests {
                           segments: &Segments,
                           offset: &i64| {
                         assert_eq!(*room_id, event_room_id);
-                        assert_eq!(*started_at, started_at1);
+                        assert_eq!(started_at.timestamp(), started_at1.timestamp());
                         assert_eq!(segments, &expected_segments);
                         assert_eq!(*offset, PREROLL_OFFSET);
                         true
