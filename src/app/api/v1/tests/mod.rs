@@ -3,7 +3,7 @@ use std::pin::Pin;
 use http::StatusCode;
 use tide::{
     http::{Method, Request, Url},
-    listener::ToListener,
+    listener::{Listener, ToListener},
 };
 
 use super::*;
@@ -29,8 +29,6 @@ async fn test_healthz() {
 
 #[async_std::test]
 async fn response_error_should_visible_in_middlewares() {
-    use tide::listener::Listener;
-
     fn middleware<'a>(
         request: tide::Request<()>,
         next: tide::Next<'a, ()>,
