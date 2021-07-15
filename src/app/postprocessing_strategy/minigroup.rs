@@ -524,7 +524,8 @@ mod tests {
             ]
             .into();
 
-            let expected_segments = segments1.clone();
+            let expected_segments: Segments =
+                vec![(Bound::Included(0), Bound::Excluded(3000000))].into();
 
             state
                 .event_client_mock()
