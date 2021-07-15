@@ -1,7 +1,10 @@
 use std::pin::Pin;
 
 use http::StatusCode;
-use tide::http::{Method, Request, Url};
+use tide::{
+    http::{Method, Request, Url},
+    listener::ToListener,
+};
 
 use super::*;
 use crate::{app::error::ErrorKind, test_helpers::prelude::*};
@@ -26,6 +29,8 @@ async fn test_healthz() {
 
 #[async_std::test]
 async fn response_error_should_visible_in_middlewares() {
+    use tide::listener::Listener;
+
     fn middleware<'a>(
         request: tide::Request<()>,
         next: tide::Next<'a, ()>,
@@ -49,7 +54,9 @@ async fn response_error_should_visible_in_middlewares() {
         Err(AppError::new(ErrorKind::AccessDenied, anyhow!("err")))
     }));
     app.with(middleware);
-    async_std::task::spawn(app.listen("127.0.0.1:5674"));
+    let mut listener = "127.0.0.1:5674".to_listener().unwrap();
+    listener.bind(app).await.unwrap();
+    async_std::task::spawn(async move { listener.accept().await.unwrap() });
 
     let response = isahc::get_async("127.0.0.1:5674").await.unwrap().status();
 
