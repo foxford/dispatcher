@@ -128,6 +128,12 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
                     recordings
                 };
 
+                self.ctx
+                    .event_client()
+                    .dump_room(modified_room_id)
+                    .await
+                    .context("Dump room event failed")?;
+
                 // Find the earliest recording.
                 let earliest_recording = recordings
                     .iter()
@@ -628,6 +634,12 @@ mod tests {
 
             state
                 .event_client_mock()
+                .expect_dump_room()
+                .with(mockall::predicate::eq(modified_event_room_id))
+                .returning(move |_room_id| Ok(()));
+
+            state
+                .event_client_mock()
                 .expect_list_events()
                 .withf(move |room_id: &Uuid, _kind: &str| {
                     assert_eq!(*room_id, modified_event_room_id);
@@ -837,6 +849,12 @@ mod tests {
                         tags: None,
                     })
                 });
+
+            state
+                .event_client_mock()
+                .expect_dump_room()
+                .with(mockall::predicate::eq(modified_event_room_id))
+                .returning(move |_room_id| Ok(()));
 
             state
                 .event_client_mock()
