@@ -8,7 +8,7 @@ use prometheus::{
 use prometheus_static_metric::make_static_metric;
 use tide::{http::Method, Endpoint, Middleware, Next, Request, Route, StatusCode};
 
-use super::error::Error;
+use super::{api::v1::AppEndpoint, error::Error};
 
 make_static_metric! {
     struct MqttStats: IntCounter {
@@ -83,29 +83,18 @@ impl MqttMetrics {
     }
 }
 
-pub trait AddMetrics<'a, S: Clone + Send + Sync + 'static> {
+pub trait AddMetrics<'a, S> {
     fn metrics(self) -> MetricsRouter<'a, S>;
 }
 
-impl<'a, S: Clone + Send + Sync + 'static> AddMetrics<'a, S> for Route<'a, S> {
+impl<'a, S> AddMetrics<'a, S> for Route<'a, S> {
     fn metrics(self) -> MetricsRouter<'a, S> {
-        MetricsRouter {
-            route: self,
-            methods: vec![],
-        }
+        MetricsRouter { route: self }
     }
 }
 
-pub struct MetricsRouter<'a, S: Clone + Send + Sync + 'static> {
+pub struct MetricsRouter<'a, S> {
     route: Route<'a, S>,
-    methods: Vec<Method>,
-}
-
-impl<'a, S: Clone + Send + Sync + 'static> Drop for MetricsRouter<'a, S> {
-    fn drop(&mut self) {
-        self.route
-            .with(MetricsMiddleware::new(self.route.path(), &self.methods));
-    }
 }
 
 impl<'a, S: Clone + Send + Sync + 'static> MetricsRouter<'a, S> {
@@ -134,7 +123,8 @@ impl<'a, S: Clone + Send + Sync + 'static> MetricsRouter<'a, S> {
     }
 
     fn method(&mut self, method: Method, ep: impl Endpoint<S>) -> &mut Self {
-        self.methods.push(method);
+        self.route
+            .with(MetricsMiddleware::new(self.route.path(), method));
         self.route.method(method, ep);
         self
     }
@@ -181,34 +171,29 @@ impl Metrics {
 }
 
 struct MetricsMiddleware {
-    durations: HashMap<Method, Histogram>,
+    duration: Histogram,
     stats: RwLock<HashMap<StatusCode, Result<IntCounter, prometheus::Error>>>,
     path: String,
+    method: Method,
 }
 
 impl MetricsMiddleware {
-    fn new(path: &str, methods: &[Method]) -> Self {
+    fn new(path: &str, method: Method) -> Self {
         let path = path.trim_start_matches('/').replace('/', "_");
-        let durations = methods
-            .iter()
-            .map(|method| {
-                (
-                    *method,
-                    METRICS
-                        .duration_vec
-                        .with_label_values(&[&path, method.as_ref()]),
-                )
-            })
-            .collect();
+        let duration = METRICS
+            .duration_vec
+            .get_metric_with_label_values(&[&path, method.as_ref()])
+            .expect("Bad metric name");
         let stats = RwLock::new(HashMap::<_, Result<IntCounter, _>>::new());
         Self {
-            durations,
+            duration,
             stats,
             path,
+            method,
         }
     }
 
-    fn increment_stats(&self, status: StatusCode, method: Method) {
+    fn increment_stats(&self, status: StatusCode) {
         {
             let stats = self.stats.read();
             match stats {
@@ -235,7 +220,7 @@ impl MetricsMiddleware {
                         .or_insert_with(|| {
                             METRICS.status_vec.get_metric_with_label_values(&[
                                 &self.path,
-                                method.as_ref(),
+                                self.method.as_ref(),
                                 &status.to_string(),
                             ])
                         })
@@ -253,10 +238,9 @@ impl MetricsMiddleware {
 #[async_trait::async_trait]
 impl<State: Clone + Send + Sync + 'static> Middleware<State> for MetricsMiddleware {
     async fn handle(&self, req: Request<State>, next: Next<'_, State>) -> tide::Result {
-        let method = req.method();
-        let _timer = self.durations.get(&method).map(|h| h.start_timer());
+        let _timer = self.duration.start_timer();
         let response = next.run(req).await;
-        self.increment_stats(response.status(), method);
+        self.increment_stats(response.status());
         Ok(response)
     }
 }
