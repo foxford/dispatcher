@@ -962,6 +962,7 @@ dependencies = [
  "percent-encoding 2.1.0",
  "pin-utils",
  "prometheus",
+ "prometheus-static-metric",
  "quaint",
  "rand 0.7.3",
  "sentry 0.18.1",
@@ -2373,6 +2374,18 @@ dependencies = [
  "parking_lot 0.11.1",
  "protobuf",
  "thiserror",
+]
+
+[[package]]
+name = "prometheus-static-metric"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f8f30cdb09c39930b8fa5e0f23cbb895ab3f766b187403a0ba0956fc1ef4f0e5"
+dependencies = [
+ "lazy_static",
+ "proc-macro2",
+ "quote 1.0.9",
+ "syn 1.0.73",
 ]
 
 [[package]]

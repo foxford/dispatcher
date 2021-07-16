@@ -5,31 +5,102 @@ use prometheus::{
     register_histogram_vec, register_int_counter_vec, Histogram, HistogramVec, IntCounter,
     IntCounterVec,
 };
+use prometheus_static_metric::make_static_metric;
 use tide::{http::Method, Endpoint, Middleware, Next, Request, Route, StatusCode};
 
-static METRICS: Lazy<Metrics> = Lazy::new(Metrics::new);
+use super::{api::v1::AppEndpoint, error::Error};
 
-#[derive(Debug)]
-pub struct Metrics {
-    duration_vec: HistogramVec,
-    status_vec: IntCounterVec,
+make_static_metric! {
+    struct MqttStats: IntCounter {
+        "method" => {
+            room_close,
+            room_upload,
+            room_adjust,
+            task_complete,
+            room_dumps_events,
+        },
+        "status" => {
+            success,
+            failure,
+        },
+    }
 }
 
-impl Metrics {
+static MQTT_METRICS: Lazy<MqttMetrics> = Lazy::new(MqttMetrics::new);
+
+pub struct MqttMetrics {
+    stats: MqttStats,
+    connection_error: IntCounter,
+    disconnect: IntCounter,
+    reconnection: IntCounter,
+}
+
+impl MqttMetrics {
     pub fn new() -> Self {
-        Metrics {
-            duration_vec: register_histogram_vec!(
-                "request_duration",
-                "Request duration",
-                &["path", "method"]
-            )
-            .expect("Can't create stats metrics"),
-            status_vec: register_int_counter_vec!(
-                "request_stats",
-                "Request stats",
-                &["path", "method", "status_code"]
-            )
-            .expect("Can't create stats metrics"),
+        let mqtt_stats =
+            register_int_counter_vec!("mqtt_stats", "Mqtt stats", &["method", "status"])
+                .expect("Can't create stats metrics");
+        let mqtt_errors =
+            register_int_counter_vec!("mqtt_messages", "Mqtt message types", &["status"])
+                .expect("Bad mqtt messages metric");
+        Self {
+            stats: MqttStats::from(&mqtt_stats),
+            connection_error: mqtt_errors.with_label_values(&["connection_error"]),
+            disconnect: mqtt_errors.with_label_values(&["disconnect"]),
+            reconnection: mqtt_errors.with_label_values(&["reconnect"]),
+        }
+    }
+
+    pub fn observe_disconnect() {
+        MQTT_METRICS.disconnect.inc()
+    }
+
+    pub fn observe_reconnect() {
+        MQTT_METRICS.reconnection.inc()
+    }
+
+    pub fn observe_connection_error() {
+        MQTT_METRICS.connection_error.inc()
+    }
+
+    pub fn observe_event_result(result: &Result<(), Error>, label: Option<&str>) {
+        match label {
+            Some("room.close") => {
+                if result.is_err() {
+                    MQTT_METRICS.stats.room_close.failure.inc();
+                } else {
+                    MQTT_METRICS.stats.room_close.success.inc();
+                }
+            }
+            Some("room.upload") => {
+                if result.is_err() {
+                    MQTT_METRICS.stats.room_upload.failure.inc();
+                } else {
+                    MQTT_METRICS.stats.room_upload.success.inc();
+                }
+            }
+            Some("room.adjust") => {
+                if result.is_err() {
+                    MQTT_METRICS.stats.room_adjust.failure.inc();
+                } else {
+                    MQTT_METRICS.stats.room_adjust.success.inc();
+                }
+            }
+            Some("task.complete") => {
+                if result.is_err() {
+                    MQTT_METRICS.stats.task_complete.failure.inc();
+                } else {
+                    MQTT_METRICS.stats.task_complete.success.inc();
+                }
+            }
+            Some("room.dump_events") => {
+                if result.is_err() {
+                    MQTT_METRICS.stats.room_dumps_events.failure.inc();
+                } else {
+                    MQTT_METRICS.stats.room_dumps_events.success.inc();
+                }
+            }
+            _ => {}
         }
     }
 }
@@ -78,6 +149,33 @@ impl<'a, S: Clone + Send + Sync + 'static> MetricsRouter<'a, S> {
             .with(MetricsMiddleware::new(self.route.path(), method));
         self.route.method(method, ep);
         self
+    }
+}
+
+static METRICS: Lazy<HttpMetrics> = Lazy::new(HttpMetrics::new);
+
+#[derive(Debug)]
+struct HttpMetrics {
+    duration_vec: HistogramVec,
+    status_vec: IntCounterVec,
+}
+
+impl HttpMetrics {
+    pub fn new() -> Self {
+        HttpMetrics {
+            duration_vec: register_histogram_vec!(
+                "request_duration",
+                "Request duration",
+                &["path", "method"]
+            )
+            .expect("Can't create stats metrics"),
+            status_vec: register_int_counter_vec!(
+                "request_stats",
+                "Request stats",
+                &["path", "method", "status_code"]
+            )
+            .expect("Can't create stats metrics"),
+        }
     }
 }
 

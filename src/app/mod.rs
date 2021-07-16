@@ -17,10 +17,13 @@ use svc_error::{extension::sentry, Error as SvcError};
 use tide::http::headers::HeaderValue;
 use tide::security::{CorsMiddleware, Origin};
 
-use crate::clients::conference::{ConferenceClient, MqttConferenceClient};
 use crate::clients::event::{EventClient, MqttEventClient};
 use crate::clients::tq::{HttpTqClient, TqClient};
 use crate::config::{self, Config};
+use crate::{
+    app::metrics::MqttMetrics,
+    clients::conference::{ConferenceClient, MqttConferenceClient},
+};
 use api::v1::authz::proxy as proxy_authz;
 use api::v1::chat::{
     convert as convert_chat, create as create_chat, read_by_scope as read_chat_by_scope, read_chat,
@@ -119,11 +122,12 @@ pub async fn run(db: PgPool, authz_cache: Option<Box<dyn AuthzCache>>) -> Result
                     }
                     AgentNotification::Message(_, _) => (),
                     AgentNotification::ConnectionError => {
+                        MqttMetrics::observe_connection_error();
                         error!(crate::LOG, "Connection to broker errored")
                     }
                     AgentNotification::Reconnection => {
                         error!(crate::LOG, "Reconnected to broker");
-
+                        MqttMetrics::observe_reconnect();
                         resubscribe(
                             &mut message_handler_
                                 .ctx()
@@ -146,7 +150,9 @@ pub async fn run(db: PgPool, authz_cache: Option<Box<dyn AuthzCache>>) -> Result
                     AgentNotification::Unsubscribe(_) => (),
                     AgentNotification::PingReq => (),
                     AgentNotification::PingResp => (),
-                    AgentNotification::Disconnect => (),
+                    AgentNotification::Disconnect => {
+                        MqttMetrics::observe_disconnect();
+                    }
                 }
             });
         }
