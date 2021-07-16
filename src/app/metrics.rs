@@ -1,9 +1,9 @@
-use std::{collections::HashMap, sync::RwLock};
+use std::{collections::HashMap, convert::TryFrom, sync::RwLock};
 
-use once_cell::sync::Lazy;
+use once_cell::sync::{Lazy, OnceCell};
 use prometheus::{
-    register_histogram_vec, register_int_counter_vec, Histogram, HistogramVec, IntCounter,
-    IntCounterVec,
+    register_histogram_vec, register_int_counter_vec, Histogram, HistogramTimer, HistogramVec,
+    IntCounter, IntCounterVec,
 };
 use prometheus_static_metric::make_static_metric;
 use tide::{http::Method, Endpoint, Middleware, Next, Request, Route, StatusCode};
@@ -84,49 +84,12 @@ impl MqttMetrics {
 }
 
 pub trait AddMetrics<'a, S> {
-    fn metrics(self) -> MetricsRouter<'a, S>;
+    fn with_metrics(&mut self) -> &mut Self;
 }
 
-impl<'a, S> AddMetrics<'a, S> for Route<'a, S> {
-    fn metrics(self) -> MetricsRouter<'a, S> {
-        MetricsRouter { route: self }
-    }
-}
-
-pub struct MetricsRouter<'a, S> {
-    route: Route<'a, S>,
-}
-
-impl<'a, S: Clone + Send + Sync + 'static> MetricsRouter<'a, S> {
-    pub fn get(&mut self, ep: impl Endpoint<S>) -> &mut Self {
-        self.method(Method::Get, ep)
-    }
-
-    pub fn post(&mut self, ep: impl Endpoint<S>) -> &mut Self {
-        self.method(Method::Post, ep)
-    }
-
-    pub fn put(&mut self, ep: impl Endpoint<S>) -> &mut Self {
-        self.method(Method::Put, ep)
-    }
-
-    pub fn options(&mut self, ep: impl Endpoint<S>) -> &mut Self {
-        self.method(Method::Options, ep)
-    }
-
-    pub fn with<M>(&mut self, middleware: M) -> &mut Self
-    where
-        M: Middleware<S>,
-    {
-        self.route.with(middleware);
-        self
-    }
-
-    fn method(&mut self, method: Method, ep: impl Endpoint<S>) -> &mut Self {
-        self.route
-            .with(MetricsMiddleware::new(self.route.path(), method));
-        self.route.method(method, ep);
-        self
+impl<'a, S: Clone + Send + Sync + 'static> AddMetrics<'a, S> for Route<'a, S> {
+    fn with_metrics(&mut self) -> &mut Self {
+        self.with(MetricsMiddleware::new(self.path()))
     }
 }
 
@@ -171,76 +134,88 @@ impl Metrics {
 }
 
 struct MetricsMiddleware {
-    duration: Histogram,
-    stats: RwLock<HashMap<StatusCode, Result<IntCounter, prometheus::Error>>>,
+    durations: HashMap<Method, OnceCell<Histogram>>,
+    stats: HashMap<(Method, StatusCode), OnceCell<IntCounter>>,
     path: String,
-    method: Method,
 }
 
 impl MetricsMiddleware {
-    fn new(path: &str, method: Method) -> Self {
+    fn new(path: &str) -> Self {
         let path = path.trim_start_matches('/').replace('/', "_");
-        let duration = METRICS
-            .duration_vec
-            .get_metric_with_label_values(&[&path, method.as_ref()])
-            .expect("Bad metric name");
-        let stats = RwLock::new(HashMap::<_, Result<IntCounter, _>>::new());
+        let methods = [
+            Method::Put,
+            Method::Post,
+            Method::Options,
+            Method::Get,
+            Method::Patch,
+            Method::Head,
+        ];
+        let status_codes = (100..600).filter_map(|x| StatusCode::try_from(x).ok());
+        let durations = methods
+            .iter()
+            .map(|method| (*method, OnceCell::new()))
+            .collect();
+        let stats = status_codes
+            .flat_map(|s| methods.iter().map(move |m| ((*m, s), OnceCell::new())))
+            .collect();
         Self {
-            duration,
+            durations,
             stats,
             path,
-            method,
         }
     }
 
-    fn increment_stats(&self, status: StatusCode) {
-        {
-            let stats = self.stats.read();
-            match stats {
-                Ok(stats) => {
-                    if let Some(stats) = stats.get(&status) {
-                        match stats {
-                            Ok(stats) => stats.inc(),
-                            Err(err) => error!(crate::LOG, "Got bad metrics: {:?}", err),
-                        }
-                        return;
-                    }
-                }
-                Err(err) => {
-                    error!(crate::LOG, "Metrics log poisoned: {:?}", err)
-                }
-            }
-        }
-        {
-            let mut stats = self.stats.write();
-            match &mut stats {
-                Ok(stats) => {
-                    let _ = stats
-                        .entry(status)
-                        .or_insert_with(|| {
-                            METRICS.status_vec.get_metric_with_label_values(&[
-                                &self.path,
-                                self.method.as_ref(),
-                                &status.to_string(),
-                            ])
+    fn start_timer(&self, method: Method) -> Option<HistogramTimer> {
+        self.durations
+            .get(&method)
+            .and_then(|h| {
+                h.get_or_try_init(|| {
+                    METRICS
+                        .duration_vec
+                        .get_metric_with_label_values(&[&self.path, method.as_ref()])
+                        .map_err(|err| {
+                            error!(crate::LOG, "Crating timer for metrics errored: {:?}", err; 
+                            "path" => &self.path, 
+                            "method" => method.as_ref())
                         })
-                        .as_ref()
-                        .map(|x| x.inc());
-                }
-                Err(error) => {
-                    error!(crate::LOG, "Metrics log poisoned: {:?}", error)
-                }
-            }
-        }
+                })
+                .ok()
+            })
+            .map(|x| x.start_timer())
+    }
+
+    fn inc_counter(&self, method: Method, status: StatusCode) {
+        self.stats
+            .get(&(method, status))
+            .and_then(|c| {
+                c.get_or_try_init(|| {
+                    METRICS
+                        .status_vec
+                        .get_metric_with_label_values(&[
+                            &self.path,
+                            method.as_ref(),
+                            &status.to_string(),
+                        ])
+                        .map_err(|err| {
+                            error!(crate::LOG, "Crating counter for metrics errored: {:?}", err; 
+                            "path" => &self.path, 
+                            "method" => method.as_ref(), 
+                            "status" => &status.to_string())
+                        })
+                })
+                .ok()
+            })
+            .map(|x| x.inc());
     }
 }
 
 #[async_trait::async_trait]
 impl<State: Clone + Send + Sync + 'static> Middleware<State> for MetricsMiddleware {
     async fn handle(&self, req: Request<State>, next: Next<'_, State>) -> tide::Result {
-        let _timer = self.duration.start_timer();
+        let method = req.method();
+        let _timer = self.start_timer(method);
         let response = next.run(req).await;
-        self.increment_stats(response.status());
+        self.inc_counter(method, response.status());
         Ok(response)
     }
 }
