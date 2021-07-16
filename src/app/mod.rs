@@ -46,7 +46,7 @@ use info::{list_frontends, list_scopes};
 use tide_state::message_handler::MessageHandler;
 pub use tide_state::{AppContext, Publisher, TideState};
 
-use self::api::v1::AppEndpoint;
+use self::{api::v1::AppEndpoint, metrics_middleware::AddMetrics};
 
 pub const API_VERSION: &str = "v1";
 
@@ -241,119 +241,151 @@ fn resubscribe(agent: &mut Agent, agent_id: &AgentId, config: &Config) {
 }
 
 fn bind_redirects_routes(app: &mut tide::Server<Arc<dyn AppContext>>) {
-    app.at("/info/scopes").get(list_scopes);
-    app.at("/info/frontends").get(list_frontends);
-    app.at("/redirs/tenants/:tenant/apps/:app")
-        .get(redirect_to_frontend);
-    app.at("/api/scopes/:scope/rollback").post(rollback);
+    app.at("/info/scopes").metrics().get(list_scopes);
 
-    app.at("/api/v1/healthz").get(healthz);
-    app.at("/api/v1/scopes/:scope/rollback").post(rollback);
-    app.at("/api/v1/redirs").get(redirect_to_frontend2);
+    app.at("/info/frontends").metrics().get(list_frontends);
+
+    app.at("/redirs/tenants/:tenant/apps/:app")
+        .metrics()
+        .get(redirect_to_frontend);
+
+    app.at("/api/scopes/:scope/rollback")
+        .metrics()
+        .post(rollback);
+
+    app.at("/api/v1/healthz").metrics().get(healthz);
+
+    app.at("/api/v1/scopes/:scope/rollback")
+        .metrics()
+        .post(rollback);
+
+    app.at("/api/v1/redirs")
+        .metrics()
+        .get(redirect_to_frontend2);
 }
 
 fn bind_webinars_routes(app: &mut tide::Server<Arc<dyn AppContext>>) {
     app.at("/api/v1/webinars/:id")
+        .metrics()
         .with(cors())
-        .options(read_options);
-    app.at("/api/v1/audiences/:audience/webinars/:scope")
-        .with(cors())
-        .options(read_options);
-    app.at("/api/v1/webinars/:id")
-        .with(cors())
+        .options(read_options)
         .get(AppEndpoint(read_webinar));
+
     app.at("/api/v1/audiences/:audience/webinars/:scope")
+        .metrics()
         .with(cors())
+        .options(read_options)
         .get(AppEndpoint(read_webinar_by_scope));
 
-    app.at("/api/v1/webinars").post(AppEndpoint(create_webinar));
+    app.at("/api/v1/webinars")
+        .metrics()
+        .post(AppEndpoint(create_webinar));
+
     app.at("/api/v1/webinars/:id")
+        .metrics()
         .put(AppEndpoint(update_webinar));
 
     app.at("/api/v1/webinars/convert")
+        .metrics()
         .post(AppEndpoint(convert_webinar));
 
     app.at("/api/v1/webinars/:id/download")
+        .metrics()
         .get(AppEndpoint(download_webinar));
 
     app.at("/api/v1/webinars/:id/recreate")
+        .metrics()
         .post(AppEndpoint(recreate_webinar));
 
     app.at("/api/v1/webinars/:id/events")
+        .metrics()
         .post(AppEndpoint(create_event));
 }
 
 fn bind_p2p_routes(app: &mut tide::Server<Arc<dyn AppContext>>) {
-    app.at("/api/v1/p2p/:id").with(cors()).options(read_options);
     app.at("/api/v1/p2p/:id")
+        .metrics()
         .with(cors())
+        .options(read_options)
         .get(AppEndpoint(read_p2p));
+
     app.at("/api/v1/audiences/:audience/p2p/:scope")
+        .metrics()
         .with(cors())
-        .options(read_options);
-    app.at("/api/v1/audiences/:audience/p2p/:scope")
-        .with(cors())
+        .options(read_options)
         .get(AppEndpoint(read_p2p_by_scope));
 
-    app.at("/api/v1/p2p").post(AppEndpoint(create_p2p));
+    app.at("/api/v1/p2p")
+        .metrics()
+        .post(AppEndpoint(create_p2p));
 
-    app.at("/api/v1/p2p/convert").post(AppEndpoint(convert_p2p));
+    app.at("/api/v1/p2p/convert")
+        .metrics()
+        .post(AppEndpoint(convert_p2p));
 
     app.at("/api/v1/p2p/:id/events")
+        .metrics()
         .post(AppEndpoint(create_event));
 }
 
 fn bind_minigroups_routes(app: &mut tide::Server<Arc<dyn AppContext>>) {
     app.at("/api/v1/minigroups/:id")
+        .metrics()
         .with(cors())
-        .options(read_options);
-    app.at("/api/v1/audiences/:audience/minigroups/:scope")
-        .with(cors())
-        .options(read_options);
-    app.at("/api/v1/minigroups/:id")
-        .with(cors())
+        .options(read_options)
         .get(AppEndpoint(read_minigroup));
+
     app.at("/api/v1/audiences/:audience/minigroups/:scope")
+        .metrics()
         .with(cors())
+        .options(read_options)
         .get(AppEndpoint(read_minigroup_by_scope));
 
     app.at("/api/v1/minigroups/:id/recreate")
+        .metrics()
         .post(AppEndpoint(recreate_minigroup));
 
     app.at("/api/v1/minigroups")
+        .metrics()
         .post(AppEndpoint(create_minigroup));
     app.at("/api/v1/minigroups/:id")
+        .metrics()
         .put(AppEndpoint(update_minigroup));
 
     app.at("/api/v1/minigroups/:id/events")
+        .metrics()
         .post(AppEndpoint(create_event));
 }
 
 fn bind_chat_routes(app: &mut tide::Server<Arc<dyn AppContext>>) {
     app.at("/api/v1/chats/:id")
+        .metrics()
         .with(cors())
-        .options(read_options);
-    app.at("/api/v1/chats/:id")
-        .with(cors())
+        .options(read_options)
         .get(AppEndpoint(read_chat));
+
     app.at("/api/v1/audiences/:audience/chats/:scope")
+        .metrics()
         .with(cors())
-        .options(read_options);
-    app.at("/api/v1/audiences/:audience/chats/:scope")
-        .with(cors())
+        .options(read_options)
         .get(AppEndpoint(read_chat_by_scope));
 
-    app.at("/api/v1/chats").post(AppEndpoint(create_chat));
+    app.at("/api/v1/chats")
+        .metrics()
+        .post(AppEndpoint(create_chat));
 
     app.at("/api/v1/chats/convert")
+        .metrics()
         .post(AppEndpoint(convert_chat));
 
     app.at("/api/v1/chats/:id/events")
+        .metrics()
         .post(AppEndpoint(create_event));
 }
 
 fn bind_authz_routes(app: &mut tide::Server<Arc<dyn AppContext>>) {
     app.at("/api/v1/authz/:audience")
+        .metrics()
         .post(AppEndpoint(proxy_authz));
 }
 
@@ -403,6 +435,7 @@ mod api;
 mod authz;
 mod error;
 mod info;
+mod metrics_middleware;
 mod postprocessing_strategy;
 mod request_logger;
 mod services;
