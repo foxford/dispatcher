@@ -17,7 +17,7 @@ make_static_metric! {
             room_upload,
             room_adjust,
             task_complete,
-            room_dumps_events,
+            room_dump_events,
         },
         "status" => {
             success,
@@ -95,9 +95,9 @@ impl MqttMetrics {
             }
             Some("room.dump_events") => {
                 if result.is_err() {
-                    MQTT_METRICS.stats.room_dumps_events.failure.inc();
+                    MQTT_METRICS.stats.room_dump_events.failure.inc();
                 } else {
-                    MQTT_METRICS.stats.room_dumps_events.success.inc();
+                    MQTT_METRICS.stats.room_dump_events.success.inc();
                 }
             }
             _ => {}
