@@ -120,13 +120,17 @@ impl<'a, S: Clone + Send + Sync + 'static> AddMetrics<'a, S> for Route<'a, S> {
 
 pub struct MetricsRouter<'a, S: Clone + Send + Sync + 'static> {
     route: Route<'a, S>,
-    methods: Vec<Method>,
+    methods: Vec<(Method, Box<dyn Endpoint<S>>)>,
 }
 
 impl<'a, S: Clone + Send + Sync + 'static> Drop for MetricsRouter<'a, S> {
     fn drop(&mut self) {
+        let methods = self.methods.iter().map(|(method, _)| *method);
         self.route
-            .with(MetricsMiddleware::new(self.route.path(), &self.methods));
+            .with(MetricsMiddleware::new(self.route.path(), methods));
+        for (method, ep) in self.methods.drain(..) {
+            self.route.method(method, ep);
+        }
     }
 }
 
@@ -156,8 +160,7 @@ impl<'a, S: Clone + Send + Sync + 'static> MetricsRouter<'a, S> {
     }
 
     fn method(&mut self, method: Method, ep: impl Endpoint<S>) -> &mut Self {
-        self.methods.push(method);
-        self.route.method(method, ep);
+        self.methods.push((method, Box::new(ep)));
         self
     }
 }
@@ -196,13 +199,12 @@ struct MetricsMiddleware {
 }
 
 impl MetricsMiddleware {
-    fn new(path: &str, methods: &[Method]) -> Self {
+    fn new(path: &str, methods: impl Iterator<Item = Method>) -> Self {
         let path = path.trim_start_matches('/').replace('/', "_");
         let durations = methods
-            .iter()
             .map(|method| {
                 (
-                    *method,
+                    method,
                     METRICS
                         .duration_vec
                         .with_label_values(&[&path, method.as_ref()]),
