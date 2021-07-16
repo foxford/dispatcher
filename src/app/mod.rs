@@ -1,8 +1,9 @@
-use std::sync::Arc;
 use std::time::Duration;
+use std::{net::SocketAddr, sync::Arc};
 
 use anyhow::{Context, Result};
 use futures::StreamExt;
+use prometheus::{Encoder, TextEncoder};
 use signal_hook::consts::TERM_SIGNALS;
 use sqlx::postgres::PgPool;
 use svc_agent::{
@@ -159,6 +160,9 @@ pub async fn run(db: PgPool, authz_cache: Option<Box<dyn AuthzCache>>) -> Result
     });
 
     subscribe(&mut agent, &agent_id, &config).expect("Failed to subscribe to required topics");
+    async_std::task::spawn(start_metrics_collector(
+        config.http.metrics_listener_address,
+    ));
 
     let mut app = tide::with_state(state);
     app.with(request_logger::LogMiddleware::new());
@@ -435,6 +439,28 @@ fn cors() -> CorsMiddleware {
         .allow_methods("GET, OPTIONS".parse::<HeaderValue>().unwrap())
         .allow_origin(Origin::from("*"))
         .allow_headers("*".parse::<HeaderValue>().unwrap())
+}
+
+async fn start_metrics_collector(bind_addr: SocketAddr) -> async_std::io::Result<()> {
+    let mut app = tide::with_state(());
+    app.at("/metrics")
+        .get(|_req: tide::Request<()>| async move {
+            let mut buffer = vec![];
+            let encoder = TextEncoder::new();
+            let metric_families = prometheus::gather();
+            match encoder.encode(&metric_families, &mut buffer) {
+                Ok(_) => {
+                    let mut response = tide::Response::new(200);
+                    response.set_body(buffer);
+                    Ok(response)
+                }
+                Err(err) => {
+                    warn!(crate::LOG, "Metrics not gathered: {:?}", err);
+                    Ok(tide::Response::new(500))
+                }
+            }
+        });
+    app.listen(bind_addr).await
 }
 
 mod api;
