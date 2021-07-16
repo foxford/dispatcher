@@ -46,7 +46,7 @@ use info::{list_frontends, list_scopes};
 use tide_state::message_handler::MessageHandler;
 pub use tide_state::{AppContext, Publisher, TideState};
 
-use self::{api::v1::AppEndpoint, metrics_middleware::AddMetrics};
+use self::{api::v1::AppEndpoint, metrics::AddMetrics};
 
 pub const API_VERSION: &str = "v1";
 
@@ -435,7 +435,7 @@ mod api;
 mod authz;
 mod error;
 mod info;
-mod metrics_middleware;
+mod metrics;
 mod postprocessing_strategy;
 mod request_logger;
 mod services;
