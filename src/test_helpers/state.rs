@@ -63,7 +63,7 @@ fn build_config() -> Config {
         },
         "http": {
             "listener_address": "0.0.0.0:3000",
-            "metrics_listener_address": "0.0.0.0:3001",
+            "metrics_listener_address": "0.0.0.0:3001"
         },
         "storage": {
             "base_url": "http://localhost:4000/"
