@@ -29,6 +29,7 @@ pub enum ErrorKind {
     RecordingNotFound,
     ClassClosingFailed,
     TranscodingFlowFailed,
+    EditionFailed,
 }
 
 impl ErrorKind {
@@ -124,6 +125,12 @@ impl From<ErrorKind> for ErrorKindProperties {
                 status: ResponseStatus::UNPROCESSABLE_ENTITY,
                 kind: "transcoding_flow_failed",
                 title: "Transcoding flow failed",
+                is_notify_sentry: true,
+            },
+            ErrorKind::EditionFailed => ErrorKindProperties {
+                status: ResponseStatus::UNPROCESSABLE_ENTITY,
+                kind: "edition_flow_failed",
+                title: "Edition flow failed",
                 is_notify_sentry: true,
             },
         }
