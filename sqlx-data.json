@@ -782,6 +782,115 @@
       ]
     }
   },
+  "78091707933ef88ccb0d167ee54705ebf2ed82ab254bd2c0dc03ca23f8cad006": {
+    "query": "\n            UPDATE class\n            SET time = TSTZRANGE(LOWER(time), LEAST(UPPER(time), NOW()))\n            WHERE id = $1\n            RETURNING\n                id,\n                scope,\n                kind AS \"kind!: ClassType\",\n                audience,\n                time AS \"time!: Time\",\n                tags,\n                preserve_history,\n                created_at,\n                event_room_id,\n                conference_room_id,\n                original_event_room_id,\n                modified_event_room_id,\n                reserve,\n                room_events_uri\n            ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 1,
+          "name": "scope",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 2,
+          "name": "kind!: ClassType",
+          "type_info": {
+            "Custom": {
+              "name": "class_type",
+              "kind": {
+                "Enum": [
+                  "webinar",
+                  "p2p",
+                  "minigroup"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "ordinal": 3,
+          "name": "audience",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 4,
+          "name": "time!: Time",
+          "type_info": "TstzRange"
+        },
+        {
+          "ordinal": 5,
+          "name": "tags",
+          "type_info": "Json"
+        },
+        {
+          "ordinal": 6,
+          "name": "preserve_history",
+          "type_info": "Bool"
+        },
+        {
+          "ordinal": 7,
+          "name": "created_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 8,
+          "name": "event_room_id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 9,
+          "name": "conference_room_id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 10,
+          "name": "original_event_room_id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 11,
+          "name": "modified_event_room_id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 12,
+          "name": "reserve",
+          "type_info": "Int4"
+        },
+        {
+          "ordinal": 13,
+          "name": "room_events_uri",
+          "type_info": "Text"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Uuid"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        false,
+        false,
+        false,
+        false,
+        true,
+        true,
+        true,
+        true
+      ]
+    }
+  },
   "81d25baa2c0c0823c75915eeda2077cf278327a5d3dca82a65e7a384b8a8b53c": {
     "query": "\n                        SELECT\n                            id::text AS \"id!: String\"\n                        FROM class\n                        WHERE conference_room_id = $1\n                    ",
     "describe": {
@@ -956,116 +1065,6 @@
         true,
         true,
         false,
-        true
-      ]
-    }
-  },
-  "8eb90128b2828b0572339c4c78a9b90b6dac5cfb418ec1003e6d948b8f103f9b": {
-    "query": "\n            UPDATE class\n            SET time = $2\n            WHERE id = $1\n            RETURNING\n                id,\n                scope,\n                kind AS \"kind!: ClassType\",\n                audience,\n                time AS \"time!: Time\",\n                tags,\n                preserve_history,\n                created_at,\n                event_room_id,\n                conference_room_id,\n                original_event_room_id,\n                modified_event_room_id,\n                reserve,\n                room_events_uri\n            ",
-    "describe": {
-      "columns": [
-        {
-          "ordinal": 0,
-          "name": "id",
-          "type_info": "Uuid"
-        },
-        {
-          "ordinal": 1,
-          "name": "scope",
-          "type_info": "Text"
-        },
-        {
-          "ordinal": 2,
-          "name": "kind!: ClassType",
-          "type_info": {
-            "Custom": {
-              "name": "class_type",
-              "kind": {
-                "Enum": [
-                  "webinar",
-                  "p2p",
-                  "minigroup"
-                ]
-              }
-            }
-          }
-        },
-        {
-          "ordinal": 3,
-          "name": "audience",
-          "type_info": "Text"
-        },
-        {
-          "ordinal": 4,
-          "name": "time!: Time",
-          "type_info": "TstzRange"
-        },
-        {
-          "ordinal": 5,
-          "name": "tags",
-          "type_info": "Json"
-        },
-        {
-          "ordinal": 6,
-          "name": "preserve_history",
-          "type_info": "Bool"
-        },
-        {
-          "ordinal": 7,
-          "name": "created_at",
-          "type_info": "Timestamptz"
-        },
-        {
-          "ordinal": 8,
-          "name": "event_room_id",
-          "type_info": "Uuid"
-        },
-        {
-          "ordinal": 9,
-          "name": "conference_room_id",
-          "type_info": "Uuid"
-        },
-        {
-          "ordinal": 10,
-          "name": "original_event_room_id",
-          "type_info": "Uuid"
-        },
-        {
-          "ordinal": 11,
-          "name": "modified_event_room_id",
-          "type_info": "Uuid"
-        },
-        {
-          "ordinal": 12,
-          "name": "reserve",
-          "type_info": "Int4"
-        },
-        {
-          "ordinal": 13,
-          "name": "room_events_uri",
-          "type_info": "Text"
-        }
-      ],
-      "parameters": {
-        "Left": [
-          "Uuid",
-          "TstzRange"
-        ]
-      },
-      "nullable": [
-        false,
-        false,
-        false,
-        false,
-        false,
-        true,
-        false,
-        false,
-        false,
-        false,
-        true,
-        true,
-        true,
         true
       ]
     }
