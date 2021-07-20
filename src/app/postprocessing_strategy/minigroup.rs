@@ -21,7 +21,7 @@ use crate::clients::tq::{
     TranscodeMinigroupToHlsSuccess,
 };
 use crate::db::class::Object as Class;
-use crate::db::recording::{BoundedOffsetTuples, Object as Recording};
+use crate::db::recording::Object as Recording;
 use crate::{app::AppContext, clients::conference::ConfigSnapshot};
 
 use super::{shared_helpers, RtcUploadReadyData, RtcUploadResult};
@@ -187,7 +187,7 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
                             &mute_events,
                         )
                     })
-                    .collect::<Vec<_>>();
+                    .collect::<Result<Vec<_>, _>>()?;
 
                 // Find host stream id.
                 let host = match self.find_host(modified_event_room.id).await? {
@@ -328,10 +328,20 @@ fn build_stream(
     event_room_offset: Duration,
     recording_offset: Duration,
     configs_changes: &[ConfigSnapshot],
-) -> TranscodeMinigroupToHlsStream {
+) -> anyhow::Result<TranscodeMinigroupToHlsStream> {
     let event_room_offset = event_room_offset.num_milliseconds();
     let mut pin_segments = vec![];
     let mut pin_start = None;
+
+    let recording_end = match recording
+        .segments()
+        .last()
+        .map(|range| range.end)
+        .ok_or_else(|| anyhow!("Recording segments have no end?"))?
+    {
+        Bound::Included(t) | Bound::Excluded(t) => t,
+        Bound::Unbounded => bail!("Unbounded recording end"),
+    };
 
     for event in pin_events {
         if let EventData::Pin(data) = event.data() {
@@ -357,17 +367,14 @@ fn build_stream(
     // If the stream hasn't got unpinned since some moment then add a pin segment to the end
     // of the recording to keep it pinned.
     if let Some(start) = pin_start {
-        let recording_segments: BoundedOffsetTuples = recording.segments().to_owned().into();
-
-        if let Some((_, Bound::Excluded(recording_end))) = recording_segments.last() {
-            pin_segments.push((Bound::Included(start), Bound::Excluded(*recording_end)));
-        }
+        pin_segments.push((Bound::Included(start), Bound::Excluded(recording_end)));
     }
 
-    let changes = configs_changes
-        .iter()
-        .filter(|snapshot| snapshot.rtc_id == recording.rtc_id())
-        .collect::<Vec<_>>();
+    // We need only changes for the recording that fall into recording span
+    let changes = configs_changes.iter().filter(|snapshot| {
+        let m = (snapshot.created_at - recording.started_at()).num_milliseconds();
+        m > 0 && m < recording_end && snapshot.rtc_id == recording.rtc_id()
+    });
     let mut video_mute_start = None;
     let mut audio_mute_start = None;
     let mut video_mute_segments = vec![];
@@ -397,30 +404,26 @@ fn build_stream(
         }
     }
 
+    // If last mute segment was left open, close it with recording end
     if let Some(start) = video_mute_start {
-        let recording_end = recording.segments().last().map(|range| range.end);
-
-        if let Some(Bound::Excluded(recording_end)) = recording_end {
-            let muted_at = (start.created_at - recording.started_at()).num_milliseconds();
-            video_mute_segments.push((Bound::Included(muted_at), Bound::Excluded(recording_end)));
-        }
+        let muted_at = (start.created_at - recording.started_at()).num_milliseconds();
+        video_mute_segments.push((Bound::Included(muted_at), Bound::Excluded(recording_end)));
     }
 
     if let Some(start) = audio_mute_start {
-        let recording_end = recording.segments().last().map(|range| range.end);
-
-        if let Some(Bound::Excluded(recording_end)) = recording_end {
-            let muted_at = (start.created_at - recording.started_at()).num_milliseconds();
-            audio_mute_segments.push((Bound::Included(muted_at), Bound::Excluded(recording_end)));
-        }
+        let muted_at = (start.created_at - recording.started_at()).num_milliseconds();
+        audio_mute_segments.push((Bound::Included(muted_at), Bound::Excluded(recording_end)));
     }
 
-    TranscodeMinigroupToHlsStream::new(recording.rtc_id(), recording.stream_uri().to_owned())
-        .offset(recording_offset.num_milliseconds() as u64)
-        .segments(recording.segments().to_owned())
-        .pin_segments(pin_segments.into())
-        .video_mute_segments(video_mute_segments.into())
-        .audio_mute_segments(audio_mute_segments.into())
+    let v =
+        TranscodeMinigroupToHlsStream::new(recording.rtc_id(), recording.stream_uri().to_owned())
+            .offset(recording_offset.num_milliseconds() as u64)
+            .segments(recording.segments().to_owned())
+            .pin_segments(pin_segments.into())
+            .video_mute_segments(video_mute_segments.into())
+            .audio_mute_segments(audio_mute_segments.into());
+
+    Ok(v)
 }
 
 #[derive(Debug, PartialEq, Deserialize, Serialize)]
