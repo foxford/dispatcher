@@ -182,6 +182,7 @@ enum ReadQueryPredicate {
     Scope { audience: String, scope: String },
     ConferenceRoom(Uuid),
     EventRoom(Uuid),
+    OriginalEventRoom(Uuid),
 }
 
 pub struct ReadQuery {
@@ -210,6 +211,12 @@ impl ReadQuery {
         }
     }
 
+    pub fn by_original_event_room(id: Uuid) -> Self {
+        Self {
+            condition: ReadQueryPredicate::OriginalEventRoom(id),
+        }
+    }
+
     pub fn by_id(id: Uuid) -> Self {
         Self {
             condition: ReadQueryPredicate::Id(id),
@@ -233,6 +240,9 @@ impl ReadQuery {
             ReadQueryPredicate::EventRoom(_) => {
                 q.and_where("event_room_id".equals("_placeholder_"))
             }
+            ReadQueryPredicate::OriginalEventRoom(_) => {
+                q.and_where("original_event_room_id".equals("_placeholder_"))
+            }
         };
 
         let (sql, _bindings) = Postgres::build(q);
@@ -243,6 +253,7 @@ impl ReadQuery {
             ReadQueryPredicate::Scope { audience, scope } => query.bind(audience).bind(scope),
             ReadQueryPredicate::ConferenceRoom(id) => query.bind(id),
             ReadQueryPredicate::EventRoom(id) => query.bind(id),
+            ReadQueryPredicate::OriginalEventRoom(id) => query.bind(id),
         };
 
         query.fetch_optional(conn).await
@@ -294,6 +305,9 @@ impl<T: AsClassType> GenericReadQuery<T> {
             ReadQueryPredicate::EventRoom(_) => {
                 q.and_where("event_room_id".equals("_placeholder_"))
             }
+            ReadQueryPredicate::OriginalEventRoom(_) => {
+                q.and_where("original_event_room_id".equals("_placeholder_"))
+            }
         };
 
         let q = q.and_where("kind".equals("_placeholder_"));
@@ -306,6 +320,7 @@ impl<T: AsClassType> GenericReadQuery<T> {
             ReadQueryPredicate::Scope { audience, scope } => query.bind(audience).bind(scope),
             ReadQueryPredicate::ConferenceRoom(id) => query.bind(id),
             ReadQueryPredicate::EventRoom(id) => query.bind(id),
+            ReadQueryPredicate::OriginalEventRoom(id) => query.bind(id),
         };
 
         let query = query.bind(self.class_type);
