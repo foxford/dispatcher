@@ -1,8 +1,9 @@
-use std::sync::Arc;
 use std::time::Duration;
+use std::{net::SocketAddr, sync::Arc};
 
 use anyhow::{Context, Result};
 use futures::StreamExt;
+use prometheus::{Encoder, TextEncoder};
 use signal_hook::consts::TERM_SIGNALS;
 use sqlx::postgres::PgPool;
 use svc_agent::{
@@ -17,10 +18,13 @@ use svc_error::{extension::sentry, Error as SvcError};
 use tide::http::headers::HeaderValue;
 use tide::security::{CorsMiddleware, Origin};
 
-use crate::clients::conference::{ConferenceClient, MqttConferenceClient};
 use crate::clients::event::{EventClient, MqttEventClient};
 use crate::clients::tq::{HttpTqClient, TqClient};
 use crate::config::{self, Config};
+use crate::{
+    app::metrics::MqttMetrics,
+    clients::conference::{ConferenceClient, MqttConferenceClient},
+};
 use api::v1::authz::proxy as proxy_authz;
 use api::v1::chat::{
     convert as convert_chat, create as create_chat, read_by_scope as read_chat_by_scope, read_chat,
@@ -46,7 +50,7 @@ use info::{list_frontends, list_scopes};
 use tide_state::message_handler::MessageHandler;
 pub use tide_state::{AppContext, Publisher, TideState};
 
-use self::api::v1::AppEndpoint;
+use self::{api::v1::AppEndpoint, metrics::AddMetrics};
 
 pub const API_VERSION: &str = "v1";
 
@@ -119,11 +123,12 @@ pub async fn run(db: PgPool, authz_cache: Option<Box<dyn AuthzCache>>) -> Result
                     }
                     AgentNotification::Message(_, _) => (),
                     AgentNotification::ConnectionError => {
+                        MqttMetrics::observe_connection_error();
                         error!(crate::LOG, "Connection to broker errored")
                     }
                     AgentNotification::Reconnection => {
                         error!(crate::LOG, "Reconnected to broker");
-
+                        MqttMetrics::observe_reconnect();
                         resubscribe(
                             &mut message_handler_
                                 .ctx()
@@ -146,13 +151,18 @@ pub async fn run(db: PgPool, authz_cache: Option<Box<dyn AuthzCache>>) -> Result
                     AgentNotification::Unsubscribe(_) => (),
                     AgentNotification::PingReq => (),
                     AgentNotification::PingResp => (),
-                    AgentNotification::Disconnect => (),
+                    AgentNotification::Disconnect => {
+                        MqttMetrics::observe_disconnect();
+                    }
                 }
             });
         }
     });
 
     subscribe(&mut agent, &agent_id, &config).expect("Failed to subscribe to required topics");
+    async_std::task::spawn(start_metrics_collector(
+        config.http.metrics_listener_address,
+    ));
 
     let mut app = tide::with_state(state);
     app.with(request_logger::LogMiddleware::new());
@@ -241,119 +251,151 @@ fn resubscribe(agent: &mut Agent, agent_id: &AgentId, config: &Config) {
 }
 
 fn bind_redirects_routes(app: &mut tide::Server<Arc<dyn AppContext>>) {
-    app.at("/info/scopes").get(list_scopes);
-    app.at("/info/frontends").get(list_frontends);
-    app.at("/redirs/tenants/:tenant/apps/:app")
-        .get(redirect_to_frontend);
-    app.at("/api/scopes/:scope/rollback").post(rollback);
+    app.at("/info/scopes").with_metrics().get(list_scopes);
 
-    app.at("/api/v1/healthz").get(healthz);
-    app.at("/api/v1/scopes/:scope/rollback").post(rollback);
-    app.at("/api/v1/redirs").get(redirect_to_frontend2);
+    app.at("/info/frontends").with_metrics().get(list_frontends);
+
+    app.at("/redirs/tenants/:tenant/apps/:app")
+        .with_metrics()
+        .get(redirect_to_frontend);
+
+    app.at("/api/scopes/:scope/rollback")
+        .with_metrics()
+        .post(rollback);
+
+    app.at("/api/v1/healthz").with_metrics().get(healthz);
+
+    app.at("/api/v1/scopes/:scope/rollback")
+        .with_metrics()
+        .post(rollback);
+
+    app.at("/api/v1/redirs")
+        .with_metrics()
+        .get(redirect_to_frontend2);
 }
 
 fn bind_webinars_routes(app: &mut tide::Server<Arc<dyn AppContext>>) {
     app.at("/api/v1/webinars/:id")
+        .with_metrics()
         .with(cors())
-        .options(read_options);
-    app.at("/api/v1/audiences/:audience/webinars/:scope")
-        .with(cors())
-        .options(read_options);
-    app.at("/api/v1/webinars/:id")
-        .with(cors())
+        .options(read_options)
         .get(AppEndpoint(read_webinar));
+
     app.at("/api/v1/audiences/:audience/webinars/:scope")
+        .with_metrics()
         .with(cors())
+        .options(read_options)
         .get(AppEndpoint(read_webinar_by_scope));
 
-    app.at("/api/v1/webinars").post(AppEndpoint(create_webinar));
+    app.at("/api/v1/webinars")
+        .with_metrics()
+        .post(AppEndpoint(create_webinar));
+
     app.at("/api/v1/webinars/:id")
+        .with_metrics()
         .put(AppEndpoint(update_webinar));
 
     app.at("/api/v1/webinars/convert")
+        .with_metrics()
         .post(AppEndpoint(convert_webinar));
 
     app.at("/api/v1/webinars/:id/download")
+        .with_metrics()
         .get(AppEndpoint(download_webinar));
 
     app.at("/api/v1/webinars/:id/recreate")
+        .with_metrics()
         .post(AppEndpoint(recreate_webinar));
 
     app.at("/api/v1/webinars/:id/events")
+        .with_metrics()
         .post(AppEndpoint(create_event));
 }
 
 fn bind_p2p_routes(app: &mut tide::Server<Arc<dyn AppContext>>) {
-    app.at("/api/v1/p2p/:id").with(cors()).options(read_options);
     app.at("/api/v1/p2p/:id")
+        .with_metrics()
         .with(cors())
+        .options(read_options)
         .get(AppEndpoint(read_p2p));
+
     app.at("/api/v1/audiences/:audience/p2p/:scope")
+        .with_metrics()
         .with(cors())
-        .options(read_options);
-    app.at("/api/v1/audiences/:audience/p2p/:scope")
-        .with(cors())
+        .options(read_options)
         .get(AppEndpoint(read_p2p_by_scope));
 
-    app.at("/api/v1/p2p").post(AppEndpoint(create_p2p));
+    app.at("/api/v1/p2p")
+        .with_metrics()
+        .post(AppEndpoint(create_p2p));
 
-    app.at("/api/v1/p2p/convert").post(AppEndpoint(convert_p2p));
+    app.at("/api/v1/p2p/convert")
+        .with_metrics()
+        .post(AppEndpoint(convert_p2p));
 
     app.at("/api/v1/p2p/:id/events")
+        .with_metrics()
         .post(AppEndpoint(create_event));
 }
 
 fn bind_minigroups_routes(app: &mut tide::Server<Arc<dyn AppContext>>) {
     app.at("/api/v1/minigroups/:id")
+        .with_metrics()
         .with(cors())
-        .options(read_options);
-    app.at("/api/v1/audiences/:audience/minigroups/:scope")
-        .with(cors())
-        .options(read_options);
-    app.at("/api/v1/minigroups/:id")
-        .with(cors())
+        .options(read_options)
         .get(AppEndpoint(read_minigroup));
+
     app.at("/api/v1/audiences/:audience/minigroups/:scope")
+        .with_metrics()
         .with(cors())
+        .options(read_options)
         .get(AppEndpoint(read_minigroup_by_scope));
 
     app.at("/api/v1/minigroups/:id/recreate")
+        .with_metrics()
         .post(AppEndpoint(recreate_minigroup));
 
     app.at("/api/v1/minigroups")
+        .with_metrics()
         .post(AppEndpoint(create_minigroup));
     app.at("/api/v1/minigroups/:id")
+        .with_metrics()
         .put(AppEndpoint(update_minigroup));
 
     app.at("/api/v1/minigroups/:id/events")
+        .with_metrics()
         .post(AppEndpoint(create_event));
 }
 
 fn bind_chat_routes(app: &mut tide::Server<Arc<dyn AppContext>>) {
     app.at("/api/v1/chats/:id")
+        .with_metrics()
         .with(cors())
-        .options(read_options);
-    app.at("/api/v1/chats/:id")
-        .with(cors())
+        .options(read_options)
         .get(AppEndpoint(read_chat));
+
     app.at("/api/v1/audiences/:audience/chats/:scope")
+        .with_metrics()
         .with(cors())
-        .options(read_options);
-    app.at("/api/v1/audiences/:audience/chats/:scope")
-        .with(cors())
+        .options(read_options)
         .get(AppEndpoint(read_chat_by_scope));
 
-    app.at("/api/v1/chats").post(AppEndpoint(create_chat));
+    app.at("/api/v1/chats")
+        .with_metrics()
+        .post(AppEndpoint(create_chat));
 
     app.at("/api/v1/chats/convert")
+        .with_metrics()
         .post(AppEndpoint(convert_chat));
 
     app.at("/api/v1/chats/:id/events")
+        .with_metrics()
         .post(AppEndpoint(create_event));
 }
 
 fn bind_authz_routes(app: &mut tide::Server<Arc<dyn AppContext>>) {
     app.at("/api/v1/authz/:audience")
+        .with_metrics()
         .post(AppEndpoint(proxy_authz));
 }
 
@@ -399,10 +441,33 @@ fn cors() -> CorsMiddleware {
         .allow_headers("*".parse::<HeaderValue>().unwrap())
 }
 
+async fn start_metrics_collector(bind_addr: SocketAddr) -> async_std::io::Result<()> {
+    let mut app = tide::with_state(());
+    app.at("/metrics")
+        .get(|_req: tide::Request<()>| async move {
+            let mut buffer = vec![];
+            let encoder = TextEncoder::new();
+            let metric_families = prometheus::gather();
+            match encoder.encode(&metric_families, &mut buffer) {
+                Ok(_) => {
+                    let mut response = tide::Response::new(200);
+                    response.set_body(buffer);
+                    Ok(response)
+                }
+                Err(err) => {
+                    warn!(crate::LOG, "Metrics not gathered: {:?}", err);
+                    Ok(tide::Response::new(500))
+                }
+            }
+        });
+    app.listen(bind_addr).await
+}
+
 mod api;
 mod authz;
 mod error;
 mod info;
+mod metrics;
 mod postprocessing_strategy;
 mod request_logger;
 mod services;
