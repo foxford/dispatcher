@@ -18,6 +18,7 @@ make_static_metric! {
             room_adjust,
             task_complete,
             room_dump_events,
+            edition_commit,
         },
         "status" => {
             success,
@@ -76,6 +77,13 @@ impl MqttMetrics {
                     METRICS.stats.room_dump_events.failure.inc();
                 } else {
                     METRICS.stats.room_dump_events.success.inc();
+                }
+            }
+            Some("edition.commit") => {
+                if result.is_err() {
+                    METRICS.stats.edition_commit.failure.inc();
+                } else {
+                    METRICS.stats.edition_commit.success.inc();
                 }
             }
             _ => {}
