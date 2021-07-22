@@ -96,7 +96,7 @@ impl MessageHandler {
                 .await
                 .error(AppErrorKind::TranscodingFlowFailed),
             Some("edition.commit") => self
-                .handle_edition_commit(data, &audience)
+                .handle_edition_commit(data)
                 .await
                 .error(AppErrorKind::EditionFailed),
             val => {
@@ -190,18 +190,14 @@ impl MessageHandler {
             .await
     }
 
-    async fn handle_edition_commit(
-        &self,
-        data: IncomingEvent<String>,
-        audience: &str,
-    ) -> Result<()> {
+    async fn handle_edition_commit(&self, data: IncomingEvent<String>) -> Result<()> {
         let payload = data.extract_payload();
         let commit = serde_json::from_str::<EditionCommit>(&payload)?;
-
-        let class = {
-            self.get_class_from_tags(&audience, commit.tags.as_ref())
-                .await?
-        };
+        let class = if let EditionCommitResult::Success { source_room_id, .. } = &commit.result {
+            self.get_class_by_room_id(*source_room_id).await
+        } else {
+            Err(anyhow!("Commit result unsucessful: {:?}", commit))
+        }?;
 
         postprocessing_strategy::get(self.ctx.clone(), class)?
             .handle_adjust(commit.result.into_adjust_result())
@@ -283,14 +279,14 @@ impl MessageHandler {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct EditionCommit {
     tags: Option<JsonValue>,
     #[serde(flatten)]
     result: EditionCommitResult,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 #[serde(untagged)]
 enum EditionCommitResult {
     Success {
