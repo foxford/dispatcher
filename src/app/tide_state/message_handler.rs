@@ -11,10 +11,13 @@ use svc_agent::request::Dispatcher;
 use uuid::Uuid;
 
 use super::AppContext;
-use crate::db::class::{ClassType, Object as Class};
 use crate::{
     app::error::{ErrorExt, ErrorKind as AppErrorKind},
     clients::tq::TaskCompleteResult,
+};
+use crate::{
+    app::metrics::MqttMetrics,
+    db::class::{ClassType, Object as Class},
 };
 use crate::{app::postprocessing_strategy, clients::tq::TaskCompleteSuccess};
 use crate::{app::postprocessing_strategy::TranscodeSuccess, clients::event::RoomAdjust};
@@ -71,7 +74,8 @@ impl MessageHandler {
         let topic = topic.split('/').collect::<Vec<&str>>();
         let data_ = data.clone();
 
-        let result = match data.properties().label() {
+        let label = data.properties().label().map(|x| x.to_owned());
+        let result = match label.as_deref() {
             Some("room.close") => self
                 .handle_close(data, topic)
                 .await
@@ -100,6 +104,7 @@ impl MessageHandler {
                 Ok(())
             }
         };
+        MqttMetrics::observe_event_result(&result, label.as_deref());
 
         if let Err(e) = result {
             slog::error!(
