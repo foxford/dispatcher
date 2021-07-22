@@ -1,3 +1,5 @@
+use std::net::SocketAddr;
+
 use serde_derive::Deserialize;
 use svc_agent::{mqtt::AgentConfig, AccountId};
 use svc_authn::jose::{Algorithm, ConfigMap as Authn};
@@ -40,6 +42,7 @@ pub fn load() -> Result<Config, config::ConfigError> {
 #[derive(Clone, Debug, Deserialize)]
 pub struct HttpConfig {
     pub listener_address: String,
+    pub metrics_listener_address: SocketAddr,
 }
 
 #[derive(Clone, Debug, Deserialize)]
