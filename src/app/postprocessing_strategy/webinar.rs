@@ -115,7 +115,7 @@ impl super::PostprocessingStrategy for WebinarPostprocessingStrategy {
                             stream_id: recording.rtc_id(),
                             stream_uri: recording.stream_uri().to_string(),
                             event_room_id: Some(modified_room_id),
-                            segments: Some(dbg!(modified_segments)),
+                            segments: Some(modified_segments),
                         },
                     )
                     .await
