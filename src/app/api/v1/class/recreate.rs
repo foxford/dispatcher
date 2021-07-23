@@ -74,7 +74,7 @@ pub async fn recreate<T: AsClassType>(mut req: Request<Arc<dyn AppContext>>) -> 
         let webinar = query
             .execute(&mut txn)
             .await
-            .with_context(|| format!("Failed to update {}", T::to_str()))
+            .with_context(|| format!("Failed to update {}", T::as_str()))
             .error(AppErrorKind::DbQueryFailed)?;
 
         crate::db::recording::DeleteQuery::new(webinar.id())

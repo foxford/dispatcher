@@ -17,15 +17,17 @@ pub enum ClassType {
     Webinar,
     P2P,
     Minigroup,
+    Chat,
 }
 
 pub struct WebinarType;
 pub struct P2PType;
 pub struct MinigroupType;
+pub struct ChatType;
 
 pub trait AsClassType {
     fn as_class_type() -> ClassType;
-    fn to_str() -> &'static str;
+    fn as_str() -> &'static str;
 }
 
 impl AsClassType for WebinarType {
@@ -33,7 +35,7 @@ impl AsClassType for WebinarType {
         ClassType::Webinar
     }
 
-    fn to_str() -> &'static str {
+    fn as_str() -> &'static str {
         "webinar"
     }
 }
@@ -43,7 +45,7 @@ impl AsClassType for P2PType {
         ClassType::P2P
     }
 
-    fn to_str() -> &'static str {
+    fn as_str() -> &'static str {
         "p2p"
     }
 }
@@ -53,8 +55,18 @@ impl AsClassType for MinigroupType {
         ClassType::Minigroup
     }
 
-    fn to_str() -> &'static str {
+    fn as_str() -> &'static str {
         "minigroup"
+    }
+}
+
+impl AsClassType for ChatType {
+    fn as_class_type() -> ClassType {
+        ClassType::Chat
+    }
+
+    fn as_str() -> &'static str {
+        "chat"
     }
 }
 
@@ -71,7 +83,8 @@ pub struct Object {
     created_at: DateTime<Utc>,
     #[serde(skip_serializing_if = "Option::is_none")]
     tags: Option<JsonValue>,
-    conference_room_id: Uuid,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    conference_room_id: Option<Uuid>,
     event_room_id: Uuid,
     #[serde(skip_serializing_if = "Option::is_none")]
     original_event_room_id: Option<Uuid>,
@@ -99,7 +112,7 @@ impl Object {
         self.event_room_id
     }
 
-    pub fn conference_room_id(&self) -> Uuid {
+    pub fn conference_room_id(&self) -> Option<Uuid> {
         self.conference_room_id
     }
 
@@ -131,6 +144,37 @@ impl Object {
         self.room_events_uri.as_ref()
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+#[derive(Debug)]
+pub struct WrongKind {
+    id: Uuid,
+    source: ClassType,
+    destination: ClassType,
+}
+
+impl WrongKind {
+    fn new(value: &Object, destination: ClassType) -> Self {
+        Self {
+            id: value.id(),
+            source: value.kind(),
+            destination,
+        }
+    }
+}
+
+impl std::fmt::Display for WrongKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Error converting class = {} of type {:?} to {:?}",
+            self.id, self.source, self.destination
+        )
+    }
+}
+
+impl std::error::Error for WrongKind {}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -455,7 +499,7 @@ impl RecreateQuery {
             self.id,
             time,
             self.event_room_id,
-            self.conference_room_id,
+            Some(self.conference_room_id),
         )
         .fetch_one(conn)
         .await
@@ -595,10 +639,12 @@ pub(crate) mod serde {
     }
 }
 
+mod chat;
 mod minigroup;
 mod p2p;
 mod webinar;
 
+pub use chat::*;
 pub use minigroup::*;
 pub use p2p::*;
 pub use webinar::*;

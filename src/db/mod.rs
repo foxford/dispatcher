@@ -20,7 +20,6 @@ pub(crate) async fn create_pool(
 }
 
 pub(crate) mod authz;
-pub(crate) mod chat;
 pub(crate) mod class;
 pub(crate) mod frontend;
 pub(crate) mod recording;

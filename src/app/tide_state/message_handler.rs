@@ -145,6 +145,7 @@ impl MessageHandler {
             ClassType::P2P => "p2p.close",
             ClassType::Minigroup => "minigroup.close",
             ClassType::Webinar => "webinar.close",
+            ClassType::Chat => "chat.close",
         };
 
         crate::db::class::RoomCloseQuery::new(class.id())
