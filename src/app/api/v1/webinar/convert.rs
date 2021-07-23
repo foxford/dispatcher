@@ -158,7 +158,7 @@ async fn do_convert(
             state,
             webinar.id(),
             event_id,
-            Some(webinar.conference_room_id()),
+            webinar.conference_room_id(),
         )
         .await
         .error(AppErrorKind::MqttRequestFailed)?;

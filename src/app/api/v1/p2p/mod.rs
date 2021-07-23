@@ -1,103 +1,27 @@
-use std::future::Future;
 use std::ops::Bound;
 use std::sync::Arc;
 
-use anyhow::{Context, Result as AnyResult};
+use anyhow::Context;
 use async_std::prelude::FutureExt;
 use chrono::Utc;
-use serde_derive::{Deserialize, Serialize};
+use serde_derive::Deserialize;
 use tide::{Request, Response};
 use uuid::Uuid;
 
+use crate::app::api::v1::class::{read as read_generic, read_by_scope as read_by_scope_generic};
 use crate::app::error::ErrorExt;
 use crate::app::error::ErrorKind as AppErrorKind;
 use crate::app::AppContext;
-use crate::db::class::Object as Class;
 use crate::{app::authz::AuthzObject, db::class::P2PType};
 
-use super::{extract_id, extract_param, find, find_by_scope, validate_token, AppResult};
+use super::{validate_token, AppResult};
 
-#[derive(Serialize)]
-struct P2PObject {
-    id: String,
-    real_time: RealTimeObject,
-}
-
-#[derive(Serialize)]
-struct RealTimeObject {
-    conference_room_id: Uuid,
-    event_room_id: Uuid,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    fallback_uri: Option<String>,
-}
-
-impl From<Class> for P2PObject {
-    fn from(obj: Class) -> P2PObject {
-        P2PObject {
-            id: obj.scope().to_owned(),
-            real_time: RealTimeObject {
-                fallback_uri: None,
-                conference_room_id: obj.conference_room_id(),
-                event_room_id: obj.event_room_id(),
-            },
-        }
-    }
-}
-
-pub async fn read_p2p(req: Request<Arc<dyn AppContext>>) -> AppResult {
-    let state = req.state();
-    let id = extract_id(&req).error(AppErrorKind::InvalidParameter)?;
-
-    read(&req, find::<P2PType>(state.as_ref(), id)).await
+pub async fn read(req: Request<Arc<dyn AppContext>>) -> AppResult {
+    read_generic::<P2PType>(req).await
 }
 
 pub async fn read_by_scope(req: Request<Arc<dyn AppContext>>) -> AppResult {
-    let audience = extract_param(&req, "audience").error(AppErrorKind::InvalidParameter)?;
-    let scope = extract_param(&req, "scope").error(AppErrorKind::InvalidParameter)?;
-    let state = req.state();
-
-    read(
-        &req,
-        find_by_scope::<P2PType>(state.as_ref(), audience, scope),
-    )
-    .await
-}
-
-pub async fn read(
-    req: &Request<Arc<dyn AppContext>>,
-    finder: impl Future<Output = AnyResult<Class>>,
-) -> AppResult {
-    let state = req.state();
-    let account_id = validate_token(&req).error(AppErrorKind::Unauthorized)?;
-
-    let p2p = match finder.await {
-        Ok(p2p) => p2p,
-        Err(e) => {
-            error!(crate::LOG, "Failed to find a p2p, err = {:?}", e);
-            return Ok(tide::Response::builder(404).body("Not found").build());
-        }
-    };
-
-    let object = AuthzObject::new(&["classrooms", &p2p.id().to_string()]).into();
-
-    state
-        .authz()
-        .authorize(
-            p2p.audience().to_owned(),
-            account_id.clone(),
-            object,
-            "read".into(),
-        )
-        .await?;
-
-    let p2p_obj: P2PObject = p2p.into();
-
-    let body = serde_json::to_string(&p2p_obj)
-        .context("Failed to serialize p2p")
-        .error(AppErrorKind::SerializationFailed)?;
-
-    let response = Response::builder(200).body(body).build();
-    Ok(response)
+    read_by_scope_generic::<P2PType>(req).await
 }
 
 #[derive(Deserialize)]
@@ -191,7 +115,7 @@ pub async fn create(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
         req.state().as_ref(),
         p2p.id(),
         p2p.event_room_id(),
-        Some(p2p.conference_room_id()),
+        p2p.conference_room_id(),
     )
     .await
     .error(AppErrorKind::MqttRequestFailed)?;
@@ -270,7 +194,7 @@ pub async fn convert(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
         req.state().as_ref(),
         p2p.id(),
         p2p.event_room_id(),
-        Some(p2p.conference_room_id()),
+        p2p.conference_room_id(),
     )
     .await
     .error(AppErrorKind::MqttRequestFailed)?;

@@ -1,9 +1,64 @@
+use chrono::serde::ts_seconds;
 use chrono::{DateTime, Utc};
+use serde::Serialize;
 use serde_json::Value as JsonValue;
 use sqlx::postgres::{types::PgRange, PgConnection};
 use uuid::Uuid;
 
-use super::{ClassType, Object, Time};
+use super::{ClassType, Object, Time, WrongKind};
+
+#[derive(Clone, Debug, Serialize, sqlx::FromRow)]
+pub struct Minigroup {
+    id: Uuid,
+    #[serde(skip)]
+    kind: ClassType,
+    scope: String,
+    #[serde(with = "super::serde::time")]
+    time: Time,
+    audience: String,
+    #[serde(with = "ts_seconds")]
+    created_at: DateTime<Utc>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tags: Option<JsonValue>,
+    conference_room_id: Uuid,
+    event_room_id: Uuid,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    original_event_room_id: Option<Uuid>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    modified_event_room_id: Option<Uuid>,
+    preserve_history: bool,
+    reserve: Option<i32>,
+    room_events_uri: Option<String>,
+}
+
+impl std::convert::TryFrom<Object> for Minigroup {
+    type Error = WrongKind;
+
+    fn try_from(value: Object) -> Result<Self, Self::Error> {
+        match value.kind() {
+            ClassType::Minigroup => Ok(Self {
+                conference_room_id: value
+                    .conference_room_id
+                    .ok_or_else(|| WrongKind::new(&value, ClassType::Minigroup))?,
+                id: value.id,
+                kind: value.kind,
+                scope: value.scope,
+                time: value.time,
+                audience: value.audience,
+                event_room_id: value.event_room_id,
+                original_event_room_id: value.original_event_room_id,
+                modified_event_room_id: value.modified_event_room_id,
+                created_at: value.created_at,
+                tags: value.tags,
+                preserve_history: value.preserve_history,
+                reserve: value.reserve,
+                room_events_uri: value.room_events_uri,
+            }),
+            _ => Err(WrongKind::new(&value, ClassType::Minigroup)),
+        }
+    }
+}
+
 #[cfg(test)]
 use super::{GenericReadQuery, MinigroupType};
 

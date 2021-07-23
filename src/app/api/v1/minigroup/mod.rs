@@ -135,7 +135,7 @@ async fn do_create(
         state,
         minigroup.id(),
         minigroup.event_room_id(),
-        Some(minigroup.conference_room_id()),
+        minigroup.conference_room_id(),
     )
     .await
     .error(AppErrorKind::MqttRequestFailed)?;

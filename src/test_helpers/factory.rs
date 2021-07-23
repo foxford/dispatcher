@@ -243,8 +243,8 @@ impl Chat {
         }
     }
 
-    pub async fn insert(self, conn: &mut PgConnection) -> db::chat::Object {
-        let mut q = db::chat::ChatInsertQuery::new(self.scope, self.audience, self.event_room_id);
+    pub async fn insert(self, conn: &mut PgConnection) -> db::class::Object {
+        let mut q = db::class::ChatInsertQuery::new(self.scope, self.audience, self.event_room_id);
 
         if let Some(tags) = self.tags {
             q = q.tags(tags);
