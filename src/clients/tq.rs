@@ -48,6 +48,13 @@ impl Task {
             Self::ConvertMjrDumpsToStream { .. } => "convert-mjr-dumps-to-stream",
         }
     }
+    fn stream_id(&self) -> Option<Uuid> {
+        if let Task::ConvertMjrDumpsToStream { stream_id, .. } = self {
+            Some(*stream_id)
+        } else {
+            None
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Serialize)]
@@ -226,11 +233,13 @@ impl TqClient for HttpTqClient {
         class: &crate::db::class::Object,
         task: Task,
     ) -> Result<(), ClientError> {
-        let route = format!(
-            "/api/v1/audiences/{}/tasks/{}",
-            class.audience(),
-            task.template().to_owned() + class.scope()
-        );
+        let mut task_id = String::new();
+        task_id.push_str(task.template());
+        task_id.push_str(class.scope());
+        if let Some(id) = task.stream_id() {
+            task_id.push_str(&id.to_string())
+        }
+        let route = format!("/api/v1/audiences/{}/tasks/{}", class.audience(), task_id,);
 
         let task = TaskPayload {
             audience: class.audience().to_owned(),
