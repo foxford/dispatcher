@@ -194,7 +194,7 @@ impl MessageHandler {
         let payload = data.extract_payload();
         let commit = serde_json::from_str::<EditionCommit>(&payload)?;
         let class = if let EditionCommitResult::Success { source_room_id, .. } = &commit.result {
-            self.get_class_by_room_id(*source_room_id).await
+            self.get_class_original_by_room_id(*source_room_id).await
         } else {
             Err(anyhow!("Commit result unsucessful: {:?}", commit))
         }?;
@@ -276,6 +276,15 @@ impl MessageHandler {
             .execute(&mut conn)
             .await?
             .ok_or_else(|| anyhow!("Class not found by modified event room id = {}", room_id))
+    }
+
+    async fn get_class_original_by_room_id(&self, room_id: Uuid) -> Result<Class> {
+        let mut conn = self.ctx.get_conn().await?;
+
+        crate::db::class::ReadQuery::by_original_event_room(room_id)
+            .execute(&mut conn)
+            .await?
+            .ok_or_else(|| anyhow!("Class not found by original event room id = {}", room_id))
     }
 }
 
