@@ -269,11 +269,7 @@ fn transform_storage_authz_request(authz_req: &mut AuthzRequest) {
         }
         // ["sets", "content" <> _]        | create      | [CLASS_TYPE, CLASS_ID, content]                     | update
         // ["sets", "content" <> _]        | delete      | [CLASS_TYPE, CLASS_ID, content]                     | update
-        // ["sets", "content" <> _]        | update      | [CLASS_TYPE, CLASS_ID, content]                     | update
-        Some([_sets, v])
-            if v.starts_with("content.")
-                && (act == "create" || act == "delete" || act == "update") =>
-        {
+        Some([_sets, v]) if v.starts_with("content.") && (act == "create" || act == "delete") => {
             *act = "update".into();
             authz_req.object.value.truncate(2);
             authz_req.object.value.push("content".into())
