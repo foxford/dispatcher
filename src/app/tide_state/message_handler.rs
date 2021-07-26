@@ -13,7 +13,8 @@ use uuid::Uuid;
 use super::AppContext;
 use crate::{
     app::error::{ErrorExt, ErrorKind as AppErrorKind},
-    clients::tq::TaskCompleteResult,
+    clients::{event::RoomAdjustResult, tq::TaskCompleteResult},
+    db::recording::Segments,
 };
 use crate::{
     app::metrics::MqttMetrics,
@@ -96,6 +97,10 @@ impl MessageHandler {
                 .handle_dump_events(data)
                 .await
                 .error(AppErrorKind::TranscodingFlowFailed),
+            Some("edition.commit") => self
+                .handle_edition_commit(data)
+                .await
+                .error(AppErrorKind::EditionFailed),
             val => {
                 debug!(
                     crate::LOG,
@@ -184,6 +189,20 @@ impl MessageHandler {
 
         postprocessing_strategy::get(self.ctx.clone(), class)?
             .handle_mjr_dumps_upload(room_upload.rtcs)
+            .await
+    }
+
+    async fn handle_edition_commit(&self, data: IncomingEvent<String>) -> Result<()> {
+        let payload = data.extract_payload();
+        let commit = serde_json::from_str::<EditionCommit>(&payload)?;
+        let class = if let EditionCommitResult::Success { source_room_id, .. } = &commit.result {
+            self.get_class_original_by_room_id(*source_room_id).await
+        } else {
+            Err(anyhow!("Commit result unsucessful: {:?}", commit))
+        }?;
+
+        postprocessing_strategy::get(self.ctx.clone(), class)?
+            .handle_adjust(commit.result.into_adjust_result())
             .await
     }
 
@@ -286,6 +305,53 @@ impl MessageHandler {
             .execute(&mut conn)
             .await?
             .ok_or_else(|| anyhow!("Class not found by modified event room id = {}", room_id))
+    }
+
+    async fn get_class_original_by_room_id(&self, room_id: Uuid) -> Result<Class> {
+        let mut conn = self.ctx.get_conn().await?;
+
+        crate::db::class::ReadQuery::by_original_event_room(room_id)
+            .execute(&mut conn)
+            .await?
+            .ok_or_else(|| anyhow!("Class not found by original event room id = {}", room_id))
+    }
+}
+
+#[derive(Deserialize, Debug)]
+pub struct EditionCommit {
+    tags: Option<JsonValue>,
+    #[serde(flatten)]
+    result: EditionCommitResult,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(untagged)]
+enum EditionCommitResult {
+    Success {
+        source_room_id: Uuid,
+        committed_room_id: Uuid,
+        #[serde(with = "crate::db::recording::serde::segments")]
+        modified_segments: Segments,
+    },
+    Error {
+        error: JsonValue,
+    },
+}
+
+impl EditionCommitResult {
+    fn into_adjust_result(self) -> RoomAdjustResult {
+        match self {
+            EditionCommitResult::Success {
+                source_room_id,
+                committed_room_id,
+                modified_segments,
+            } => RoomAdjustResult::Success {
+                original_room_id: source_room_id,
+                modified_room_id: committed_room_id,
+                modified_segments,
+            },
+            EditionCommitResult::Error { error } => RoomAdjustResult::Error { error },
+        }
     }
 }
 
