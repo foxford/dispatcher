@@ -142,10 +142,10 @@ impl MessageHandler {
             .ok_or_else(|| anyhow!("Class not found by id from payload = {:?}", payload,))?;
 
         let label = match class.kind() {
-            ClassType::P2P => "p2p.close",
-            ClassType::Minigroup => "minigroup.close",
-            ClassType::Webinar => "webinar.close",
-            ClassType::Chat => "chat.close",
+            ClassType::P2P => "p2p.stop",
+            ClassType::Minigroup => "minigroup.stop",
+            ClassType::Webinar => "webinar.stop",
+            ClassType::Chat => "chat.stop",
         };
 
         crate::db::class::RoomCloseQuery::new(class.id())
