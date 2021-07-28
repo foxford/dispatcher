@@ -88,7 +88,7 @@ impl MessageHandler {
                 .await
                 .error(AppErrorKind::TranscodingFlowFailed),
             Some("task.complete") => self
-                .handle_transcoding_completion(data, audience)
+                .handle_transcoding_completion(data)
                 .await
                 .error(AppErrorKind::TranscodingFlowFailed),
             Some("room.dump_events") => self
@@ -221,14 +221,12 @@ impl MessageHandler {
             .await
     }
 
-    async fn handle_transcoding_completion(
-        &self,
-        data: IncomingEvent<String>,
-        audience: String,
-    ) -> Result<()> {
+    async fn handle_transcoding_completion(&self, data: IncomingEvent<String>) -> Result<()> {
         let payload = data.extract_payload();
         let task: TaskComplete = serde_json::from_str(&payload)?;
-        let class = self.get_class_from_tags(&audience, task.tags()).await?;
+        let class = self
+            .get_class_from_tags_by_conference_id(task.tags())
+            .await?;
 
         postprocessing_strategy::get(self.ctx.clone(), class)?
             .handle_transcoding_completion(task.into())
@@ -268,6 +266,32 @@ impl MessageHandler {
         } else {
             bail!("No scope specified in tags = {:?}", tags);
         }
+    }
+
+    async fn get_class_from_tags_by_conference_id(
+        &self,
+        tags: Option<&JsonValue>,
+    ) -> Result<Class> {
+        let conference_room_id = tags
+            .and_then(|tags| tags.get("conference_room_id"))
+            .and_then(|s| s.as_str())
+            .ok_or_else(|| anyhow!("No conference room id in tags"))
+            .and_then(|s| {
+                Uuid::parse_str(s)
+                    .map_err(|e| anyhow!("Failed to parse conference room id uuid, err = {:?}", e))
+            })?;
+
+        let mut conn = self.ctx.get_conn().await?;
+
+        crate::db::class::ReadQuery::by_conference_room(conference_room_id)
+            .execute(&mut conn)
+            .await?
+            .ok_or_else(|| {
+                anyhow!(
+                    "Class not found by conference_room_id = {}",
+                    conference_room_id
+                )
+            })
     }
 
     async fn get_class_by_room_id(&self, room_id: Uuid) -> Result<Class> {
