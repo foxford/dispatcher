@@ -45,6 +45,119 @@
       "nullable": []
     }
   },
+  "2e71100bb146fbe7bc258bc3673bf1e066aa546293cfd864212cfddb3f6996d6": {
+    "query": "\n            INSERT INTO class (\n                scope, audience, tags, event_room_id\n            )\n            VALUES ($1, $2, $3, $4)\n            RETURNING\n                id,\n                scope,\n                kind AS \"kind!: ClassType\",\n                audience,\n                time AS \"time!: Time\",\n                tags,\n                preserve_history,\n                created_at,\n                event_room_id,\n                conference_room_id,\n                original_event_room_id,\n                modified_event_room_id,\n                reserve,\n                room_events_uri\n            ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 1,
+          "name": "scope",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 2,
+          "name": "kind!: ClassType",
+          "type_info": {
+            "Custom": {
+              "name": "class_type",
+              "kind": {
+                "Enum": [
+                  "webinar",
+                  "p2p",
+                  "minigroup",
+                  "chat"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "ordinal": 3,
+          "name": "audience",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 4,
+          "name": "time!: Time",
+          "type_info": "TstzRange"
+        },
+        {
+          "ordinal": 5,
+          "name": "tags",
+          "type_info": "Json"
+        },
+        {
+          "ordinal": 6,
+          "name": "preserve_history",
+          "type_info": "Bool"
+        },
+        {
+          "ordinal": 7,
+          "name": "created_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 8,
+          "name": "event_room_id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 9,
+          "name": "conference_room_id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 10,
+          "name": "original_event_room_id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 11,
+          "name": "modified_event_room_id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 12,
+          "name": "reserve",
+          "type_info": "Int4"
+        },
+        {
+          "ordinal": 13,
+          "name": "room_events_uri",
+          "type_info": "Text"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Text",
+          "Json",
+          "Uuid"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        false,
+        false,
+        false,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    }
+  },
   "371dbefe9357a871e983fb2c745f3164301f896aeb2031a3bf587493c2da8bc3": {
     "query": "\n            INSERT INTO class (\n                scope, audience, time, tags, preserve_history, kind,\n                conference_room_id, event_room_id,\n                original_event_room_id, modified_event_room_id, reserve, room_events_uri\n            )\n            VALUES ($1, $2, $3, $4, $5, $6::class_type, $7, $8, $9, $10, $11, $12)\n            RETURNING\n                id,\n                scope,\n                kind AS \"kind!: ClassType\",\n                audience,\n                time AS \"time!: Time\",\n                tags,\n                preserve_history,\n                created_at,\n                event_room_id,\n                conference_room_id,\n                original_event_room_id,\n                modified_event_room_id,\n                reserve,\n                room_events_uri\n            ",
     "describe": {
@@ -69,7 +182,8 @@
                 "Enum": [
                   "webinar",
                   "p2p",
-                  "minigroup"
+                  "minigroup",
+                  "chat"
                 ]
               }
             }
@@ -145,7 +259,8 @@
                 "Enum": [
                   "webinar",
                   "p2p",
-                  "minigroup"
+                  "minigroup",
+                  "chat"
                 ]
               }
             }
@@ -168,7 +283,7 @@
         false,
         false,
         false,
-        false,
+        true,
         true,
         true,
         true,
@@ -399,59 +514,6 @@
       ]
     }
   },
-  "5a0c38ae0c50c5ff8be4aef10d0e758d9d2abc89ab82556b26aa743005e3c190": {
-    "query": "\n            INSERT INTO chat (\n                scope, audience, tags, event_room_id\n            )\n            VALUES ($1, $2, $3, $4)\n            RETURNING\n                id,\n                scope,\n                audience,\n                tags,\n                created_at,\n                event_room_id\n            ",
-    "describe": {
-      "columns": [
-        {
-          "ordinal": 0,
-          "name": "id",
-          "type_info": "Uuid"
-        },
-        {
-          "ordinal": 1,
-          "name": "scope",
-          "type_info": "Text"
-        },
-        {
-          "ordinal": 2,
-          "name": "audience",
-          "type_info": "Text"
-        },
-        {
-          "ordinal": 3,
-          "name": "tags",
-          "type_info": "Json"
-        },
-        {
-          "ordinal": 4,
-          "name": "created_at",
-          "type_info": "Timestamptz"
-        },
-        {
-          "ordinal": 5,
-          "name": "event_room_id",
-          "type_info": "Uuid"
-        }
-      ],
-      "parameters": {
-        "Left": [
-          "Text",
-          "Text",
-          "Json",
-          "Uuid"
-        ]
-      },
-      "nullable": [
-        false,
-        false,
-        false,
-        true,
-        false,
-        false
-      ]
-    }
-  },
   "61b7f8fd08937bc29a31e5656a36ae45065f41446ba65b55bc848c257a4f6087": {
     "query": "\n            INSERT INTO scope (scope, frontend_id, app)\n            VALUES ($1, $2, $3)\n            RETURNING id, scope, frontend_id, created_at, app\n            ",
     "describe": {
@@ -522,7 +584,8 @@
                 "Enum": [
                   "webinar",
                   "p2p",
-                  "minigroup"
+                  "minigroup",
+                  "chat"
                 ]
               }
             }
@@ -602,7 +665,7 @@
         false,
         false,
         false,
-        false,
+        true,
         true,
         true,
         true,
@@ -806,7 +869,8 @@
                 "Enum": [
                   "webinar",
                   "p2p",
-                  "minigroup"
+                  "minigroup",
+                  "chat"
                 ]
               }
             }
@@ -883,7 +947,7 @@
         false,
         false,
         false,
-        false,
+        true,
         true,
         true,
         true,
@@ -1093,7 +1157,8 @@
                 "Enum": [
                   "webinar",
                   "p2p",
-                  "minigroup"
+                  "minigroup",
+                  "chat"
                 ]
               }
             }
@@ -1169,7 +1234,8 @@
                 "Enum": [
                   "webinar",
                   "p2p",
-                  "minigroup"
+                  "minigroup",
+                  "chat"
                 ]
               }
             }
@@ -1188,7 +1254,7 @@
         false,
         false,
         false,
-        false,
+        true,
         true,
         true,
         true,
@@ -1220,7 +1286,8 @@
                 "Enum": [
                   "webinar",
                   "p2p",
-                  "minigroup"
+                  "minigroup",
+                  "chat"
                 ]
               }
             }
@@ -1296,7 +1363,8 @@
                 "Enum": [
                   "webinar",
                   "p2p",
-                  "minigroup"
+                  "minigroup",
+                  "chat"
                 ]
               }
             }
@@ -1318,7 +1386,7 @@
         false,
         false,
         false,
-        false,
+        true,
         true,
         true,
         true,
@@ -1635,7 +1703,8 @@
                 "Enum": [
                   "webinar",
                   "p2p",
-                  "minigroup"
+                  "minigroup",
+                  "chat"
                 ]
               }
             }
@@ -1714,7 +1783,7 @@
         false,
         false,
         false,
-        false,
+        true,
         true,
         true,
         true,

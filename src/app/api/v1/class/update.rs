@@ -59,19 +59,6 @@ async fn do_update<T: AsClassType>(
         .await?;
 
     if let Some(time) = &body.time {
-        let conference_time = match time.0 {
-            Bound::Included(t) | Bound::Excluded(t) => (Bound::Included(t), time.1),
-            Bound::Unbounded => (Bound::Unbounded, Bound::Unbounded),
-        };
-        let conference_fut = state.conference_client().update_room(
-            class.conference_room_id(),
-            ConfRoomUpdate {
-                time: Some(conference_time),
-                reserve: body.reserve,
-                classroom_id: None,
-            },
-        );
-
         let event_time = (Bound::Included(Utc::now()), Bound::Unbounded);
         let event_fut = state.event_client().update_room(
             class.event_room_id(),
@@ -81,11 +68,31 @@ async fn do_update<T: AsClassType>(
             },
         );
 
-        event_fut
-            .try_join(conference_fut)
-            .await
-            .context("Services requests")
-            .error(AppErrorKind::MqttRequestFailed)?;
+        if let Some(conference_room_id) = class.conference_room_id() {
+            let conference_time = match time.0 {
+                Bound::Included(t) | Bound::Excluded(t) => (Bound::Included(t), time.1),
+                Bound::Unbounded => (Bound::Unbounded, Bound::Unbounded),
+            };
+            let conference_fut = state.conference_client().update_room(
+                conference_room_id,
+                ConfRoomUpdate {
+                    time: Some(conference_time),
+                    reserve: body.reserve,
+                    classroom_id: None,
+                },
+            );
+
+            event_fut
+                .try_join(conference_fut)
+                .await
+                .context("Services requests")
+                .error(AppErrorKind::MqttRequestFailed)?;
+        } else {
+            event_fut
+                .await
+                .context("Services requests")
+                .error(AppErrorKind::MqttRequestFailed)?;
+        }
     }
 
     let mut query = crate::db::class::TimeUpdateQuery::new(class.id());

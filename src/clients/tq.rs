@@ -219,8 +219,7 @@ impl HttpTqClient {
 #[derive(Serialize)]
 struct TaskPayload {
     audience: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    tags: Option<JsonValue>,
+    tags: JsonValue,
     priority: String,
     template: String,
     bindings: Task,
@@ -240,13 +239,19 @@ impl TqClient for HttpTqClient {
             task_id.push_str(&id.to_string())
         }
         let route = format!("/api/v1/audiences/{}/tasks/{}", class.audience(), task_id,);
+        let mut tags = class
+            .tags()
+            .map(ToOwned::to_owned)
+            .unwrap_or_else(|| json!({"scope": class.scope().to_owned()}));
+
+        class.conference_room_id().and_then(|cid| {
+            tags.as_object_mut()
+                .and_then(|map| map.insert("conference_room_id".to_string(), json!(cid)))
+        });
 
         let task = TaskPayload {
             audience: class.audience().to_owned(),
-            tags: class
-                .tags()
-                .map(ToOwned::to_owned)
-                .or_else(|| Some(json!({"scope": class.scope().to_owned()}))),
+            tags,
             priority: PRIORITY.into(),
             template: task.template().into(),
             bindings: task,

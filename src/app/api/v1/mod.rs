@@ -225,7 +225,7 @@ async fn find<T: AsClassType>(
         crate::db::class::GenericReadQuery::<T>::by_id(id)
             .execute(&mut conn)
             .await?
-            .ok_or_else(|| anyhow!("Failed to find {}", T::to_str()))?
+            .ok_or_else(|| anyhow!("Failed to find {}", T::as_str()))?
     };
     Ok(webinar)
 }
@@ -240,7 +240,7 @@ async fn find_by_scope<T: AsClassType>(
         crate::db::class::GenericReadQuery::<T>::by_scope(&audience, &scope)
             .execute(&mut conn)
             .await?
-            .ok_or_else(|| anyhow!("Failed to find {} by scope", T::to_str()))?
+            .ok_or_else(|| anyhow!("Failed to find {} by scope", T::as_str()))?
     };
     Ok(webinar)
 }

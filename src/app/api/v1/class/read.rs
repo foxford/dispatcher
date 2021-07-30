@@ -70,7 +70,8 @@ pub struct ClassroomVersion {
 
 #[derive(Serialize)]
 pub struct RealTimeObject {
-    conference_room_id: Uuid,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    conference_room_id: Option<Uuid>,
     event_room_id: Uuid,
     #[serde(skip_serializing_if = "Option::is_none")]
     fallback_uri: Option<String>,

@@ -126,7 +126,7 @@ async fn do_create(
         state,
         webinar.id(),
         webinar.event_room_id(),
-        Some(webinar.conference_room_id()),
+        webinar.conference_room_id(),
     )
     .await
     .error(AppErrorKind::MqttRequestFailed)?;

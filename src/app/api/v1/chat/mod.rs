@@ -8,11 +8,11 @@ use serde_derive::{Deserialize, Serialize};
 use tide::{Request, Response};
 use uuid::Uuid;
 
-use crate::app::authz::AuthzObject;
 use crate::app::error::ErrorExt;
 use crate::app::error::ErrorKind as AppErrorKind;
 use crate::app::AppContext;
-use crate::db::chat::Object as Chat;
+use crate::db::class::{ChatInsertQuery, GenericReadQuery, Object as Class};
+use crate::{app::authz::AuthzObject, db::class::ChatType};
 
 use super::{extract_id, extract_param, validate_token, AppResult};
 
@@ -28,10 +28,10 @@ struct RealTimeObject {
     fallback_uri: Option<String>,
 }
 
-impl From<Chat> for ChatObject {
-    fn from(obj: Chat) -> Self {
+impl From<Class> for ChatObject {
+    fn from(obj: Class) -> Self {
         Self {
-            id: obj.scope(),
+            id: obj.scope().to_owned(),
             real_time: RealTimeObject {
                 fallback_uri: None,
                 event_room_id: obj.event_room_id(),
@@ -50,7 +50,7 @@ pub async fn read_by_scope(req: Request<Arc<dyn AppContext>>) -> AppResult {
 
 async fn read(
     req: &Request<Arc<dyn AppContext>>,
-    finder: impl Future<Output = AnyResult<Chat>>,
+    finder: impl Future<Output = AnyResult<Class>>,
 ) -> AppResult {
     let state = req.state();
     let account_id = validate_token(&req).error(AppErrorKind::Unauthorized)?;
@@ -67,7 +67,12 @@ async fn read(
 
     state
         .authz()
-        .authorize(chat.audience(), account_id.clone(), object, "read".into())
+        .authorize(
+            chat.audience().to_owned(),
+            account_id.clone(),
+            object,
+            "read".into(),
+        )
         .await?;
 
     let chat_obj: ChatObject = chat.into();
@@ -119,7 +124,7 @@ pub async fn create(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
         .context("Services requests")
         .error(AppErrorKind::MqttRequestFailed)?;
 
-    let query = crate::db::chat::ChatInsertQuery::new(body.scope, body.audience, event_room_id);
+    let query = ChatInsertQuery::new(body.scope, body.audience, event_room_id);
 
     let query = if let Some(tags) = body.tags {
         query.tags(tags)
@@ -185,8 +190,7 @@ pub async fn convert(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
         )
         .await?;
 
-    let query =
-        crate::db::chat::ChatInsertQuery::new(body.scope, body.audience, body.event_room_id);
+    let query = ChatInsertQuery::new(body.scope, body.audience, body.event_room_id);
 
     let query = if let Some(tags) = body.tags {
         query.tags(tags)
@@ -228,12 +232,12 @@ pub async fn convert(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
     Ok(response)
 }
 
-async fn find_chat(req: &Request<Arc<dyn AppContext>>) -> anyhow::Result<Chat> {
+async fn find_chat(req: &Request<Arc<dyn AppContext>>) -> anyhow::Result<Class> {
     let id = extract_id(req)?;
 
     let chat = {
         let mut conn = req.state().get_conn().await?;
-        crate::db::chat::ChatReadQuery::by_id(id)
+        GenericReadQuery::<ChatType>::by_id(id)
             .execute(&mut conn)
             .await?
             .ok_or_else(|| anyhow!("Failed to find chat by scope"))?
@@ -241,13 +245,13 @@ async fn find_chat(req: &Request<Arc<dyn AppContext>>) -> anyhow::Result<Chat> {
     Ok(chat)
 }
 
-async fn find_chat_by_scope(req: &Request<Arc<dyn AppContext>>) -> anyhow::Result<Chat> {
+async fn find_chat_by_scope(req: &Request<Arc<dyn AppContext>>) -> anyhow::Result<Class> {
     let audience = extract_param(req, "audience")?.to_owned();
     let scope = extract_param(req, "scope")?.to_owned();
 
     let chat = {
         let mut conn = req.state().get_conn().await?;
-        crate::db::chat::ChatReadQuery::by_scope(audience.clone(), scope.clone())
+        GenericReadQuery::<ChatType>::by_scope(&audience, &scope)
             .execute(&mut conn)
             .await?
             .ok_or_else(|| anyhow!("Failed to find chat by scope"))?

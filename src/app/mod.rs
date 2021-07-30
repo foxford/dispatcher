@@ -34,7 +34,8 @@ use api::v1::minigroup::{
     recreate as recreate_minigroup, update as update_minigroup,
 };
 use api::v1::p2p::{
-    convert as convert_p2p, create as create_p2p, read_by_scope as read_p2p_by_scope, read_p2p,
+    convert as convert_p2p, create as create_p2p, read as read_p2p,
+    read_by_scope as read_p2p_by_scope,
 };
 use api::v1::webinar::{
     convert as convert_webinar, create as create_webinar, download as download_webinar,

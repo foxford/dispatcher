@@ -144,9 +144,10 @@ impl MessageHandler {
             .ok_or_else(|| anyhow!("Class not found by id from payload = {:?}", payload,))?;
 
         let label = match class.kind() {
-            ClassType::P2P => "p2p.close",
-            ClassType::Minigroup => "minigroup.close",
-            ClassType::Webinar => "webinar.close",
+            ClassType::P2P => "p2p.stop",
+            ClassType::Minigroup => "minigroup.stop",
+            ClassType::Webinar => "webinar.stop",
+            ClassType::Chat => "chat.stop",
         };
 
         crate::db::class::RoomCloseQuery::new(class.id())
@@ -232,7 +233,7 @@ impl MessageHandler {
         match task.result {
             TaskCompleteResult::Success(success) => {
                 let class = self
-                    .get_class_from_tags(&audience, task.tags.as_ref())
+                    .get_class_from_tags_by_conference_id(task.tags.as_ref())
                     .await?;
                 match success {
                     TaskCompleteSuccess::TranscodeStreamToHls(result) => {
@@ -296,6 +297,32 @@ impl MessageHandler {
         } else {
             bail!("No scope specified in tags = {:?}", tags);
         }
+    }
+
+    async fn get_class_from_tags_by_conference_id(
+        &self,
+        tags: Option<&JsonValue>,
+    ) -> Result<Class> {
+        let conference_room_id = tags
+            .and_then(|tags| tags.get("conference_room_id"))
+            .and_then(|s| s.as_str())
+            .ok_or_else(|| anyhow!("No conference room id in tags"))
+            .and_then(|s| {
+                Uuid::parse_str(s)
+                    .map_err(|e| anyhow!("Failed to parse conference room id uuid, err = {:?}", e))
+            })?;
+
+        let mut conn = self.ctx.get_conn().await?;
+
+        crate::db::class::ReadQuery::by_conference_room(conference_room_id)
+            .execute(&mut conn)
+            .await?
+            .ok_or_else(|| {
+                anyhow!(
+                    "Class not found by conference_room_id = {}",
+                    conference_room_id
+                )
+            })
     }
 
     async fn get_class_by_room_id(&self, room_id: Uuid) -> Result<Class> {
