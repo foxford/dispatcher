@@ -11,16 +11,18 @@ use svc_agent::request::Dispatcher;
 use uuid::Uuid;
 
 use super::AppContext;
-use crate::app::postprocessing_strategy;
-use crate::app::{
-    error::{ErrorExt, ErrorKind as AppErrorKind},
-    metrics::MqttMetrics,
+use crate::{
+    app::error::{ErrorExt, ErrorKind as AppErrorKind},
+    clients::{event::RoomAdjustResult, tq::TaskCompleteResult},
+    db::recording::Segments,
 };
-use crate::clients::event::RoomAdjust;
-use crate::clients::event::RoomAdjustResult;
-use crate::clients::tq::TaskComplete;
-use crate::db::class::{ClassType, Object as Class};
-use crate::db::recording::Segments;
+use crate::{
+    app::metrics::MqttMetrics,
+    db::class::{ClassType, Object as Class},
+};
+use crate::{app::postprocessing_strategy, clients::tq::TaskCompleteSuccess};
+use crate::{app::postprocessing_strategy::TranscodeSuccess, clients::event::RoomAdjust};
+use crate::{app::postprocessing_strategy::UploadedStream, clients::tq::TaskComplete};
 
 pub struct MessageHandler {
     ctx: Arc<dyn AppContext>,
@@ -80,7 +82,7 @@ impl MessageHandler {
                 .await
                 .error(AppErrorKind::ClassClosingFailed),
             Some("room.upload") => self
-                .handle_upload(data)
+                .handle_stream_upload(data)
                 .await
                 .error(AppErrorKind::TranscodingFlowFailed),
             Some("room.adjust") => self
@@ -88,7 +90,7 @@ impl MessageHandler {
                 .await
                 .error(AppErrorKind::TranscodingFlowFailed),
             Some("task.complete") => self
-                .handle_transcoding_completion(data)
+                .handle_tq_task_completion(data, audience)
                 .await
                 .error(AppErrorKind::TranscodingFlowFailed),
             Some("room.dump_events") => self
@@ -171,7 +173,7 @@ impl MessageHandler {
             .with_context(|| format!("Failed to publish {} event", label))
     }
 
-    async fn handle_upload(&self, data: IncomingEvent<String>) -> Result<()> {
+    async fn handle_stream_upload(&self, data: IncomingEvent<String>) -> Result<()> {
         let payload = data.extract_payload();
         let room_upload = serde_json::from_str::<RoomUpload>(&payload)?;
 
@@ -187,7 +189,7 @@ impl MessageHandler {
         };
 
         postprocessing_strategy::get(self.ctx.clone(), class)?
-            .handle_upload(room_upload.rtcs)
+            .handle_mjr_dumps_upload(room_upload.rtcs)
             .await
     }
 
@@ -221,16 +223,45 @@ impl MessageHandler {
             .await
     }
 
-    async fn handle_transcoding_completion(&self, data: IncomingEvent<String>) -> Result<()> {
+    async fn handle_tq_task_completion(
+        &self,
+        data: IncomingEvent<String>,
+        audience: String,
+    ) -> Result<()> {
         let payload = data.extract_payload();
         let task: TaskComplete = serde_json::from_str(&payload)?;
-        let class = self
-            .get_class_from_tags_by_conference_id(task.tags())
-            .await?;
-
-        postprocessing_strategy::get(self.ctx.clone(), class)?
-            .handle_transcoding_completion(task.into())
-            .await
+        match task.result {
+            TaskCompleteResult::Success(success) => {
+                let class = self
+                    .get_class_from_tags_by_conference_id(task.tags.as_ref())
+                    .await?;
+                match success {
+                    TaskCompleteSuccess::TranscodeStreamToHls(result) => {
+                        postprocessing_strategy::get(self.ctx.clone(), class)?
+                            .handle_transcoding_completion(TranscodeSuccess::TranscodeStreamToHls(
+                                result,
+                            ))
+                            .await
+                    }
+                    TaskCompleteSuccess::TranscodeMinigroupToHls(result) => {
+                        postprocessing_strategy::get(self.ctx.clone(), class)?
+                            .handle_transcoding_completion(
+                                TranscodeSuccess::TranscodeMinigroupToHls(result),
+                            )
+                            .await
+                    }
+                    TaskCompleteSuccess::ConvertMjrDumpsToStream(result) => {
+                        let stream = UploadedStream::from_convert_result(&result)?;
+                        postprocessing_strategy::get(self.ctx.clone(), class)?
+                            .handle_stream_upload(stream)
+                            .await
+                    }
+                }
+            }
+            TaskCompleteResult::Failure { error } => {
+                bail!("Tq task error: {:?}", error)
+            }
+        }
     }
 
     async fn handle_dump_events(&self, data: IncomingEvent<String>) -> Result<()> {
@@ -362,7 +393,7 @@ struct RoomClose {
 #[derive(Deserialize, Debug)]
 struct RoomUpload {
     id: Uuid,
-    rtcs: Vec<postprocessing_strategy::RtcUploadResult>,
+    rtcs: Vec<postprocessing_strategy::MjrDumpsUploadResult>,
 }
 
 #[derive(Serialize)]
