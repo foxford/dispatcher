@@ -121,6 +121,13 @@ impl MessageHandler {
             );
 
             e.notify_sentry(&crate::LOG);
+        } else {
+            slog::info!(
+                crate::LOG,
+                "Event handler done, label = {:?}, payload = {:?}",
+                data_.properties().label(),
+                data_.payload()
+            )
         }
     }
 
