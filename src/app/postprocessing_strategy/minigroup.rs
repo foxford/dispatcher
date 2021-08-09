@@ -89,8 +89,7 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
             } => {
                 // Find host stream id.
                 let host = match self.find_host(modified_room_id).await? {
-                    // Host has not been set, skip transcoding.
-                    None => return Ok(()),
+                    None => bail!("No host in room"),
                     Some(agent_id) => agent_id,
                 };
 
@@ -200,7 +199,7 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
 
                 let host_stream_id = match maybe_host_recording {
                     // Host has been set but there's no recording, skip transcoding.
-                    None => return Ok(()),
+                    None => bail!("No host stream id in room"),
                     Some(recording) => recording.rtc_id,
                 };
 
