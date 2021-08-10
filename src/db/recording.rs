@@ -232,6 +232,13 @@ impl RecordingInsertQuery {
                 transcoded_at, created_by
             )
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            ON CONFLICT (class_id, created_by)
+            WHERE deleted_at IS NULL
+            DO UPDATE
+            SET (rtc_id, stream_uri, segments, modified_segments,
+                    started_at, adjusted_at, transcoded_at, created_by, created_at) =
+                (EXCLUDED.rtc_id, EXCLUDED.stream_uri, EXCLUDED.segments, EXCLUDED.modified_segments, EXCLUDED.started_at, EXCLUDED.adjusted_at,
+                        EXCLUDED.transcoded_at, EXCLUDED.created_by, NOW())
             RETURNING
                 id,
                 class_id,

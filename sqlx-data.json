@@ -1017,164 +1017,6 @@
       ]
     }
   },
-  "8646207f0797cac3fc26280c49e9548d38eb15ee1007c66595bcb8f8d3f6791d": {
-    "query": "\n            INSERT INTO recording (\n                class_id, rtc_id, stream_uri, segments, modified_segments, started_at, adjusted_at,\n                transcoded_at, created_by\n            )\n            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)\n            RETURNING\n                id,\n                class_id,\n                rtc_id,\n                stream_uri,\n                segments AS \"segments!: Option<Segments>\",\n                started_at,\n                modified_segments AS \"modified_segments!: Option<Segments>\",\n                created_at,\n                adjusted_at,\n                transcoded_at,\n                created_by AS \"created_by: AgentId\",\n                deleted_at\n            ",
-    "describe": {
-      "columns": [
-        {
-          "ordinal": 0,
-          "name": "id",
-          "type_info": "Uuid"
-        },
-        {
-          "ordinal": 1,
-          "name": "class_id",
-          "type_info": "Uuid"
-        },
-        {
-          "ordinal": 2,
-          "name": "rtc_id",
-          "type_info": "Uuid"
-        },
-        {
-          "ordinal": 3,
-          "name": "stream_uri",
-          "type_info": "Text"
-        },
-        {
-          "ordinal": 4,
-          "name": "segments!: Option<Segments>",
-          "type_info": "Int8RangeArray"
-        },
-        {
-          "ordinal": 5,
-          "name": "started_at",
-          "type_info": "Timestamptz"
-        },
-        {
-          "ordinal": 6,
-          "name": "modified_segments!: Option<Segments>",
-          "type_info": "Int8RangeArray"
-        },
-        {
-          "ordinal": 7,
-          "name": "created_at",
-          "type_info": "Timestamptz"
-        },
-        {
-          "ordinal": 8,
-          "name": "adjusted_at",
-          "type_info": "Timestamptz"
-        },
-        {
-          "ordinal": 9,
-          "name": "transcoded_at",
-          "type_info": "Timestamptz"
-        },
-        {
-          "ordinal": 10,
-          "name": "created_by: AgentId",
-          "type_info": {
-            "Custom": {
-              "name": "agent_id",
-              "kind": {
-                "Composite": [
-                  [
-                    "account_id",
-                    {
-                      "Custom": {
-                        "name": "account_id",
-                        "kind": {
-                          "Composite": [
-                            [
-                              "label",
-                              "Text"
-                            ],
-                            [
-                              "audience",
-                              "Text"
-                            ]
-                          ]
-                        }
-                      }
-                    }
-                  ],
-                  [
-                    "label",
-                    "Text"
-                  ]
-                ]
-              }
-            }
-          }
-        },
-        {
-          "ordinal": 11,
-          "name": "deleted_at",
-          "type_info": "Timestamptz"
-        }
-      ],
-      "parameters": {
-        "Left": [
-          "Uuid",
-          "Uuid",
-          "Text",
-          "Int8RangeArray",
-          "Int8RangeArray",
-          "Timestamptz",
-          "Timestamptz",
-          "Timestamptz",
-          {
-            "Custom": {
-              "name": "agent_id",
-              "kind": {
-                "Composite": [
-                  [
-                    "account_id",
-                    {
-                      "Custom": {
-                        "name": "account_id",
-                        "kind": {
-                          "Composite": [
-                            [
-                              "label",
-                              "Text"
-                            ],
-                            [
-                              "audience",
-                              "Text"
-                            ]
-                          ]
-                        }
-                      }
-                    }
-                  ],
-                  [
-                    "label",
-                    "Text"
-                  ]
-                ]
-              }
-            }
-          }
-        ]
-      },
-      "nullable": [
-        false,
-        false,
-        false,
-        true,
-        true,
-        true,
-        true,
-        false,
-        true,
-        true,
-        false,
-        true
-      ]
-    }
-  },
   "921da3a29604824e0a781d810cb075cd72431b7d570c5bcfa3ce07f37e0f6cfe": {
     "query": "\n            INSERT INTO class (\n                scope, audience, time, tags, preserve_history, kind,\n                conference_room_id, event_room_id\n            )\n            VALUES ($1, $2, $3, $4, $5, $6::class_type, $7, $8)\n            RETURNING\n                id,\n                scope,\n                kind AS \"kind!: ClassType\",\n                audience,\n                time AS \"time!: Time\",\n                tags,\n                preserve_history,\n                created_at,\n                event_room_id,\n                conference_room_id,\n                original_event_room_id,\n                modified_event_room_id,\n                reserve,\n                room_events_uri\n            ",
     "describe": {
@@ -1540,6 +1382,164 @@
           "Int8RangeArray",
           "Int8RangeArray",
           "Text",
+          {
+            "Custom": {
+              "name": "agent_id",
+              "kind": {
+                "Composite": [
+                  [
+                    "account_id",
+                    {
+                      "Custom": {
+                        "name": "account_id",
+                        "kind": {
+                          "Composite": [
+                            [
+                              "label",
+                              "Text"
+                            ],
+                            [
+                              "audience",
+                              "Text"
+                            ]
+                          ]
+                        }
+                      }
+                    }
+                  ],
+                  [
+                    "label",
+                    "Text"
+                  ]
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        true,
+        true,
+        true,
+        true,
+        false,
+        true,
+        true,
+        false,
+        true
+      ]
+    }
+  },
+  "c7386d4717720730d7762fbcf2d24c5d0f508b246e987f4666684bf37b27ddc2": {
+    "query": "\n            INSERT INTO recording (\n                class_id, rtc_id, stream_uri, segments, modified_segments, started_at, adjusted_at,\n                transcoded_at, created_by\n            )\n            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)\n            ON CONFLICT (class_id, created_by)\n            WHERE deleted_at IS NULL\n            DO UPDATE\n            SET (rtc_id, stream_uri, segments, modified_segments,\n                    started_at, adjusted_at, transcoded_at, created_by, created_at) =\n                (EXCLUDED.rtc_id, EXCLUDED.stream_uri, EXCLUDED.segments, EXCLUDED.modified_segments, EXCLUDED.started_at, EXCLUDED.adjusted_at,\n                        EXCLUDED.transcoded_at, EXCLUDED.created_by, NOW())\n            RETURNING\n                id,\n                class_id,\n                rtc_id,\n                stream_uri,\n                segments AS \"segments!: Option<Segments>\",\n                started_at,\n                modified_segments AS \"modified_segments!: Option<Segments>\",\n                created_at,\n                adjusted_at,\n                transcoded_at,\n                created_by AS \"created_by: AgentId\",\n                deleted_at\n            ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 1,
+          "name": "class_id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 2,
+          "name": "rtc_id",
+          "type_info": "Uuid"
+        },
+        {
+          "ordinal": 3,
+          "name": "stream_uri",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 4,
+          "name": "segments!: Option<Segments>",
+          "type_info": "Int8RangeArray"
+        },
+        {
+          "ordinal": 5,
+          "name": "started_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 6,
+          "name": "modified_segments!: Option<Segments>",
+          "type_info": "Int8RangeArray"
+        },
+        {
+          "ordinal": 7,
+          "name": "created_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 8,
+          "name": "adjusted_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 9,
+          "name": "transcoded_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 10,
+          "name": "created_by: AgentId",
+          "type_info": {
+            "Custom": {
+              "name": "agent_id",
+              "kind": {
+                "Composite": [
+                  [
+                    "account_id",
+                    {
+                      "Custom": {
+                        "name": "account_id",
+                        "kind": {
+                          "Composite": [
+                            [
+                              "label",
+                              "Text"
+                            ],
+                            [
+                              "audience",
+                              "Text"
+                            ]
+                          ]
+                        }
+                      }
+                    }
+                  ],
+                  [
+                    "label",
+                    "Text"
+                  ]
+                ]
+              }
+            }
+          }
+        },
+        {
+          "ordinal": 11,
+          "name": "deleted_at",
+          "type_info": "Timestamptz"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Uuid",
+          "Uuid",
+          "Text",
+          "Int8RangeArray",
+          "Int8RangeArray",
+          "Timestamptz",
+          "Timestamptz",
+          "Timestamptz",
           {
             "Custom": {
               "name": "agent_id",
