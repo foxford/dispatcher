@@ -17,12 +17,10 @@ use uuid::Uuid;
 
 use crate::clients::event::{Event, EventData, RoomAdjustResult};
 use crate::clients::tq::{
-    Task as TqTask, TaskCompleteResult, TaskCompleteSuccess, TranscodeMinigroupToHlsStream,
-    TranscodeMinigroupToHlsSuccess,
+    Task as TqTask, TranscodeMinigroupToHlsStream, TranscodeMinigroupToHlsSuccess,
 };
 use crate::db::class::Object as Class;
 use crate::db::recording::BoundedOffsetTuples;
-use crate::db::recording::Object as Recording;
 use crate::db::recording::Segments;
 use crate::{app::AppContext, clients::conference::ConfigSnapshot};
 

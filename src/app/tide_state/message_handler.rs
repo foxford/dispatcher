@@ -90,7 +90,7 @@ impl MessageHandler {
                 .await
                 .error(AppErrorKind::TranscodingFlowFailed),
             Some("task.complete") => self
-                .handle_tq_task_completion(data, audience)
+                .handle_tq_task_completion(data)
                 .await
                 .error(AppErrorKind::TranscodingFlowFailed),
             Some("room.dump_events") => self
@@ -223,11 +223,7 @@ impl MessageHandler {
             .await
     }
 
-    async fn handle_tq_task_completion(
-        &self,
-        data: IncomingEvent<String>,
-        audience: String,
-    ) -> Result<()> {
+    async fn handle_tq_task_completion(&self, data: IncomingEvent<String>) -> Result<()> {
         let payload = data.extract_payload();
         let task: TaskComplete = serde_json::from_str(&payload)?;
         match task.result {
