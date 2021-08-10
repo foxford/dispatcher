@@ -1,4 +1,4 @@
-use std::{collections::HashMap, convert::TryFrom, sync::RwLock};
+use std::{collections::HashMap, convert::TryFrom};
 
 use once_cell::sync::{Lazy, OnceCell};
 use prometheus::{
@@ -6,9 +6,9 @@ use prometheus::{
     IntCounter, IntCounterVec,
 };
 use prometheus_static_metric::make_static_metric;
-use tide::{http::Method, Endpoint, Middleware, Next, Request, Route, StatusCode};
+use tide::{http::Method, Middleware, Next, Request, Route, StatusCode};
 
-use super::{api::v1::AppEndpoint, error::Error};
+use super::error::Error;
 
 make_static_metric! {
     struct MqttStats: IntCounter {
@@ -182,8 +182,8 @@ impl MetricsMiddleware {
                         .duration_vec
                         .get_metric_with_label_values(&[&self.path, method.as_ref()])
                         .map_err(|err| {
-                            error!(crate::LOG, "Crating timer for metrics errored: {:?}", err; 
-                            "path" => &self.path, 
+                            error!(crate::LOG, "Crating timer for metrics errored: {:?}", err;
+                            "path" => &self.path,
                             "method" => method.as_ref())
                         })
                 })
@@ -205,9 +205,9 @@ impl MetricsMiddleware {
                             &status.to_string(),
                         ])
                         .map_err(|err| {
-                            error!(crate::LOG, "Crating counter for metrics errored: {:?}", err; 
-                            "path" => &self.path, 
-                            "method" => method.as_ref(), 
+                            error!(crate::LOG, "Crating counter for metrics errored: {:?}", err;
+                            "path" => &self.path,
+                            "method" => method.as_ref(),
                             "status" => &status.to_string())
                         })
                 })
