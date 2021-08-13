@@ -1,16 +1,16 @@
-use std::ops::Bound;
+use std::ops::{Bound, Not};
 use std::sync::Arc;
 
 use anyhow::Context;
 use async_std::prelude::FutureExt;
 use chrono::Utc;
 use serde_derive::Deserialize;
+use svc_agent::AgentId;
 use svc_authn::AccountId;
 use tide::{Request, Response};
 use uuid::Uuid;
 
 use super::{extract_id, find, validate_token, AppResult};
-use crate::app::authz::AuthzObject;
 use crate::app::error::ErrorExt;
 use crate::app::error::ErrorKind as AppErrorKind;
 use crate::app::AppContext;
@@ -18,12 +18,14 @@ use crate::clients::{
     conference::RoomUpdate as ConfRoomUpdate, event::RoomUpdate as EventRoomUpdate,
 };
 use crate::db::class::{AsClassType, BoundedDateTimeTuple};
+use crate::{app::authz::AuthzObject, db::class};
 
 #[derive(Deserialize)]
 struct ClassUpdate {
     #[serde(with = "crate::serde::ts_seconds_option_bound_tuple")]
     time: Option<BoundedDateTimeTuple>,
     reserve: Option<i32>,
+    host: Option<AgentId>,
 }
 
 pub async fn update<T: AsClassType>(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
@@ -57,51 +59,30 @@ async fn do_update<T: AsClassType>(
             "update".into(),
         )
         .await?;
-
-    if let Some(time) = &body.time {
-        let event_time = (Bound::Included(Utc::now()), Bound::Unbounded);
-        let event_fut = state.event_client().update_room(
-            class.event_room_id(),
-            EventRoomUpdate {
-                time: Some(event_time),
-                classroom_id: None,
-            },
-        );
-
-        if let Some(conference_room_id) = class.conference_room_id() {
-            let conference_time = match time.0 {
-                Bound::Included(t) | Bound::Excluded(t) => (Bound::Included(t), time.1),
-                Bound::Unbounded => (Bound::Unbounded, Bound::Unbounded),
-            };
-            let conference_fut = state.conference_client().update_room(
-                conference_room_id,
-                ConfRoomUpdate {
-                    time: Some(conference_time),
-                    reserve: body.reserve,
-                    classroom_id: None,
-                },
-            );
-
-            event_fut
-                .try_join(conference_fut)
-                .await
-                .context("Services requests")
-                .error(AppErrorKind::MqttRequestFailed)?;
-        } else {
-            event_fut
-                .await
-                .context("Services requests")
-                .error(AppErrorKind::MqttRequestFailed)?;
-        }
+    let event_update = get_event_update(&class, &body)
+        .map(|(id, update)| state.event_client().update_room(id, update));
+    let conference_update = get_coneference_update(&class, &body)
+        .map(|(id, update)| state.conference_client().update_room(id, update));
+    match (event_update, conference_update) {
+        (None, None) => Ok(()),
+        (None, Some(c)) => c.await,
+        (Some(e), None) => e.await,
+        (Some(e), Some(c)) => e.try_join(c).await.map(|_| ()),
     }
+    .context("Services requests")
+    .error(AppErrorKind::MqttRequestFailed)?;
 
-    let mut query = crate::db::class::TimeUpdateQuery::new(class.id());
+    let mut query = crate::db::class::ClassUpdateQuery::new(class.id());
     if let Some(t) = body.time {
         query = query.time(t.into());
     }
 
     if let Some(r) = body.reserve {
         query = query.reserve(r);
+    }
+
+    if let Some(host) = body.host {
+        query = query.host(host);
     }
 
     let mut conn = state.get_conn().await.error(AppErrorKind::DbQueryFailed)?;
@@ -118,6 +99,43 @@ async fn do_update<T: AsClassType>(
     let response = Response::builder(200).body(body).build();
 
     Ok(response)
+}
+
+fn get_coneference_update(
+    class: &class::Object,
+    update: &ClassUpdate,
+) -> Option<(Uuid, ConfRoomUpdate)> {
+    let conf_room_id = class.conference_room_id()?;
+    let conf_update = ConfRoomUpdate {
+        time: update.time.map(|(start, end)| match start {
+            Bound::Included(t) | Bound::Excluded(t) => (Bound::Included(t), end),
+            Bound::Unbounded => (Bound::Unbounded, Bound::Unbounded),
+        }),
+        reserve: update.reserve,
+        classroom_id: None,
+        host: update.host.clone(),
+    };
+    conf_update
+        .is_empty_update()
+        .not()
+        .then(|| (conf_room_id, conf_update))
+}
+
+fn get_event_update(
+    class: &class::Object,
+    update: &ClassUpdate,
+) -> Option<(Uuid, EventRoomUpdate)> {
+    let update = EventRoomUpdate {
+        time: update
+            .time
+            .map(|_| (Bound::Included(Utc::now()), Bound::Unbounded)),
+        classroom_id: None,
+    };
+
+    update
+        .is_empty_update()
+        .not()
+        .then(|| (class.event_room_id(), update))
 }
 
 #[cfg(test)]
@@ -158,6 +176,7 @@ mod tests {
                 Bound::Unbounded,
             )),
             reserve: None,
+            host: None,
         };
 
         do_update::<WebinarType>(state.as_ref(), agent.account_id(), webinar.id(), body)
@@ -204,6 +223,7 @@ mod tests {
                 Bound::Unbounded,
             )),
             reserve: None,
+            host: None,
         };
 
         do_update::<WebinarType>(state.as_ref(), agent.account_id(), webinar.id(), body)

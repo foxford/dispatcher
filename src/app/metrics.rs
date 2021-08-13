@@ -1,4 +1,4 @@
-use std::{collections::HashMap, convert::TryFrom, sync::RwLock};
+use std::{collections::HashMap, convert::TryFrom};
 
 use once_cell::sync::{Lazy, OnceCell};
 use prometheus::{
@@ -6,9 +6,9 @@ use prometheus::{
     IntCounter, IntCounterVec,
 };
 use prometheus_static_metric::make_static_metric;
-use tide::{http::Method, Endpoint, Middleware, Next, Request, Route, StatusCode};
+use tide::{http::Method, Middleware, Next, Request, Route, StatusCode};
 
-use super::{api::v1::AppEndpoint, error::Error};
+use super::error::Error;
 
 make_static_metric! {
     struct MqttStats: IntCounter {

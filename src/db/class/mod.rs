@@ -4,6 +4,7 @@ use chrono::serde::ts_seconds;
 use chrono::{DateTime, Utc};
 use sqlx::postgres::{types::PgRange, PgConnection};
 use sqlx::Done;
+use svc_agent::AgentId;
 use uuid::Uuid;
 
 use serde_derive::{Deserialize, Serialize};
@@ -93,6 +94,7 @@ pub struct Object {
     preserve_history: bool,
     reserve: Option<i32>,
     room_events_uri: Option<String>,
+    host: Option<AgentId>,
 }
 
 impl Object {
@@ -441,7 +443,8 @@ impl UpdateQuery {
                 original_event_room_id,
                 modified_event_room_id,
                 reserve,
-                room_events_uri
+                room_events_uri,
+                host AS "host: AgentId"
             "#,
             self.id,
             self.original_event_room_id,
@@ -494,7 +497,8 @@ impl RecreateQuery {
                 original_event_room_id,
                 modified_event_room_id,
                 reserve,
-                room_events_uri
+                room_events_uri,
+                host AS "host: AgentId"
             "#,
             self.id,
             time,
@@ -508,18 +512,20 @@ impl RecreateQuery {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-pub struct TimeUpdateQuery {
+pub struct ClassUpdateQuery {
     id: Uuid,
     time: Option<Time>,
     reserve: Option<i32>,
+    host: Option<AgentId>,
 }
 
-impl TimeUpdateQuery {
+impl ClassUpdateQuery {
     pub fn new(id: Uuid) -> Self {
         Self {
             id,
             time: None,
             reserve: None,
+            host: None,
         }
     }
 
@@ -533,19 +539,25 @@ impl TimeUpdateQuery {
         self
     }
 
+    pub fn host(mut self, host: AgentId) -> Self {
+        self.host = Some(host);
+        self
+    }
+
     pub async fn execute(self, conn: &mut PgConnection) -> sqlx::Result<u64> {
         use quaint::ast::{Comparable, Update};
         use quaint::visitor::{Postgres, Visitor};
 
-        let q = Update::table("class");
-        let q = match (&self.time, &self.reserve) {
-            (Some(_), Some(_)) => q
-                .set("time", "__placeholder_time__")
-                .set("reserve", "__placeholder__"),
-            (Some(_), None) => q.set("time", "__placeholder__"),
-            (None, Some(_)) => q.set("reserve", "__placeholder__"),
-            (None, None) => q,
-        };
+        let mut q = Update::table("class");
+        if self.time.is_some() {
+            q = q.set("time", "__placeholder_time__");
+        }
+        if self.reserve.is_some() {
+            q = q.set("reserve", "__placeholder_reserve__");
+        }
+        if self.host.is_some() {
+            q = q.set("host", "__placeholder_host__");
+        }
 
         let q = q.so_that("id".equals("__placeholder__"));
 
@@ -563,6 +575,11 @@ impl TimeUpdateQuery {
 
         let query = match &self.reserve {
             Some(r) => query.bind(r),
+            None => query,
+        };
+
+        let query = match &self.host {
+            Some(h) => query.bind(h),
             None => query,
         };
 
@@ -604,7 +621,8 @@ impl RoomCloseQuery {
                 original_event_room_id,
                 modified_event_room_id,
                 reserve,
-                room_events_uri
+                room_events_uri,
+                host AS "host: AgentId"
             "#,
             self.id
         )

@@ -145,6 +145,18 @@ pub struct RoomUpdate {
     pub classroom_id: Option<Uuid>,
 }
 
+impl RoomUpdate {
+    pub fn is_empty_update(&self) -> bool {
+        matches!(
+            self,
+            RoomUpdate {
+                classroom_id: None,
+                time: None
+            }
+        )
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 #[cfg_attr(test, automock)]

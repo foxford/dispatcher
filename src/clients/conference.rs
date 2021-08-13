@@ -28,6 +28,21 @@ pub struct RoomUpdate {
     pub time: Option<BoundedDateTimeTuple>,
     pub reserve: Option<i32>,
     pub classroom_id: Option<Uuid>,
+    pub host: Option<AgentId>,
+}
+
+impl RoomUpdate {
+    pub fn is_empty_update(&self) -> bool {
+        matches!(
+            self,
+            RoomUpdate {
+                classroom_id: None,
+                reserve: None,
+                host: None,
+                time: None
+            }
+        )
+    }
 }
 
 #[derive(Clone, Debug, Deserialize)]
