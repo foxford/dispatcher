@@ -53,6 +53,10 @@ impl Object {
         self.modified_segments.as_ref()
     }
 
+    pub fn modified_or_segments(&self) -> Option<&Segments> {
+        self.modified_segments.as_ref().or_else(|| self.segments())
+    }
+
     pub fn adjusted_at(&self) -> Option<DateTime<Utc>> {
         self.adjusted_at
     }
@@ -228,6 +232,13 @@ impl RecordingInsertQuery {
                 transcoded_at, created_by
             )
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            ON CONFLICT (class_id, created_by)
+            WHERE deleted_at IS NULL
+            DO UPDATE
+            SET (rtc_id, stream_uri, segments, modified_segments,
+                    started_at, adjusted_at, transcoded_at, created_by, created_at) =
+                (EXCLUDED.rtc_id, EXCLUDED.stream_uri, EXCLUDED.segments, EXCLUDED.modified_segments, EXCLUDED.started_at, EXCLUDED.adjusted_at,
+                        EXCLUDED.transcoded_at, EXCLUDED.created_by, NOW())
             RETURNING
                 id,
                 class_id,
@@ -306,11 +317,17 @@ impl AdjustWebinarUpdateQuery {
 
 pub struct AdjustMinigroupUpdateQuery {
     minigroup_id: Uuid,
+    modified_segments: Segments,
+    host: AgentId,
 }
 
 impl AdjustMinigroupUpdateQuery {
-    pub fn new(minigroup_id: Uuid) -> Self {
-        Self { minigroup_id }
+    pub fn new(minigroup_id: Uuid, modified_segments: Segments, host: AgentId) -> Self {
+        Self {
+            minigroup_id,
+            modified_segments,
+            host,
+        }
     }
 
     pub async fn execute(self, conn: &mut PgConnection) -> sqlx::Result<Vec<Object>> {
@@ -318,7 +335,11 @@ impl AdjustMinigroupUpdateQuery {
             Object,
             r#"
             UPDATE recording
-            SET modified_segments = segments,
+            SET modified_segments =
+                CASE
+                    WHEN created_by = $3 THEN $2
+                    ELSE segments
+                END,
                 adjusted_at = NOW()
             WHERE class_id = $1
             RETURNING
@@ -336,6 +357,8 @@ impl AdjustMinigroupUpdateQuery {
                 deleted_at
             "#,
             self.minigroup_id,
+            self.modified_segments as Segments,
+            self.host as AgentId
         )
         .fetch_all(conn)
         .await

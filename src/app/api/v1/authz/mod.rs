@@ -103,12 +103,20 @@ fn validate_client(
                     None => Err(anyhow!("Access to bucket {:?} isnt proxied", id)),
                 }
             } else if BUCKETS.iter().any(|prefix| id.starts_with(prefix)) {
-                match extract_rtc_id(id) {
-                    Some(rtc_id) => {
-                        let rtc_id = Uuid::from_str(rtc_id)?;
-                        Ok(AuthzReadQuery::by_rtc_id(rtc_id))
-                    }
-                    None => Err(anyhow!("Access to bucket {:?} isnt proxied", id)),
+                if id.contains("minigroup") {
+                    extract_audience_and_scope(&id)
+                        .map(|AudienceScope { audience, scope }| {
+                            AuthzReadQuery::by_scope(audience, scope)
+                        })
+                        .ok_or_else(|| anyhow!("Access to set {:?} isnt proxied", id))
+                } else {
+                    extract_rtc_id(id)
+                        .ok_or_else(|| anyhow!("Access to set {:?} isnt proxied", id))
+                        .and_then(|rtc_id| {
+                            Uuid::from_str(rtc_id)
+                                .map(|rtc_id| AuthzReadQuery::by_rtc_id(rtc_id))
+                                .map_err(|e| e.into())
+                        })
                 }
             } else {
                 Err(anyhow!("Access to bucket {:?} isnt proxied", id))

@@ -16,14 +16,13 @@ use svc_agent::{
 use uuid::Uuid;
 
 use crate::clients::event::{Event, EventData, RoomAdjustResult};
+use crate::clients::tq::{
+    Task as TqTask, TranscodeMinigroupToHlsStream, TranscodeMinigroupToHlsSuccess,
+};
 use crate::db::class::Object as Class;
 use crate::db::recording::BoundedOffsetTuples;
-use crate::db::recording::Object as Recording;
+use crate::db::recording::Segments;
 use crate::{app::AppContext, clients::conference::ConfigSnapshot};
-use crate::{
-    clients::tq::{Task as TqTask, TranscodeMinigroupToHlsStream, TranscodeMinigroupToHlsSuccess},
-    db::recording::Segments,
-};
 
 use super::{
     shared_helpers, MjrDumpsUploadReadyData, MjrDumpsUploadResult, TranscodeSuccess, UploadedStream,
@@ -86,8 +85,14 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
             RoomAdjustResult::Success {
                 original_room_id,
                 modified_room_id,
-                ..
+                modified_segments,
             } => {
+                // Find host stream id.
+                let host = match self.find_host(modified_room_id).await? {
+                    None => bail!("No host in room"),
+                    Some(agent_id) => agent_id,
+                };
+
                 // Save adjust results to the DB and fetch recordings.
                 let recordings = {
                     let mut conn = self.ctx.get_conn().await?;
@@ -105,10 +110,13 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
 
                     q.execute(&mut txn).await?;
 
-                    let recordings =
-                        crate::db::recording::AdjustMinigroupUpdateQuery::new(self.minigroup.id())
-                            .execute(&mut txn)
-                            .await?;
+                    let recordings = crate::db::recording::AdjustMinigroupUpdateQuery::new(
+                        self.minigroup.id(),
+                        modified_segments,
+                        host.clone(),
+                    )
+                    .execute(&mut txn)
+                    .await?;
 
                     txn.commit().await?;
                     recordings
@@ -185,20 +193,13 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
                     })
                     .collect::<Result<Vec<_>, _>>()?;
 
-                // Find host stream id.
-                let host = match self.find_host(modified_event_room.id).await? {
-                    // Host has not been set, skip transcoding.
-                    None => return Ok(()),
-                    Some(agent_id) => agent_id,
-                };
-
                 let maybe_host_recording = recordings
                     .iter()
                     .find(|recording| recording.created_by == host);
 
                 let host_stream_id = match maybe_host_recording {
                     // Host has been set but there's no recording, skip transcoding.
-                    None => return Ok(()),
+                    None => bail!("No host stream id in room"),
                     Some(recording) => recording.rtc_id,
                 };
 
@@ -405,7 +406,7 @@ fn build_stream(
     let mut pin_start = None;
 
     let recording_end = match recording
-        .segments
+        .modified_segments
         .last()
         .map(|range| range.end)
         .ok_or_else(|| anyhow!("Recording segments have no end?"))?
@@ -421,7 +422,7 @@ fn build_stream(
 
             if data
                 .agent_id()
-                .map(|aid| aid == &recording.created_by)
+                .map(|aid| *aid == recording.created_by)
                 .unwrap_or(false)
                 && pin_start.is_none()
             {
@@ -488,7 +489,7 @@ fn build_stream(
 
     let v = TranscodeMinigroupToHlsStream::new(recording.rtc_id, recording.stream_uri.to_owned())
         .offset(recording_offset.num_milliseconds() as u64)
-        .segments(recording.segments.to_owned())
+        .segments(recording.modified_segments.to_owned())
         .pin_segments(pin_segments.into())
         .video_mute_segments(video_mute_segments.into())
         .audio_mute_segments(audio_mute_segments.into());
@@ -501,6 +502,7 @@ struct ReadyRecording {
     rtc_id: Uuid,
     stream_uri: String,
     segments: Segments,
+    modified_segments: Segments,
     started_at: DateTime<Utc>,
     created_by: AgentId,
 }
@@ -511,6 +513,7 @@ impl ReadyRecording {
             rtc_id: recording.rtc_id(),
             stream_uri: recording.stream_uri().cloned()?,
             segments: recording.segments().cloned()?,
+            modified_segments: recording.modified_or_segments().cloned()?,
             started_at: recording.started_at()?,
             created_by: recording.created_by().clone(),
         })
@@ -544,9 +547,7 @@ mod tests {
         use crate::db::recording::{RecordingListQuery, Segments};
         use crate::test_helpers::{prelude::*, shared_helpers::random_string};
 
-        use super::super::super::{
-            MjrDumpsUploadReadyData, MjrDumpsUploadResult, PostprocessingStrategy,
-        };
+        use super::super::super::PostprocessingStrategy;
         use super::super::*;
 
         #[async_std::test]
@@ -629,6 +630,7 @@ mod tests {
                         .build()]),
                     other => panic!("Event client mock got unknown kind: {}", other),
                 });
+
             state
                 .event_client_mock()
                 .expect_adjust_room()
@@ -638,7 +640,10 @@ mod tests {
                           segments: &Segments,
                           offset: &i64| {
                         assert_eq!(*room_id, event_room_id);
-                        assert_eq!(started_at.timestamp(), started_at1.timestamp());
+                        assert_eq!(
+                            started_at.timestamp_millis(),
+                            started_at1.timestamp_millis()
+                        );
                         assert_eq!(segments, &expected_segments);
                         assert_eq!(*offset, PREROLL_OFFSET);
                         true
@@ -998,7 +1003,13 @@ mod tests {
                 streams: vec![
                     TranscodeMinigroupToHlsStream::new(recording1.rtc_id(), uri1)
                         .offset(0)
-                        .segments(recording1.segments().unwrap().to_owned())
+                        .segments(
+                            vec![
+                                (Bound::Included(500000), Bound::Excluded(1500000)),
+                                (Bound::Included(1800000), Bound::Excluded(3000000)),
+                            ]
+                            .into(),
+                        )
                         .pin_segments(
                             vec![
                                 (Bound::Included(0), Bound::Excluded(1200000)),
@@ -1029,11 +1040,17 @@ mod tests {
             // Handle event room adjustment.
             let state = Arc::new(state);
 
+            let modified_segments: Segments = vec![
+                (Bound::Included(500000), Bound::Excluded(1500000)),
+                (Bound::Included(1800000), Bound::Excluded(3000000)),
+            ]
+            .into();
+
             MinigroupPostprocessingStrategy::new(state.clone(), minigroup)
                 .handle_adjust(RoomAdjustResult::Success {
                     original_room_id: original_event_room_id,
                     modified_room_id: modified_event_room_id,
-                    modified_segments: vec![(Bound::Included(0), Bound::Excluded(3000000))].into(),
+                    modified_segments: modified_segments.clone(),
                 })
                 .await
                 .expect("Failed to handle event room adjustment");
@@ -1062,7 +1079,7 @@ mod tests {
                 .await
                 .expect("Failed to fetch recordings");
 
-            for recording in &[recording1, recording2] {
+            for recording in [&recording1, &recording2] {
                 let updated_recording = recordings
                     .iter()
                     .find(|r| r.id() == recording.id())
@@ -1070,7 +1087,14 @@ mod tests {
 
                 assert!(updated_recording.adjusted_at().is_some());
 
-                assert_eq!(updated_recording.modified_segments(), recording.segments());
+                assert_eq!(
+                    updated_recording.modified_segments(),
+                    if recording.id() == recording1.id() {
+                        Some(&modified_segments)
+                    } else {
+                        recording.segments()
+                    }
+                );
             }
         }
 
@@ -1210,7 +1234,13 @@ mod tests {
                 streams: vec![
                     TranscodeMinigroupToHlsStream::new(recording1.rtc_id(), uri1)
                         .offset(0)
-                        .segments(recording1.segments().unwrap().to_owned())
+                        .segments(
+                            vec![
+                                (Bound::Included(500000), Bound::Excluded(1500000)),
+                                (Bound::Included(1800000), Bound::Excluded(3000000)),
+                            ]
+                            .into(),
+                        )
                         .pin_segments(vec![(Bound::Included(0), Bound::Excluded(1000000))].into()),
                     TranscodeMinigroupToHlsStream::new(recording2.rtc_id(), uri2)
                         .offset(600000)
@@ -1233,11 +1263,17 @@ mod tests {
             // Handle event room adjustment.
             let state = Arc::new(state);
 
+            let modified_segments: Segments = vec![
+                (Bound::Included(500000), Bound::Excluded(1500000)),
+                (Bound::Included(1800000), Bound::Excluded(3000000)),
+            ]
+            .into();
+
             MinigroupPostprocessingStrategy::new(state.clone(), minigroup)
                 .handle_adjust(RoomAdjustResult::Success {
                     original_room_id: original_event_room_id,
                     modified_room_id: modified_event_room_id,
-                    modified_segments: vec![(Bound::Included(0), Bound::Excluded(3000000))].into(),
+                    modified_segments: modified_segments.clone(),
                 })
                 .await
                 .expect("Failed to handle event room adjustment");
@@ -1266,7 +1302,7 @@ mod tests {
                 .await
                 .expect("Failed to fetch recordings");
 
-            for recording in &[recording1, recording2] {
+            for recording in [&recording1, &recording2] {
                 let updated_recording = recordings
                     .iter()
                     .find(|r| r.id() == recording.id())
@@ -1274,7 +1310,14 @@ mod tests {
 
                 assert!(updated_recording.adjusted_at().is_some());
 
-                assert_eq!(updated_recording.modified_segments(), recording.segments());
+                assert_eq!(
+                    updated_recording.modified_segments(),
+                    if recording.id() == recording1.id() {
+                        Some(&modified_segments)
+                    } else {
+                        recording.segments()
+                    }
+                );
             }
         }
     }

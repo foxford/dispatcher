@@ -182,8 +182,8 @@ impl MetricsMiddleware {
                         .duration_vec
                         .get_metric_with_label_values(&[&self.path, method.as_ref()])
                         .map_err(|err| {
-                            error!(crate::LOG, "Crating timer for metrics errored: {:?}", err; 
-                            "path" => &self.path, 
+                            error!(crate::LOG, "Crating timer for metrics errored: {:?}", err;
+                            "path" => &self.path,
                             "method" => method.as_ref())
                         })
                 })
@@ -205,9 +205,9 @@ impl MetricsMiddleware {
                             &status.to_string(),
                         ])
                         .map_err(|err| {
-                            error!(crate::LOG, "Crating counter for metrics errored: {:?}", err; 
-                            "path" => &self.path, 
-                            "method" => method.as_ref(), 
+                            error!(crate::LOG, "Crating counter for metrics errored: {:?}", err;
+                            "path" => &self.path,
+                            "method" => method.as_ref(),
                             "status" => &status.to_string())
                         })
                 })
