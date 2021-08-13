@@ -60,6 +60,7 @@ All parameters are optional but at least one is expected
 ---------------------- | ----------- | -------- | -------------------------------------------------
 time                   | [int, int]  | +        | New time
 reserve                | int         | +        | New reserve
+host                   | string      | +        | Host agent id
 
 Response: status 200 and minigroup object as payload.
 
