@@ -73,8 +73,7 @@ mod handle_upload {
         ]
         .into();
 
-        let expected_segments: Segments =
-            vec![(Bound::Included(0), Bound::Excluded(3000000))].into();
+        let expected_segments = segments1.clone();
 
         state
             .event_client_mock()
@@ -484,9 +483,7 @@ mod handle_adjust {
                 TranscodeMinigroupToHlsStream::new(recording2.rtc_id(), uri2)
                     .offset(600000)
                     .segments(recording2.segments().unwrap().to_owned())
-                    .pin_segments(
-                        vec![(Bound::Included(600001), Bound::Excluded(900001))].into(),
-                    ),
+                    .pin_segments(vec![(Bound::Included(600001), Bound::Excluded(900001))].into()),
             ],
             host_stream_id: recording1.rtc_id(),
         };
