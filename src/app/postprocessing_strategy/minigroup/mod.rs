@@ -20,7 +20,6 @@ use crate::clients::tq::{
     Task as TqTask, TranscodeMinigroupToHlsStream, TranscodeMinigroupToHlsSuccess,
 };
 use crate::db::class::Object as Class;
-use crate::db::recording::BoundedOffsetTuples;
 use crate::db::recording::Segments;
 use crate::{app::AppContext, clients::conference::ConfigSnapshot};
 
@@ -71,10 +70,17 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
             return Ok(());
         }
 
+        // Find host stream id.
+        let host = match self.find_host(self.minigroup.event_room_id()).await? {
+            None => bail!("No host in room"),
+            Some(agent_id) => agent_id,
+        };
+
         call_adjust(
             self.ctx.clone(),
             self.minigroup.event_room_id(),
             ready_recordings,
+            host,
         )
         .await?;
         Ok(())
@@ -342,6 +348,7 @@ async fn call_adjust(
     ctx: Arc<dyn AppContext>,
     room_id: Uuid,
     recordings: Vec<ReadyRecording>,
+    host: AgentId,
 ) -> Result<()> {
     let started_at = recordings
         .iter()
@@ -349,49 +356,17 @@ async fn call_adjust(
         .min()
         .ok_or_else(|| anyhow!("Couldn't get min started at"))?;
 
-    let segments = build_adjust_segments(&recordings)?;
+    let host_recording = recordings
+        .into_iter()
+        .find(|recording| recording.created_by == host)
+        .ok_or_else(|| anyhow!("No host recording"))?;
 
     ctx.event_client()
-        .adjust_room(room_id, started_at, segments, PREROLL_OFFSET)
+        .adjust_room(room_id, started_at, host_recording.segments, PREROLL_OFFSET)
         .await
         .map_err(|err| anyhow!("Failed to adjust room, id = {}: {}", room_id, err))?;
 
     Ok(())
-}
-
-fn build_adjust_segments(rtcs: &[ReadyRecording]) -> Result<Segments> {
-    let mut maybe_min_start: Option<i64> = None;
-    let mut maybe_max_stop: Option<i64> = None;
-
-    for rtc in rtcs.iter() {
-        let segments: BoundedOffsetTuples = rtc.segments.clone().into();
-
-        if let Some((Bound::Included(start), _)) = segments.first() {
-            if let Some(min_start) = maybe_min_start {
-                if *start < min_start {
-                    maybe_min_start = Some(*start);
-                }
-            } else {
-                maybe_min_start = Some(*start);
-            }
-        }
-
-        if let Some((_, Bound::Excluded(stop))) = segments.last() {
-            if let Some(max_stop) = maybe_max_stop {
-                if *stop > max_stop {
-                    maybe_max_stop = Some(*stop);
-                }
-            } else {
-                maybe_max_stop = Some(*stop);
-            }
-        }
-    }
-
-    if let (Some(start), Some(stop)) = (maybe_min_start, maybe_max_stop) {
-        Ok(vec![(Bound::Included(start), Bound::Excluded(stop))].into())
-    } else {
-        bail!("Couldn't find min start & max stop in segments");
-    }
 }
 
 fn build_stream(
