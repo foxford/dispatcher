@@ -203,7 +203,7 @@ impl MetricsMiddleware {
                         &status.to_string(),
                     ])
                     .map_err(|err| {
-                        error!(crate::LOG, "Crating counter for metrics errored: {:?}", err;
+                        error!(crate::LOG, "Creating counter for metrics errored: {:?}", err;
                             "path" => &self.path,
                             "method" => method.as_ref(),
                             "status" => &status.to_string())
