@@ -163,11 +163,11 @@ impl ConferenceClient for MqttConferenceClient {
         let payload_result = if let Some(dur) = self.timeout {
             async_std::future::timeout(dur, request)
                 .await
-                .map_err(|_e| ClientError::TimeoutError)?
+                .map_err(|_e| ClientError::Timeout)?
         } else {
             request.await
         };
-        let payload = payload_result.map_err(|e| ClientError::PayloadError(e.to_string()))?;
+        let payload = payload_result.map_err(|e| ClientError::Payload(e.to_string()))?;
 
         Ok(payload.extract_payload())
     }
@@ -197,7 +197,7 @@ impl ConferenceClient for MqttConferenceClient {
         ) {
             msg
         } else {
-            return Err(ClientError::AgentError(AgentError::new(
+            return Err(ClientError::Agent(AgentError::new(
                 "this is actually unreachable",
             )));
         };
@@ -206,17 +206,17 @@ impl ConferenceClient for MqttConferenceClient {
         let payload_result = if let Some(dur) = self.timeout {
             async_std::future::timeout(dur, request)
                 .await
-                .map_err(|_e| ClientError::TimeoutError)?
+                .map_err(|_e| ClientError::Timeout)?
         } else {
             request.await
         };
-        let payload = payload_result.map_err(|e| ClientError::PayloadError(e.to_string()))?;
+        let payload = payload_result.map_err(|e| ClientError::Payload(e.to_string()))?;
 
         let data = payload.extract_payload();
 
         let uuid_result = match data.get("id").and_then(|v| v.as_str()) {
-            Some(id) => Uuid::from_str(id).map_err(|e| ClientError::PayloadError(e.to_string())),
-            None => Err(ClientError::PayloadError(
+            Some(id) => Uuid::from_str(id).map_err(|e| ClientError::Payload(e.to_string())),
+            None => Err(ClientError::Payload(
                 "Missing id field in room.create response".into(),
             )),
         };
@@ -247,14 +247,14 @@ impl ConferenceClient for MqttConferenceClient {
         let payload_result = if let Some(dur) = self.timeout {
             async_std::future::timeout(dur, request)
                 .await
-                .map_err(|_e| ClientError::TimeoutError)?
+                .map_err(|_e| ClientError::Timeout)?
         } else {
             request.await
         };
-        let payload = payload_result.map_err(|e| ClientError::PayloadError(e.to_string()))?;
+        let payload = payload_result.map_err(|e| ClientError::Payload(e.to_string()))?;
         match payload.properties().status().as_u16() {
             200 => Ok(()),
-            _ => Err(ClientError::PayloadError(
+            _ => Err(ClientError::Payload(
                 "Conference room update returned non 200 status".into(),
             )),
         }
@@ -282,11 +282,11 @@ impl ConferenceClient for MqttConferenceClient {
         let payload_result = if let Some(dur) = self.timeout {
             async_std::future::timeout(dur, request)
                 .await
-                .map_err(|_e| ClientError::TimeoutError)?
+                .map_err(|_e| ClientError::Timeout)?
         } else {
             request.await
         };
-        let payload = payload_result.map_err(|e| ClientError::PayloadError(e.to_string()))?;
+        let payload = payload_result.map_err(|e| ClientError::Payload(e.to_string()))?;
 
         Ok(payload.extract_payload())
     }

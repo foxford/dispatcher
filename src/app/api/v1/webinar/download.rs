@@ -41,7 +41,8 @@ pub async fn download(req: Request<Arc<dyn AppContext>>) -> AppResult {
         .ok_or_else(|| anyhow!("Failed to find recording"))
         .error(AppErrorKind::RecordingNotFound)?;
 
-    let body = serde_json::json!({ "url": format_url(&req.state().storage_config(), &webinar, &recording) });
+    let body =
+        serde_json::json!({ "url": format_url(req.state().storage_config(), &webinar, recording) });
 
     let body = serde_json::to_string(&body).expect("Never fails");
     let response = Response::builder(200).body(body).build();

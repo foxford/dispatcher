@@ -121,7 +121,7 @@ pub async fn read_by_scope<T: AsClassType>(req: Request<Arc<dyn AppContext>>) ->
     let scope = extract_param(&req, "scope").error(AppErrorKind::InvalidParameter)?;
     let state = req.state();
 
-    do_read_by_scope::<T>(state.as_ref(), &account_id, &audience, &scope).await
+    do_read_by_scope::<T>(state.as_ref(), &account_id, audience, scope).await
 }
 
 async fn do_read_by_scope<T: AsClassType>(
