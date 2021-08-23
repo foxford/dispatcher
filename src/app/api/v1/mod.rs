@@ -13,10 +13,10 @@ use uuid::Uuid;
 
 use super::FEATURE_POLICY;
 
-use crate::app::authz::AuthzObject;
 use crate::app::error::ErrorExt;
 use crate::app::error::ErrorKind as AppErrorKind;
 use crate::app::AppContext;
+use crate::app::{authz::AuthzObject, metrics::AuthorizeMetrics};
 use crate::db::class::AsClassType;
 
 type AppError = crate::app::error::Error;
@@ -72,7 +72,8 @@ pub async fn create_event(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
             object,
             "update".into(),
         )
-        .await?;
+        .await
+        .measure()?;
 
     body["room_id"] = serde_json::to_value(class.event_room_id()).unwrap();
 

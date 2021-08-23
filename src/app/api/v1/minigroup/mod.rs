@@ -8,11 +8,14 @@ use serde_derive::Deserialize;
 use svc_agent::AccountId;
 use tide::{Request, Response};
 
-use crate::app::api::v1::class::{read as read_generic, read_by_scope as read_by_scope_generic};
 use crate::app::authz::AuthzObject;
 use crate::app::error::ErrorExt;
 use crate::app::error::ErrorKind as AppErrorKind;
 use crate::app::AppContext;
+use crate::app::{
+    api::v1::class::{read as read_generic, read_by_scope as read_by_scope_generic},
+    metrics::AuthorizeMetrics,
+};
 use crate::db::class::BoundedDateTimeTuple;
 use crate::db::class::MinigroupType;
 
@@ -60,7 +63,8 @@ async fn do_create(
             object,
             "create".into(),
         )
-        .await?;
+        .await
+        .measure()?;
 
     let conference_time = match body.time.map(|t| t.0) {
         Some(Bound::Included(t)) | Some(Bound::Excluded(t)) => {
