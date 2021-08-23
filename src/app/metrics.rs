@@ -193,27 +193,27 @@ impl MetricsMiddleware {
     }
 
     fn inc_counter(&self, method: Method, status: StatusCode) {
-        self.stats
-            .get(&(method, status))
-            .and_then(|c| {
-                c.get_or_try_init(|| {
-                    METRICS
-                        .status_vec
-                        .get_metric_with_label_values(&[
-                            &self.path,
-                            method.as_ref(),
-                            &status.to_string(),
-                        ])
-                        .map_err(|err| {
-                            error!(crate::LOG, "Crating counter for metrics errored: {:?}", err;
+        let counter = self.stats.get(&(method, status)).and_then(|c| {
+            c.get_or_try_init(|| {
+                METRICS
+                    .status_vec
+                    .get_metric_with_label_values(&[
+                        &self.path,
+                        method.as_ref(),
+                        &status.to_string(),
+                    ])
+                    .map_err(|err| {
+                        error!(crate::LOG, "Creating counter for metrics errored: {:?}", err;
                             "path" => &self.path,
                             "method" => method.as_ref(),
                             "status" => &status.to_string())
-                        })
-                })
-                .ok()
+                    })
             })
-            .map(|x| x.inc());
+            .ok()
+        });
+        if let Some(counter) = counter {
+            counter.inc()
+        }
     }
 }
 

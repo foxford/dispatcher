@@ -258,19 +258,18 @@ impl TqClient for HttpTqClient {
         };
 
         let url = self.base_url.join(&route).map_err(|e| {
-            ClientError::HttpError(format!(
+            ClientError::Http(format!(
                 "Failed to join base_url with route, base_url = {}, route = {}, err = {}",
                 self.base_url, route, e
             ))
         })?;
 
-        let json =
-            serde_json::to_string(&task).map_err(|e| ClientError::PayloadError(e.to_string()))?;
+        let json = serde_json::to_string(&task).map_err(|e| ClientError::Payload(e.to_string()))?;
         let mut resp = self
             .client
             .post_async(url.as_str(), json)
             .await
-            .map_err(|e| ClientError::HttpError(e.to_string()))?;
+            .map_err(|e| ClientError::Http(e.to_string()))?;
         if resp.status() == http::StatusCode::OK {
             Ok(())
         } else {
@@ -289,7 +288,7 @@ impl TqClient for HttpTqClient {
                     body
                 )
             };
-            Err(ClientError::PayloadError(e))
+            Err(ClientError::Payload(e))
         }
     }
 }

@@ -237,7 +237,7 @@ async fn find_by_scope<T: AsClassType>(
 ) -> anyhow::Result<crate::db::class::Object> {
     let webinar = {
         let mut conn = state.get_conn().await?;
-        crate::db::class::GenericReadQuery::<T>::by_scope(&audience, &scope)
+        crate::db::class::GenericReadQuery::<T>::by_scope(audience, scope)
             .execute(&mut conn)
             .await?
             .ok_or_else(|| anyhow!("Failed to find {} by scope", T::as_str()))?

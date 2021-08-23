@@ -318,11 +318,11 @@ impl EventClient for MqttEventClient {
         let payload_result = if let Some(dur) = self.timeout {
             async_std::future::timeout(dur, request)
                 .await
-                .map_err(|_e| ClientError::TimeoutError)?
+                .map_err(|_e| ClientError::Timeout)?
         } else {
             request.await
         };
-        let payload = payload_result.map_err(|e| ClientError::PayloadError(e.to_string()))?;
+        let payload = payload_result.map_err(|e| ClientError::Payload(e.to_string()))?;
 
         Ok(payload.extract_payload())
     }
@@ -354,17 +354,17 @@ impl EventClient for MqttEventClient {
         let payload_result = if let Some(dur) = self.timeout {
             async_std::future::timeout(dur, request)
                 .await
-                .map_err(|_e| ClientError::TimeoutError)?
+                .map_err(|_e| ClientError::Timeout)?
         } else {
             request.await
         };
-        let payload = payload_result.map_err(|e| ClientError::PayloadError(e.to_string()))?;
+        let payload = payload_result.map_err(|e| ClientError::Payload(e.to_string()))?;
 
         let data = payload.extract_payload();
 
         let uuid_result = match data.get("id").and_then(|v| v.as_str()) {
-            Some(id) => Uuid::from_str(id).map_err(|e| ClientError::PayloadError(e.to_string())),
-            None => Err(ClientError::PayloadError(
+            Some(id) => Uuid::from_str(id).map_err(|e| ClientError::Payload(e.to_string())),
+            None => Err(ClientError::Payload(
                 "Missing id field in room.create response".into(),
             )),
         };
@@ -392,14 +392,14 @@ impl EventClient for MqttEventClient {
         let payload_result = if let Some(dur) = self.timeout {
             async_std::future::timeout(dur, request)
                 .await
-                .map_err(|_e| ClientError::TimeoutError)?
+                .map_err(|_e| ClientError::Timeout)?
         } else {
             request.await
         };
-        let payload = payload_result.map_err(|e| ClientError::PayloadError(e.to_string()))?;
+        let payload = payload_result.map_err(|e| ClientError::Payload(e.to_string()))?;
         match payload.properties().status() {
             ResponseStatus::OK => Ok(()),
-            _ => Err(ClientError::PayloadError(
+            _ => Err(ClientError::Payload(
                 "Event room update returned non 200 status".into(),
             )),
         }
@@ -432,18 +432,18 @@ impl EventClient for MqttEventClient {
         let payload_result = if let Some(dur) = self.timeout {
             async_std::future::timeout(dur, request)
                 .await
-                .map_err(|_e| ClientError::TimeoutError)?
+                .map_err(|_e| ClientError::Timeout)?
         } else {
             request.await
         };
 
-        let payload = payload_result.map_err(|e| ClientError::PayloadError(e.to_string()))?;
+        let payload = payload_result.map_err(|e| ClientError::Payload(e.to_string()))?;
 
         match payload.properties().status() {
             ResponseStatus::ACCEPTED => Ok(()),
             status => {
                 let e = format!("Wrong status, expected 202, got {:?}", status);
-                Err(ClientError::PayloadError(e))
+                Err(ClientError::Payload(e))
             }
         }
     }
@@ -463,12 +463,12 @@ impl EventClient for MqttEventClient {
         let payload_result = if let Some(dur) = self.timeout {
             async_std::future::timeout(dur, request)
                 .await
-                .map_err(|_e| ClientError::TimeoutError)?
+                .map_err(|_e| ClientError::Timeout)?
         } else {
             request.await
         };
 
-        let payload = payload_result.map_err(|e| ClientError::PayloadError(e.to_string()))?;
+        let payload = payload_result.map_err(|e| ClientError::Payload(e.to_string()))?;
 
         match payload.properties().status() {
             ResponseStatus::CREATED => Ok(()),
@@ -478,7 +478,7 @@ impl EventClient for MqttEventClient {
                     status,
                     payload.payload()
                 );
-                Err(ClientError::PayloadError(e))
+                Err(ClientError::Payload(e))
             }
         }
     }
@@ -510,17 +510,17 @@ impl EventClient for MqttEventClient {
             let response_result = if let Some(dur) = self.timeout {
                 async_std::future::timeout(dur, request)
                     .await
-                    .map_err(|_e| ClientError::TimeoutError)?
+                    .map_err(|_e| ClientError::Timeout)?
             } else {
                 request.await
             };
 
-            let response = response_result.map_err(|e| ClientError::PayloadError(e.to_string()))?;
+            let response = response_result.map_err(|e| ClientError::Payload(e.to_string()))?;
             let status = response.properties().status();
 
             if status != ResponseStatus::OK {
                 let e = format!("Wrong status, expected 200, got {:?}", status);
-                return Err(ClientError::PayloadError(e));
+                return Err(ClientError::Payload(e));
             }
 
             if let Some(last_event) = response.payload().last() {
@@ -551,18 +551,18 @@ impl EventClient for MqttEventClient {
         let payload_result = if let Some(dur) = self.timeout {
             async_std::future::timeout(dur, request)
                 .await
-                .map_err(|_| ClientError::TimeoutError)?
+                .map_err(|_| ClientError::Timeout)?
         } else {
             request.await
         };
 
-        let payload = payload_result.map_err(|e| ClientError::PayloadError(e.to_string()))?;
+        let payload = payload_result.map_err(|e| ClientError::Payload(e.to_string()))?;
 
         match payload.properties().status() {
             ResponseStatus::ACCEPTED => Ok(()),
             status => {
                 let e = format!("Wrong status, expected 202, got {:?}", status);
-                Err(ClientError::PayloadError(e))
+                Err(ClientError::Payload(e))
             }
         }
     }

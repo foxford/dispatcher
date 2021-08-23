@@ -53,7 +53,7 @@ async fn read(
     finder: impl Future<Output = AnyResult<Class>>,
 ) -> AppResult {
     let state = req.state();
-    let account_id = validate_token(&req).error(AppErrorKind::Unauthorized)?;
+    let account_id = validate_token(req).error(AppErrorKind::Unauthorized)?;
 
     let chat = match finder.await {
         Ok(chat) => chat,

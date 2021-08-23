@@ -79,16 +79,16 @@ fn validate_client(
     let account_audience = account_id.audience().split(':').next().unwrap();
     let q = match account_id.label() {
         "event" if account_audience == audience => |id: &str| {
-            let id = Uuid::from_str(&id)?;
+            let id = Uuid::from_str(id)?;
             Ok(AuthzReadQuery::by_event(id))
         },
         "conference" if account_audience == audience => |id: &str| {
-            let id = Uuid::from_str(&id)?;
+            let id = Uuid::from_str(id)?;
             Ok(AuthzReadQuery::by_conference(id))
         },
         "storage" if account_audience == audience => |id: &str| {
             if id.starts_with("content.") {
-                match extract_audience_and_scope(&id) {
+                match extract_audience_and_scope(id) {
                     Some(AudienceScope { audience, scope }) => {
                         Ok(AuthzReadQuery::by_scope(audience, scope))
                     }
@@ -104,7 +104,7 @@ fn validate_client(
                 }
             } else if BUCKETS.iter().any(|prefix| id.starts_with(prefix)) {
                 if id.contains("minigroup") {
-                    extract_audience_and_scope(&id)
+                    extract_audience_and_scope(id)
                         .map(|AudienceScope { audience, scope }| {
                             AuthzReadQuery::by_scope(audience, scope)
                         })
@@ -114,7 +114,7 @@ fn validate_client(
                         .ok_or_else(|| anyhow!("Access to set {:?} isnt proxied", id))
                         .and_then(|rtc_id| {
                             Uuid::from_str(rtc_id)
-                                .map(|rtc_id| AuthzReadQuery::by_rtc_id(rtc_id))
+                                .map(AuthzReadQuery::by_rtc_id)
                                 .map_err(|e| e.into())
                         })
                 }
@@ -169,8 +169,7 @@ async fn proxy_request(
 
         Ok(body)
     } else {
-        return Err(anyhow!("No proxy for non http authz backend"))
-            .error(AppErrorKind::AuthorizationFailed);
+        Err(anyhow!("No proxy for non http authz backend")).error(AppErrorKind::AuthorizationFailed)
     }
 }
 
