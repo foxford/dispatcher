@@ -138,6 +138,16 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
                     .await
                     .context("Dump room event failed")?;
 
+                let maybe_host_recording = recordings
+                    .iter()
+                    .find(|recording| recording.created_by == host);
+
+                let host_stream = match maybe_host_recording {
+                    // Host has been set but there's no recording, skip transcoding.
+                    None => bail!("No host stream id in room"),
+                    Some(recording) => recording,
+                };
+
                 // Find the earliest recording.
                 let earliest_recording = recordings
                     .iter()
@@ -184,8 +194,8 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
                 let streams = recordings
                     .iter()
                     .map(|recording| {
-                        let event_room_offset =
-                            recording.started_at - modified_event_room_opened_at;
+                        let event_room_offset = recording.started_at
+                            - (host_stream.started_at - Duration::milliseconds(PREROLL_OFFSET));
 
                         let recording_offset = recording.started_at - earliest_recording.started_at;
 
@@ -199,15 +209,7 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
                     })
                     .collect::<Result<Vec<_>, _>>()?;
 
-                let maybe_host_recording = recordings
-                    .iter()
-                    .find(|recording| recording.created_by == host);
-
-                let host_stream_id = match maybe_host_recording {
-                    // Host has been set but there's no recording, skip transcoding.
-                    None => bail!("No host stream id in room"),
-                    Some(recording) => recording.rtc_id,
-                };
+                let host_stream_id = host_stream.rtc_id;
 
                 // Create a tq task.
                 let task = TqTask::TranscodeMinigroupToHls {
