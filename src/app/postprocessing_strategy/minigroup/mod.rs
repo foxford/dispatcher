@@ -350,19 +350,18 @@ async fn call_adjust(
     recordings: Vec<ReadyRecording>,
     host: AgentId,
 ) -> Result<()> {
-    let started_at = recordings
-        .iter()
-        .map(|rtc| rtc.started_at)
-        .min()
-        .ok_or_else(|| anyhow!("Couldn't get min started at"))?;
-
     let host_recording = recordings
         .into_iter()
         .find(|recording| recording.created_by == host)
         .ok_or_else(|| anyhow!("No host recording"))?;
 
     ctx.event_client()
-        .adjust_room(room_id, started_at, host_recording.segments, PREROLL_OFFSET)
+        .adjust_room(
+            room_id,
+            host_recording.started_at,
+            host_recording.segments,
+            PREROLL_OFFSET,
+        )
         .await
         .map_err(|err| anyhow!("Failed to adjust room, id = {}: {}", room_id, err))?;
 
