@@ -8,10 +8,10 @@ use serde_derive::Deserialize;
 use svc_agent::AccountId;
 use tide::{Request, Response};
 
-use crate::app::authz::AuthzObject;
 use crate::app::error::ErrorExt;
 use crate::app::error::ErrorKind as AppErrorKind;
 use crate::app::AppContext;
+use crate::app::{authz::AuthzObject, metrics::AuthorizeMetrics};
 use crate::db::class::BoundedDateTimeTuple;
 
 use super::{validate_token, AppResult};
@@ -51,7 +51,8 @@ async fn do_create(
             object,
             "create".into(),
         )
-        .await?;
+        .await
+        .measure()?;
 
     let conference_time = match body.time.map(|t| t.0) {
         Some(Bound::Included(t)) | Some(Bound::Excluded(t)) => {

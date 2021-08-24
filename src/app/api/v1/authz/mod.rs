@@ -8,9 +8,9 @@ use svc_authn::{AccountId, Authenticable};
 use tide::{Request, Response};
 use uuid::Uuid;
 
-use crate::app::error::ErrorExt;
 use crate::app::error::ErrorKind as AppErrorKind;
 use crate::app::AppContext;
+use crate::app::{error::ErrorExt, metrics::AuthMetrics};
 
 use crate::db::authz::{AuthzClass, AuthzReadQuery};
 
@@ -133,6 +133,7 @@ async fn proxy_request(
     http_proxy: Option<svc_authz::HttpProxy>,
     old_action: &str,
 ) -> Result<String, AppError> {
+    let _timer = AuthMetrics::start_timer();
     if let Some(http_proxy) = http_proxy {
         let payload = serde_json::to_string(&authz_req)
             .context("Failed to serialize authz request")

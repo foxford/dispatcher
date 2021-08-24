@@ -1,8 +1,8 @@
 use super::*;
 
-use crate::config::StorageConfig;
 use crate::db::class::Object as Class;
 use crate::db::recording::Object as Recording;
+use crate::{app::metrics::AuthorizeMetrics, config::StorageConfig};
 
 pub async fn download(req: Request<Arc<dyn AppContext>>) -> AppResult {
     let account_id = validate_token(&req).error(AppErrorKind::Unauthorized)?;
@@ -22,7 +22,8 @@ pub async fn download(req: Request<Arc<dyn AppContext>>) -> AppResult {
             object,
             "download".into(),
         )
-        .await?;
+        .await
+        .measure()?;
 
     let mut conn = req
         .state()

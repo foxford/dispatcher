@@ -14,6 +14,8 @@ use tide::{Request, Response};
 use crate::app::authz::AuthzObject;
 use crate::app::AppContext;
 
+use super::metrics::AuthorizeMetrics;
+
 const FEATURE_POLICY: &str = "autoplay *; camera *; microphone *; display-capture *; fullscreen *";
 
 #[derive(Deserialize)]
@@ -125,6 +127,7 @@ pub async fn rollback(req: Request<Arc<dyn AppContext>>) -> tide::Result {
                     "rollback".into(),
                 )
                 .await
+                .measure()
             {
                 error!(crate::LOG, "Failed to authorize action, reason = {:?}", err);
                 return Ok(tide::Response::builder(403).body("Access denied").build());

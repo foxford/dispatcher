@@ -1,9 +1,10 @@
 use std::{collections::HashMap, convert::TryFrom};
 
+use chrono::Duration;
 use once_cell::sync::{Lazy, OnceCell};
 use prometheus::{
-    register_histogram_vec, register_int_counter_vec, Histogram, HistogramTimer, HistogramVec,
-    IntCounter, IntCounterVec,
+    register_histogram, register_histogram_vec, register_int_counter_vec, Histogram,
+    HistogramTimer, HistogramVec, IntCounter, IntCounterVec,
 };
 use prometheus_static_metric::make_static_metric;
 use tide::{http::Method, Middleware, Next, Request, Route, StatusCode};
@@ -24,6 +25,14 @@ make_static_metric! {
             success,
             failure,
         },
+    }
+}
+
+pub struct AuthMetrics;
+
+impl AuthMetrics {
+    pub fn start_timer() -> HistogramTimer {
+        METRICS.authz_time.start_timer()
     }
 }
 
@@ -101,6 +110,20 @@ impl<'a, S: Clone + Send + Sync + 'static> AddMetrics<'a, S> for Route<'a, S> {
     }
 }
 
+pub trait AuthorizeMetrics {
+    fn measure(self) -> Self;
+}
+
+impl AuthorizeMetrics for Result<Duration, svc_authz::error::Error> {
+    fn measure(self) -> Self {
+        if let Ok(Ok(d)) = self.as_ref().map(|d| d.to_std()) {
+            let nanos = f64::from(d.subsec_nanos()) / 1e9;
+            METRICS.authz_time.observe(d.as_secs() as f64 + nanos)
+        }
+        self
+    }
+}
+
 static METRICS: Lazy<Metrics> = Lazy::new(Metrics::new);
 
 struct Metrics {
@@ -110,6 +133,7 @@ struct Metrics {
     connection_error: IntCounter,
     disconnect: IntCounter,
     reconnection: IntCounter,
+    authz_time: Histogram,
 }
 
 impl Metrics {
@@ -137,6 +161,8 @@ impl Metrics {
             connection_error: mqtt_errors.with_label_values(&["connection_error"]),
             disconnect: mqtt_errors.with_label_values(&["disconnect"]),
             reconnection: mqtt_errors.with_label_values(&["reconnect"]),
+            authz_time: register_histogram!("auth_time", "Authorization time")
+                .expect("Bad authz hist"),
         }
     }
 }

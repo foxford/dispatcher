@@ -10,10 +10,10 @@ use svc_agent::AccountId;
 use tide::{Request, Response};
 use uuid::Uuid;
 
-use crate::app::authz::AuthzObject;
 use crate::app::error::ErrorExt;
 use crate::app::error::ErrorKind as AppErrorKind;
 use crate::app::AppContext;
+use crate::app::{authz::AuthzObject, metrics::AuthorizeMetrics};
 use crate::clients::{conference::ConferenceRoomResponse, event::EventRoomResponse};
 use crate::db::class::BoundedDateTimeTuple;
 use crate::db::recording::Segments;
@@ -66,7 +66,8 @@ async fn do_convert(
             object,
             "convert".into(),
         )
-        .await?;
+        .await
+        .measure()?;
 
     let (time, tags) = match (body.time, body.tags) {
         // if we have both time and tags - lets use them

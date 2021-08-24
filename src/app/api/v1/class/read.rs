@@ -9,10 +9,10 @@ use tide::{Request, Response};
 use uuid::Uuid;
 
 use super::*;
-use crate::app::authz::AuthzObject;
 use crate::app::error::ErrorExt;
 use crate::app::error::ErrorKind as AppErrorKind;
 use crate::app::AppContext;
+use crate::app::{authz::AuthzObject, metrics::AuthorizeMetrics};
 use crate::db::class::{AsClassType, Object as Class};
 
 #[derive(Serialize)]
@@ -155,7 +155,8 @@ async fn do_read_inner<T: AsClassType>(
             object,
             "read".into(),
         )
-        .await?;
+        .await
+        .measure()?;
 
     let mut conn = state
         .get_conn()

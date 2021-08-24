@@ -10,10 +10,10 @@ use tide::{Request, Response};
 use uuid::Uuid;
 
 use super::{extract_id, find, validate_token, AppResult};
-use crate::app::authz::AuthzObject;
 use crate::app::error::ErrorExt;
 use crate::app::error::ErrorKind as AppErrorKind;
 use crate::app::AppContext;
+use crate::app::{authz::AuthzObject, metrics::AuthorizeMetrics};
 use crate::clients::{
     conference::RoomUpdate as ConfRoomUpdate, event::RoomUpdate as EventRoomUpdate,
 };
@@ -56,7 +56,8 @@ async fn do_update<T: AsClassType>(
             object,
             "update".into(),
         )
-        .await?;
+        .await
+        .measure()?;
 
     if let Some(time) = &body.time {
         let event_time = (Bound::Included(Utc::now()), Bound::Unbounded);
