@@ -24,7 +24,7 @@ use crate::db::class::{AsClassType, BoundedDateTimeTuple};
 #[derive(Deserialize)]
 struct ClassUpdate {
     #[serde(with = "crate::serde::ts_seconds_option_bound_tuple")]
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     time: Option<BoundedDateTimeTuple>,
     reserve: Option<i32>,
     host: Option<AgentId>,
@@ -163,6 +163,15 @@ mod tests {
     use chrono::Duration;
     use mockall::predicate as pred;
     use uuid::Uuid;
+
+    #[test]
+    fn update_serde_test() {
+        let update = "{}";
+        let update: ClassUpdate = serde_json::from_str(update).unwrap();
+        assert!(update.time.is_none());
+        let update = "{\"reserve\": 10}";
+        let _update: ClassUpdate = serde_json::from_str(update).unwrap();
+    }
 
     #[async_std::test]
     async fn update_webinar_unauthorized() {
