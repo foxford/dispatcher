@@ -9,10 +9,10 @@ use tide::{Request, Response};
 use uuid::Uuid;
 
 use super::*;
-use crate::app::authz::AuthzObject;
 use crate::app::error::ErrorExt;
 use crate::app::error::ErrorKind as AppErrorKind;
 use crate::app::AppContext;
+use crate::app::{authz::AuthzObject, metrics::AuthorizeMetrics};
 use crate::db::class::{AsClassType, Object as Class};
 
 #[derive(Serialize)]
@@ -121,7 +121,7 @@ pub async fn read_by_scope<T: AsClassType>(req: Request<Arc<dyn AppContext>>) ->
     let scope = extract_param(&req, "scope").error(AppErrorKind::InvalidParameter)?;
     let state = req.state();
 
-    do_read_by_scope::<T>(state.as_ref(), &account_id, &audience, &scope).await
+    do_read_by_scope::<T>(state.as_ref(), &account_id, audience, scope).await
 }
 
 async fn do_read_by_scope<T: AsClassType>(
@@ -155,7 +155,8 @@ async fn do_read_inner<T: AsClassType>(
             object,
             "read".into(),
         )
-        .await?;
+        .await
+        .measure()?;
 
     let mut conn = state
         .get_conn()

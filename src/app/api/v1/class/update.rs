@@ -14,11 +14,12 @@ use super::{extract_id, find, validate_token, AppResult};
 use crate::app::error::ErrorExt;
 use crate::app::error::ErrorKind as AppErrorKind;
 use crate::app::AppContext;
+use crate::app::{authz::AuthzObject, metrics::AuthorizeMetrics};
 use crate::clients::{
     conference::RoomUpdate as ConfRoomUpdate, event::RoomUpdate as EventRoomUpdate,
 };
+use crate::db::class;
 use crate::db::class::{AsClassType, BoundedDateTimeTuple};
-use crate::{app::authz::AuthzObject, db::class};
 
 #[derive(Deserialize)]
 struct ClassUpdate {
@@ -58,7 +59,8 @@ async fn do_update<T: AsClassType>(
             object,
             "update".into(),
         )
-        .await?;
+        .await
+        .measure()?;
     let event_update = get_event_update(&class, &body)
         .map(|(id, update)| state.event_client().update_room(id, update));
     let conference_update = get_coneference_update(&class, &body)

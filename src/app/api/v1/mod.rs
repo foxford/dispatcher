@@ -13,10 +13,10 @@ use uuid::Uuid;
 
 use super::FEATURE_POLICY;
 
-use crate::app::authz::AuthzObject;
 use crate::app::error::ErrorExt;
 use crate::app::error::ErrorKind as AppErrorKind;
 use crate::app::AppContext;
+use crate::app::{authz::AuthzObject, metrics::AuthorizeMetrics};
 use crate::db::class::AsClassType;
 
 type AppError = crate::app::error::Error;
@@ -72,7 +72,8 @@ pub async fn create_event(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
             object,
             "update".into(),
         )
-        .await?;
+        .await
+        .measure()?;
 
     body["room_id"] = serde_json::to_value(class.event_room_id()).unwrap();
 
@@ -237,7 +238,7 @@ async fn find_by_scope<T: AsClassType>(
 ) -> anyhow::Result<crate::db::class::Object> {
     let webinar = {
         let mut conn = state.get_conn().await?;
-        crate::db::class::GenericReadQuery::<T>::by_scope(&audience, &scope)
+        crate::db::class::GenericReadQuery::<T>::by_scope(audience, scope)
             .execute(&mut conn)
             .await?
             .ok_or_else(|| anyhow!("Failed to find {} by scope", T::as_str()))?

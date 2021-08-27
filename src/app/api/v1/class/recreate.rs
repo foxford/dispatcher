@@ -10,10 +10,10 @@ use tide::{Request, Response};
 use uuid::Uuid;
 
 use super::{extract_id, find, validate_token, AppResult};
-use crate::app::authz::AuthzObject;
 use crate::app::error::ErrorExt;
 use crate::app::error::ErrorKind as AppErrorKind;
 use crate::app::AppContext;
+use crate::app::{authz::AuthzObject, metrics::AuthorizeMetrics};
 use crate::db::class::BoundedDateTimeTuple;
 use crate::db::class::Object as WebinarObject;
 use crate::{app::api::v1::AppError, db::class::AsClassType};
@@ -47,7 +47,8 @@ pub async fn recreate<T: AsClassType>(mut req: Request<Arc<dyn AppContext>>) -> 
             object,
             "update".into(),
         )
-        .await?;
+        .await
+        .measure()?;
 
     let (event_room_id, conference_room_id) =
         create_event_and_conference(req.state().as_ref(), &webinar, &time).await?;

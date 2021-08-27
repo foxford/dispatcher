@@ -8,10 +8,13 @@ use serde_derive::Deserialize;
 use tide::{Request, Response};
 use uuid::Uuid;
 
-use crate::app::api::v1::class::{read as read_generic, read_by_scope as read_by_scope_generic};
 use crate::app::error::ErrorExt;
 use crate::app::error::ErrorKind as AppErrorKind;
 use crate::app::AppContext;
+use crate::app::{
+    api::v1::class::{read as read_generic, read_by_scope as read_by_scope_generic},
+    metrics::AuthorizeMetrics,
+};
 use crate::{app::authz::AuthzObject, db::class::P2PType};
 
 use super::{validate_token, AppResult};
@@ -55,7 +58,8 @@ pub async fn create(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
             object,
             "create".into(),
         )
-        .await?;
+        .await
+        .measure()?;
 
     info!(log, "Authorized p2p create");
 
@@ -159,7 +163,8 @@ pub async fn convert(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
             object,
             "convert".into(),
         )
-        .await?;
+        .await
+        .measure()?;
 
     let query = crate::db::class::P2PInsertQuery::new(
         body.scope,

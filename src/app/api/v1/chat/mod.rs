@@ -8,9 +8,9 @@ use serde_derive::{Deserialize, Serialize};
 use tide::{Request, Response};
 use uuid::Uuid;
 
-use crate::app::error::ErrorExt;
 use crate::app::error::ErrorKind as AppErrorKind;
 use crate::app::AppContext;
+use crate::app::{error::ErrorExt, metrics::AuthorizeMetrics};
 use crate::db::class::{ChatInsertQuery, GenericReadQuery, Object as Class};
 use crate::{app::authz::AuthzObject, db::class::ChatType};
 
@@ -53,7 +53,7 @@ async fn read(
     finder: impl Future<Output = AnyResult<Class>>,
 ) -> AppResult {
     let state = req.state();
-    let account_id = validate_token(&req).error(AppErrorKind::Unauthorized)?;
+    let account_id = validate_token(req).error(AppErrorKind::Unauthorized)?;
 
     let chat = match finder.await {
         Ok(chat) => chat,
@@ -73,7 +73,8 @@ async fn read(
             object,
             "read".into(),
         )
-        .await?;
+        .await
+        .measure()?;
 
     let chat_obj: ChatObject = chat.into();
 
@@ -108,7 +109,8 @@ pub async fn create(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
             object,
             "create".into(),
         )
-        .await?;
+        .await
+        .measure()?;
 
     let event_room_id = req
         .state()
@@ -188,7 +190,8 @@ pub async fn convert(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
             object,
             "convert".into(),
         )
-        .await?;
+        .await
+        .measure()?;
 
     let query = ChatInsertQuery::new(body.scope, body.audience, body.event_room_id);
 
