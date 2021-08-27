@@ -7,6 +7,7 @@ Route                                           | Method | Short description
 ----------------------------------------------- | ------ | ----------
 /api/v1/minigroups/:minigroup_id                | GET    | [Reads](#read-minigroup) minigroup.
 /api/v1/audiences/:audience/minigroups/:scope   | GET    | [Reads](#read-minigroup) minigroup.
+/api/v1/audiences/:audience/minigroups/:scope   | PUT    | [Updates](#update-minigroup) minigroup.
 /api/v1/minigroups                              | POST   | [Creates](#create-minigroup) minigroup and required rooms in other services.
 /api/v1/minigroups/:minigroup_id                | PUT    | [Updates](#update-minigroup) minigroup.
 /api/v1/minigroups/:minigroup_id/events         | POST   | [Creates](#create-minigroup-event) event in the room.
