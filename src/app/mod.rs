@@ -30,8 +30,9 @@ use api::v1::chat::{
     convert as convert_chat, create as create_chat, read_by_scope as read_chat_by_scope, read_chat,
 };
 use api::v1::minigroup::{
-    create as create_minigroup, read as read_minigroup, read_by_scope as read_minigroup_by_scope,
-    recreate as recreate_minigroup, update as update_minigroup,
+    create as create_minigroup, options as update_options, read as read_minigroup,
+    read_by_scope as read_minigroup_by_scope, recreate as recreate_minigroup,
+    update as update_minigroup,
 };
 use api::v1::p2p::{
     convert as convert_p2p, create as create_p2p, read as read_p2p,
@@ -361,6 +362,8 @@ fn bind_minigroups_routes(app: &mut tide::Server<Arc<dyn AppContext>>) {
         .post(AppEndpoint(create_minigroup));
     app.at("/api/v1/minigroups/:id")
         .with_metrics()
+        .with(cors())
+        .options(update_options)
         .put(AppEndpoint(update_minigroup));
 
     app.at("/api/v1/minigroups/:id/events")
