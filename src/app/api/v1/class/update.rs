@@ -11,9 +11,9 @@ use tide::{Request, Response};
 use uuid::Uuid;
 
 use super::{extract_id, find, validate_token, AppResult};
-use crate::app::error::ErrorExt;
-use crate::app::error::ErrorKind as AppErrorKind;
 use crate::app::AppContext;
+use crate::app::{api::v1::extract_param, error::ErrorKind as AppErrorKind};
+use crate::app::{api::v1::find_by_scope, error::ErrorExt};
 use crate::app::{authz::AuthzObject, metrics::AuthorizeMetrics};
 use crate::clients::{
     conference::RoomUpdate as ConfRoomUpdate, event::RoomUpdate as EventRoomUpdate,
@@ -24,6 +24,7 @@ use crate::db::class::{AsClassType, BoundedDateTimeTuple};
 #[derive(Deserialize)]
 struct ClassUpdate {
     #[serde(with = "crate::serde::ts_seconds_option_bound_tuple")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     time: Option<BoundedDateTimeTuple>,
     reserve: Option<i32>,
     host: Option<AgentId>,
@@ -35,20 +36,36 @@ pub async fn update<T: AsClassType>(mut req: Request<Arc<dyn AppContext>>) -> Ap
     let account_id = validate_token(&req).error(AppErrorKind::Unauthorized)?;
     let state = req.state();
     let id = extract_id(&req).error(AppErrorKind::InvalidParameter)?;
+    let class = find::<T>(state.as_ref(), id)
+        .await
+        .error(AppErrorKind::WebinarNotFound)?;
+    do_update::<T>(state.as_ref(), &account_id, class, body).await
+}
 
-    do_update::<T>(state.as_ref(), &account_id, id, body).await
+pub async fn update_by_scope<T: AsClassType>(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
+    let body: ClassUpdate = req.body_json().await.error(AppErrorKind::InvalidPayload)?;
+
+    let account_id = validate_token(&req).error(AppErrorKind::Unauthorized)?;
+    let audience = extract_param(&req, "audience").error(AppErrorKind::InvalidParameter)?;
+    let scope = extract_param(&req, "scope").error(AppErrorKind::InvalidParameter)?;
+    let state = req.state();
+    let class = match find_by_scope::<T>(state.as_ref(), audience, scope).await {
+        Ok(class) => class,
+        Err(e) => {
+            error!(crate::LOG, "Failed to find a minigroup, err = {:?}", e);
+            return Ok(tide::Response::builder(404).body("Not found").build());
+        }
+    };
+
+    do_update::<T>(state.as_ref(), &account_id, class, body).await
 }
 
 async fn do_update<T: AsClassType>(
     state: &dyn AppContext,
     account_id: &AccountId,
-    id: Uuid,
+    class: crate::db::class::Object,
     body: ClassUpdate,
 ) -> AppResult {
-    let class = find::<T>(state, id)
-        .await
-        .error(AppErrorKind::WebinarNotFound)?;
-
     let object = AuthzObject::new(&["classrooms", &class.id().to_string()]).into();
 
     state
@@ -181,7 +198,7 @@ mod tests {
             host: None,
         };
 
-        do_update::<WebinarType>(state.as_ref(), agent.account_id(), webinar.id(), body)
+        do_update::<WebinarType>(state.as_ref(), agent.account_id(), webinar, body)
             .await
             .expect_err("Unexpectedly succeeded");
     }
@@ -228,7 +245,7 @@ mod tests {
             host: None,
         };
 
-        do_update::<WebinarType>(state.as_ref(), agent.account_id(), webinar.id(), body)
+        do_update::<WebinarType>(state.as_ref(), agent.account_id(), webinar.clone(), body)
             .await
             .expect("Failed to update");
 

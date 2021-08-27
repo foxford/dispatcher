@@ -154,8 +154,8 @@ async fn do_create(
 }
 
 pub use recreate::recreate;
-pub use update::options;
 pub use update::update;
+pub use update::update_by_scope;
 
 mod recreate;
 mod update;
