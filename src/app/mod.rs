@@ -440,7 +440,7 @@ fn build_tq_client(config: &Config, token: &str) -> Arc<dyn TqClient> {
 
 fn cors() -> CorsMiddleware {
     CorsMiddleware::new()
-        .allow_methods("GET, OPTIONS".parse::<HeaderValue>().unwrap())
+        .allow_methods("GET, OPTIONS, PUT".parse::<HeaderValue>().unwrap())
         .allow_origin(Origin::from("*"))
         .allow_headers("*".parse::<HeaderValue>().unwrap())
 }
