@@ -49,13 +49,9 @@ pub async fn update_by_scope<T: AsClassType>(mut req: Request<Arc<dyn AppContext
     let audience = extract_param(&req, "audience").error(AppErrorKind::InvalidParameter)?;
     let scope = extract_param(&req, "scope").error(AppErrorKind::InvalidParameter)?;
     let state = req.state();
-    let class = match find_by_scope::<T>(state.as_ref(), audience, scope).await {
-        Ok(class) => class,
-        Err(e) => {
-            error!(crate::LOG, "Failed to find a minigroup, err = {:?}", e);
-            return Ok(tide::Response::builder(404).body("Not found").build());
-        }
-    };
+    let class = find_by_scope::<T>(state.as_ref(), audience, scope)
+        .await
+        .error(AppErrorKind::WebinarNotFound)?;
 
     do_update::<T>(state.as_ref(), &account_id, class, body).await
 }
