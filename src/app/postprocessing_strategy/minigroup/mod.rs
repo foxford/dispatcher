@@ -162,8 +162,8 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
                     .await
                     .context("Failed to read modified event room")?;
 
-                let modified_event_room_opened_at = match modified_event_room.time {
-                    (Bound::Included(opened_at), _) => opened_at,
+                match modified_event_room.time {
+                    (Bound::Included(_), _) => (),
                     _ => bail!("Wrong event room opening time"),
                 };
 
@@ -382,7 +382,7 @@ fn build_stream(
     let mut pin_start = None;
 
     let recording_end = match recording
-        .modified_segments
+        .segments
         .last()
         .map(|range| range.end)
         .ok_or_else(|| anyhow!("Recording segments have no end?"))?
@@ -465,7 +465,7 @@ fn build_stream(
 
     let v = TranscodeMinigroupToHlsStream::new(recording.rtc_id, recording.stream_uri.to_owned())
         .offset(recording_offset.num_milliseconds() as u64)
-        .segments(recording.modified_segments.to_owned())
+        .segments(recording.segments.to_owned())
         .pin_segments(pin_segments.into())
         .video_mute_segments(video_mute_segments.into())
         .audio_mute_segments(audio_mute_segments.into());
