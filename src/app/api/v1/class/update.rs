@@ -21,7 +21,7 @@ use crate::db::class::{AsClassType, BoundedDateTimeTuple};
 
 #[derive(Deserialize)]
 struct ClassUpdate {
-    #[serde(with = "crate::serde::ts_seconds_option_bound_tuple")]
+    #[serde(default, with = "crate::serde::ts_seconds_option_bound_tuple")]
     time: Option<BoundedDateTimeTuple>,
     reserve: Option<i32>,
 }
