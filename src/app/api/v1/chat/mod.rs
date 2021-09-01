@@ -133,18 +133,18 @@ pub async fn create(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
     } else {
         query
     };
-
-    let mut conn = req
-        .state()
-        .get_conn()
-        .await
-        .error(AppErrorKind::DbConnAcquisitionFailed)?;
-    let chat = query
-        .execute(&mut conn)
-        .await
-        .context("Failed to insert chat")
-        .error(AppErrorKind::DbQueryFailed)?;
-
+    let chat = {
+        let mut conn = req
+            .state()
+            .get_conn()
+            .await
+            .error(AppErrorKind::DbConnAcquisitionFailed)?;
+        query
+            .execute(&mut conn)
+            .await
+            .context("Failed to insert chat")
+            .error(AppErrorKind::DbQueryFailed)?
+    };
     crate::app::services::update_classroom_id(
         req.state().as_ref(),
         chat.id(),
