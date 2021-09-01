@@ -103,17 +103,17 @@ async fn do_create(
     } else {
         query
     };
-
-    let mut conn = state
-        .get_conn()
-        .await
-        .error(AppErrorKind::DbConnAcquisitionFailed)?;
-    let webinar = query
-        .execute(&mut conn)
-        .await
-        .context("Failed to insert webinar")
-        .error(AppErrorKind::DbQueryFailed)?;
-
+    let webinar = {
+        let mut conn = state
+            .get_conn()
+            .await
+            .error(AppErrorKind::DbConnAcquisitionFailed)?;
+        query
+            .execute(&mut conn)
+            .await
+            .context("Failed to insert webinar")
+            .error(AppErrorKind::DbQueryFailed)?
+    };
     if body.locked_chat {
         if let Err(e) = state.event_client().lock_chat(event_room_id).await {
             error!(

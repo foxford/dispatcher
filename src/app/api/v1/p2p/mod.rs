@@ -101,18 +101,18 @@ pub async fn create(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
     } else {
         query
     };
-
-    let mut conn = req
-        .state()
-        .get_conn()
-        .await
-        .error(AppErrorKind::DbConnAcquisitionFailed)?;
-    let p2p = query
-        .execute(&mut conn)
-        .await
-        .context("Failed to insert p2p")
-        .error(AppErrorKind::DbQueryFailed)?;
-
+    let p2p = {
+        let mut conn = req
+            .state()
+            .get_conn()
+            .await
+            .error(AppErrorKind::DbConnAcquisitionFailed)?;
+        query
+            .execute(&mut conn)
+            .await
+            .context("Failed to insert p2p")
+            .error(AppErrorKind::DbQueryFailed)?
+    };
     info!(log, "Inserted p2p into db, id = {}", p2p.id());
 
     crate::app::services::update_classroom_id(
