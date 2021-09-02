@@ -189,7 +189,7 @@ pub async fn rollback(req: Request<Arc<dyn AppContext>>) -> tide::Result {
 fn build_default_url(mut url: Url, tenant: &str, app: &str) -> Url {
     let host = url.host_str().map(|h| format!("{}.{}.{}", tenant, app, h));
     if let Err(e) = url.set_host(host.as_deref()) {
-        warn!(crate::LOG, "Default url set_host failed, reason = {:?}", e);
+        error!(crate::LOG, "Default url set_host failed, reason = {:?}", e);
     }
     url
 }
