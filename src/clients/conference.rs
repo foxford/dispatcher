@@ -30,6 +30,19 @@ pub struct RoomUpdate {
     pub classroom_id: Option<Uuid>,
 }
 
+impl RoomUpdate {
+    pub fn is_empty_update(&self) -> bool {
+        matches!(
+            self,
+            RoomUpdate {
+                classroom_id: None,
+                time: None,
+                reserve: None,
+            }
+        )
+    }
+}
+
 #[derive(Clone, Debug, Deserialize)]
 pub struct ConfigSnapshot {
     pub send_video: Option<bool>,
