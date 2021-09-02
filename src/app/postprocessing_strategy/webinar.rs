@@ -186,13 +186,13 @@ impl super::PostprocessingStrategy for WebinarPostprocessingStrategy {
     async fn handle_stream_upload(&self, stream: UploadedStream) -> Result<()> {
         let rtc = {
             let mut conn = self.ctx.get_conn().await?;
-
+            let parsed_data = stream.parsed_data?;
             crate::db::recording::StreamUploadUpdateQuery::new(
                 self.webinar.id(),
                 stream.id,
-                stream.segments,
-                stream.uri,
-                stream.started_at,
+                parsed_data.segments,
+                parsed_data.uri,
+                parsed_data.started_at,
             )
             .execute(&mut conn)
             .await?

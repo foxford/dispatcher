@@ -634,6 +634,19 @@
       ]
     }
   },
+  "57e4a37b87736ec62a99313a2709bb6ceac910885740cd1ef5a20bb646dcac51": {
+    "query": "DELETE FROM recording WHERE class_id = $1 AND rtc_id = $2",
+    "describe": {
+      "columns": [],
+      "parameters": {
+        "Left": [
+          "Uuid",
+          "Uuid"
+        ]
+      },
+      "nullable": []
+    }
+  },
   "61b7f8fd08937bc29a31e5656a36ae45065f41446ba65b55bc848c257a4f6087": {
     "query": "\n            INSERT INTO scope (scope, frontend_id, app)\n            VALUES ($1, $2, $3)\n            RETURNING id, scope, frontend_id, created_at, app\n            ",
     "describe": {

@@ -47,21 +47,36 @@ impl MinigroupPostprocessingStrategy {
 #[async_trait]
 impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
     async fn handle_stream_upload(&self, stream: UploadedStream) -> Result<()> {
+        match stream.parsed_data {
+            Ok(stream_data) => {
+                let mut conn = self.ctx.get_conn().await?;
+                crate::db::recording::StreamUploadUpdateQuery::new(
+                    self.minigroup.id(),
+                    stream.id,
+                    stream_data.segments,
+                    stream_data.uri,
+                    stream_data.started_at,
+                )
+                .execute(&mut conn)
+                .await?;
+            }
+            Err(err) => {
+                warn!(
+                    crate::LOG,
+                    "Failed to transcode recording with stream_id: {}, err: {:?}", stream.id, err
+                );
+                let mut conn = self.ctx.get_conn().await?;
+                crate::db::recording::remove_recording(self.minigroup.id(), stream.id, &mut conn)
+                    .await?;
+            }
+        }
         let recordings = {
             let mut conn = self.ctx.get_conn().await?;
-            crate::db::recording::StreamUploadUpdateQuery::new(
-                self.minigroup.id(),
-                stream.id,
-                stream.segments,
-                stream.uri,
-                stream.started_at,
-            )
-            .execute(&mut conn)
-            .await?;
             crate::db::recording::RecordingListQuery::new(self.minigroup.id())
                 .execute(&mut conn)
                 .await?
         };
+
         let ready_recordings = recordings
             .iter()
             .filter_map(|recording| ReadyRecording::from_db_object(recording))

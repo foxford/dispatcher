@@ -148,6 +148,23 @@ impl RecordingListQuery {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+pub async fn remove_recording(
+    class_id: Uuid,
+    rtc_id: Uuid,
+    conn: &mut PgConnection,
+) -> sqlx::Result<()> {
+    sqlx::query!(
+        "DELETE FROM recording WHERE class_id = $1 AND rtc_id = $2",
+        class_id,
+        rtc_id
+    )
+    .execute(conn)
+    .await?;
+    Ok(())
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 pub struct RecordingInsertQuery {
     class_id: Uuid,
     rtc_id: Uuid,
