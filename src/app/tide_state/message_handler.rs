@@ -166,7 +166,7 @@ impl MessageHandler {
             ClassType::Chat => "chat.stop",
         };
 
-        crate::db::class::RoomCloseQuery::new(class.id())
+        crate::db::class::RoomCloseQuery::new(class.id(), payload.timeouted.unwrap_or(false))
             .execute(&mut conn)
             .await?;
 
@@ -413,6 +413,7 @@ impl EditionCommitResult {
 struct RoomClose {
     id: Uuid,
     audience: String,
+    timeouted: Option<bool>,
     #[serde(with = "crate::serde::ts_seconds_bound_tuple")]
     time: crate::db::class::BoundedDateTimeTuple,
 }

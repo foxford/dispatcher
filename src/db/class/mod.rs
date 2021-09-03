@@ -95,6 +95,7 @@ pub struct Object {
     reserve: Option<i32>,
     room_events_uri: Option<String>,
     host: Option<AgentId>,
+    timeouted: bool,
 }
 
 impl Object {
@@ -144,6 +145,10 @@ impl Object {
 
     pub fn room_events_uri(&self) -> Option<&String> {
         self.room_events_uri.as_ref()
+    }
+
+    pub fn timeouted(&self) -> bool {
+        self.timeouted
     }
 }
 
@@ -444,7 +449,8 @@ impl UpdateQuery {
                 modified_event_room_id,
                 reserve,
                 room_events_uri,
-                host AS "host: AgentId"
+                host AS "host: AgentId",
+                timeouted
             "#,
             self.id,
             self.original_event_room_id,
@@ -498,7 +504,8 @@ impl RecreateQuery {
                 modified_event_room_id,
                 reserve,
                 room_events_uri,
-                host AS "host: AgentId"
+                host AS "host: AgentId",
+                timeouted
             "#,
             self.id,
             time,
@@ -593,11 +600,12 @@ impl ClassUpdateQuery {
 
 pub struct RoomCloseQuery {
     id: Uuid,
+    timeouted: bool,
 }
 
 impl RoomCloseQuery {
-    pub fn new(id: Uuid) -> Self {
-        Self { id }
+    pub fn new(id: Uuid, timeouted: bool) -> Self {
+        Self { id, timeouted }
     }
 
     pub async fn execute(self, conn: &mut PgConnection) -> sqlx::Result<Object> {
@@ -605,7 +613,7 @@ impl RoomCloseQuery {
             Object,
             r#"
             UPDATE class
-            SET time = TSTZRANGE(LOWER(time), LEAST(UPPER(time), NOW()))
+            SET time = TSTZRANGE(LOWER(time), LEAST(UPPER(time), NOW())), timeouted = $2
             WHERE id = $1
             RETURNING
                 id,
@@ -622,9 +630,11 @@ impl RoomCloseQuery {
                 modified_event_room_id,
                 reserve,
                 room_events_uri,
-                host AS "host: AgentId"
+                host AS "host: AgentId",
+                timeouted
             "#,
-            self.id
+            self.id,
+            self.timeouted
         )
         .fetch_one(conn)
         .await

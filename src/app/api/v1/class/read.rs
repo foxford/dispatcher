@@ -23,6 +23,7 @@ struct ClassResponseBody {
     on_demand: Vec<ClassroomVersion>,
     #[serde(skip_serializing_if = "Option::is_none")]
     status: Option<ClassStatus>,
+    timeouted: bool,
 }
 
 impl ClassResponseBody {
@@ -51,6 +52,7 @@ impl From<&Class> for ClassResponseBody {
             },
             on_demand: vec![],
             status: None,
+            timeouted: obj.timeouted(),
         }
     }
 }

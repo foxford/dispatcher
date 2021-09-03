@@ -100,7 +100,7 @@ async fn do_update<T: AsClassType>(
     }
 
     let mut conn = state.get_conn().await.error(AppErrorKind::DbQueryFailed)?;
-    let webinar = query
+    query
         .execute(&mut conn)
         .await
         .context("Failed to update webinar")
