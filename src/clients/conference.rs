@@ -140,6 +140,7 @@ struct ConferenceRoomUpdatePayload {
     classroom_id: Option<Uuid>,
     #[serde(skip_serializing_if = "Option::is_none")]
     host: Option<AgentId>,
+    reserve: Option<i32>,
 }
 
 #[derive(Serialize)]
@@ -249,6 +250,7 @@ impl ConferenceClient for MqttConferenceClient {
             time: update.time,
             classroom_id: update.classroom_id,
             host: update.host,
+            reserve: update.reserve,
         };
         let msg = if let OutgoingMessage::Request(msg) = OutgoingRequest::multicast(
             payload,

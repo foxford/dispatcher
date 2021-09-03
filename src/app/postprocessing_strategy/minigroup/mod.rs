@@ -138,6 +138,16 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
                     .await
                     .context("Dump room event failed")?;
 
+                let maybe_host_recording = recordings
+                    .iter()
+                    .find(|recording| recording.created_by == host);
+
+                let host_stream = match maybe_host_recording {
+                    // Host has been set but there's no recording, skip transcoding.
+                    None => bail!("No host stream id in room"),
+                    Some(recording) => recording,
+                };
+
                 // Find the earliest recording.
                 let earliest_recording = recordings
                     .iter()
@@ -152,8 +162,8 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
                     .await
                     .context("Failed to read modified event room")?;
 
-                let modified_event_room_opened_at = match modified_event_room.time {
-                    (Bound::Included(opened_at), _) => opened_at,
+                match modified_event_room.time {
+                    (Bound::Included(_), _) => (),
                     _ => bail!("Wrong event room opening time"),
                 };
 
@@ -184,8 +194,8 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
                 let streams = recordings
                     .iter()
                     .map(|recording| {
-                        let event_room_offset =
-                            recording.started_at - modified_event_room_opened_at;
+                        let event_room_offset = recording.started_at
+                            - (host_stream.started_at - Duration::milliseconds(PREROLL_OFFSET));
 
                         let recording_offset = recording.started_at - earliest_recording.started_at;
 
@@ -199,15 +209,7 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
                     })
                     .collect::<Result<Vec<_>, _>>()?;
 
-                let maybe_host_recording = recordings
-                    .iter()
-                    .find(|recording| recording.created_by == host);
-
-                let host_stream_id = match maybe_host_recording {
-                    // Host has been set but there's no recording, skip transcoding.
-                    None => bail!("No host stream id in room"),
-                    Some(recording) => recording.rtc_id,
-                };
+                let host_stream_id = host_stream.rtc_id;
 
                 // Create a tq task.
                 let task = TqTask::TranscodeMinigroupToHls {
@@ -350,19 +352,18 @@ async fn call_adjust(
     recordings: Vec<ReadyRecording>,
     host: AgentId,
 ) -> Result<()> {
-    let started_at = recordings
-        .iter()
-        .map(|rtc| rtc.started_at)
-        .min()
-        .ok_or_else(|| anyhow!("Couldn't get min started at"))?;
-
     let host_recording = recordings
         .into_iter()
         .find(|recording| recording.created_by == host)
         .ok_or_else(|| anyhow!("No host recording"))?;
 
     ctx.event_client()
-        .adjust_room(room_id, started_at, host_recording.segments, PREROLL_OFFSET)
+        .adjust_room(
+            room_id,
+            host_recording.started_at,
+            host_recording.segments,
+            PREROLL_OFFSET,
+        )
         .await
         .map_err(|err| anyhow!("Failed to adjust room, id = {}: {}", room_id, err))?;
 
@@ -381,7 +382,7 @@ fn build_stream(
     let mut pin_start = None;
 
     let recording_end = match recording
-        .modified_segments
+        .segments
         .last()
         .map(|range| range.end)
         .ok_or_else(|| anyhow!("Recording segments have no end?"))?
@@ -464,7 +465,7 @@ fn build_stream(
 
     let v = TranscodeMinigroupToHlsStream::new(recording.rtc_id, recording.stream_uri.to_owned())
         .offset(recording_offset.num_milliseconds() as u64)
-        .segments(recording.modified_segments.to_owned())
+        .segments(recording.segments.to_owned())
         .pin_segments(pin_segments.into())
         .video_mute_segments(video_mute_segments.into())
         .audio_mute_segments(audio_mute_segments.into());

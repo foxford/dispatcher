@@ -157,18 +157,17 @@ async fn do_read_inner<T: AsClassType>(
         )
         .await
         .measure()?;
-
-    let mut conn = state
-        .get_conn()
-        .await
-        .error(AppErrorKind::DbConnAcquisitionFailed)?;
-
-    let recordings = crate::db::recording::RecordingListQuery::new(class.id())
-        .execute(&mut conn)
-        .await
-        .context("Failed to find recording")
-        .error(AppErrorKind::DbQueryFailed)?;
-
+    let recordings = {
+        let mut conn = state
+            .get_conn()
+            .await
+            .error(AppErrorKind::DbConnAcquisitionFailed)?;
+        crate::db::recording::RecordingListQuery::new(class.id())
+            .execute(&mut conn)
+            .await
+            .context("Failed to find recording")
+            .error(AppErrorKind::DbQueryFailed)?
+    };
     let mut class_body: ClassResponseBody = (&class).into();
 
     let class_end = class.time().end();

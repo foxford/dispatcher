@@ -15,6 +15,7 @@ use crate::app::error::ErrorKind as AppErrorKind;
 use crate::app::AppContext;
 use crate::app::{authz::AuthzObject, metrics::AuthorizeMetrics};
 use crate::db::class::BoundedDateTimeTuple;
+use crate::db::class::ClassType;
 use crate::db::class::Object as WebinarObject;
 use crate::{app::api::v1::AppError, db::class::AsClassType};
 
@@ -51,7 +52,7 @@ pub async fn recreate<T: AsClassType>(mut req: Request<Arc<dyn AppContext>>) -> 
         .measure()?;
 
     let (event_room_id, conference_room_id) =
-        create_event_and_conference(req.state().as_ref(), &webinar, &time).await?;
+        create_event_and_conference::<T>(req.state().as_ref(), &webinar, &time).await?;
 
     let query = crate::db::class::RecreateQuery::new(
         webinar.id(),
@@ -101,7 +102,7 @@ pub async fn recreate<T: AsClassType>(mut req: Request<Arc<dyn AppContext>>) -> 
     Ok(response)
 }
 
-async fn create_event_and_conference(
+async fn create_event_and_conference<T: AsClassType>(
     state: &dyn AppContext,
     webinar: &WebinarObject,
     time: &BoundedDateTimeTuple,
@@ -110,10 +111,17 @@ async fn create_event_and_conference(
         Bound::Included(t) | Bound::Excluded(t) => (Bound::Included(t), Bound::Unbounded),
         Bound::Unbounded => (Bound::Included(Utc::now()), Bound::Unbounded),
     };
+
+    let policy = match T::as_class_type() {
+        ClassType::Webinar => Some("shared".to_string()),
+        ClassType::Minigroup => Some("owned".to_string()),
+        ClassType::P2P => None,
+        ClassType::Chat => None,
+    };
     let conference_fut = state.conference_client().create_room(
         conference_time,
         webinar.audience().to_owned(),
-        Some("shared".into()),
+        policy,
         webinar.reserve(),
         webinar.tags().map(ToOwned::to_owned),
     );

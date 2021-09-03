@@ -248,7 +248,7 @@ fn resubscribe(agent: &mut Agent, agent_id: &AgentId, config: &Config) {
             .build();
 
         sentry::send(svc_error)
-            .unwrap_or_else(|err| warn!(crate::LOG, "Error sending error to Sentry: {:?}", err));
+            .unwrap_or_else(|err| error!(crate::LOG, "Error sending error to Sentry: {:?}", err));
     }
 }
 

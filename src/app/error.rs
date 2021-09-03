@@ -179,7 +179,7 @@ impl Error {
         }
 
         sentry::send(self.to_svc_error()).unwrap_or_else(|err| {
-            warn!(logger, "Error sending error to Sentry: {}", err);
+            error!(logger, "Error sending error to Sentry: {}", err);
         });
     }
 }
