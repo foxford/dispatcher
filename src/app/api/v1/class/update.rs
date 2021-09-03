@@ -106,11 +106,7 @@ async fn do_update<T: AsClassType>(
         .context("Failed to update webinar")
         .error(AppErrorKind::DbQueryFailed)?;
 
-    let body = serde_json::to_string(&webinar)
-        .context("Failed to serialize webinar")
-        .error(AppErrorKind::SerializationFailed)?;
-
-    let response = Response::builder(200).body(body).build();
+    let response = Response::builder(200).build();
 
     Ok(response)
 }
