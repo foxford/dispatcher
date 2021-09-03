@@ -65,7 +65,7 @@ impl P2PInsertQuery {
                 reserve,
                 room_events_uri,
                 host AS "host: AgentId",
-                timeouted
+                timed_out
             "#,
             self.scope,
             self.audience,

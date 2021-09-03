@@ -95,7 +95,7 @@ pub struct Object {
     reserve: Option<i32>,
     room_events_uri: Option<String>,
     host: Option<AgentId>,
-    timeouted: bool,
+    timed_out: bool,
 }
 
 impl Object {
@@ -147,8 +147,8 @@ impl Object {
         self.room_events_uri.as_ref()
     }
 
-    pub fn timeouted(&self) -> bool {
-        self.timeouted
+    pub fn timed_out(&self) -> bool {
+        self.timed_out
     }
 }
 
@@ -450,7 +450,7 @@ impl UpdateQuery {
                 reserve,
                 room_events_uri,
                 host AS "host: AgentId",
-                timeouted
+                timed_out
             "#,
             self.id,
             self.original_event_room_id,
@@ -505,7 +505,7 @@ impl RecreateQuery {
                 reserve,
                 room_events_uri,
                 host AS "host: AgentId",
-                timeouted
+                timed_out
             "#,
             self.id,
             time,
@@ -600,12 +600,12 @@ impl ClassUpdateQuery {
 
 pub struct RoomCloseQuery {
     id: Uuid,
-    timeouted: bool,
+    timed_out: bool,
 }
 
 impl RoomCloseQuery {
-    pub fn new(id: Uuid, timeouted: bool) -> Self {
-        Self { id, timeouted }
+    pub fn new(id: Uuid, timed_out: bool) -> Self {
+        Self { id, timed_out }
     }
 
     pub async fn execute(self, conn: &mut PgConnection) -> sqlx::Result<Object> {
@@ -613,7 +613,7 @@ impl RoomCloseQuery {
             Object,
             r#"
             UPDATE class
-            SET time = TSTZRANGE(LOWER(time), LEAST(UPPER(time), NOW())), timeouted = $2
+            SET time = TSTZRANGE(LOWER(time), LEAST(UPPER(time), NOW())), timed_out = $2
             WHERE id = $1
             RETURNING
                 id,
@@ -631,10 +631,10 @@ impl RoomCloseQuery {
                 reserve,
                 room_events_uri,
                 host AS "host: AgentId",
-                timeouted
+                timed_out
             "#,
             self.id,
-            self.timeouted
+            self.timed_out
         )
         .fetch_one(conn)
         .await
