@@ -1,5 +1,5 @@
-use std::str::FromStr;
 use std::sync::Arc;
+use std::{str::FromStr, time::Duration};
 
 use anyhow::Context;
 use futures::AsyncReadExt;
@@ -8,9 +8,9 @@ use svc_authn::{AccountId, Authenticable};
 use tide::{Request, Response};
 use uuid::Uuid;
 
-use crate::app::error::ErrorKind as AppErrorKind;
-use crate::app::AppContext;
+use crate::app::{error, AppContext};
 use crate::app::{error::ErrorExt, metrics::AuthMetrics};
+use crate::{app::error::ErrorKind as AppErrorKind, utils::single_retry};
 
 use crate::db::authz::{AuthzClass, AuthzReadQuery};
 
@@ -138,19 +138,22 @@ async fn proxy_request(
         let payload = serde_json::to_string(&authz_req)
             .context("Failed to serialize authz request")
             .error(AppErrorKind::SerializationFailed)?;
+        let get_response = || async {
+            let mut resp = http_proxy
+                .send_async(payload.clone())
+                .await
+                .context("Authz proxied request failed")
+                .error(AppErrorKind::AuthorizationFailed)?;
 
-        let mut resp = http_proxy
-            .send_async(payload)
-            .await
-            .context("Authz proxied request failed")
-            .error(AppErrorKind::AuthorizationFailed)?;
-
-        let mut body = String::new();
-        resp.body_mut()
-            .read_to_string(&mut body)
-            .await
-            .context("Authz proxied request body fetch failed")
-            .error(AppErrorKind::AuthorizationFailed)?;
+            let mut body = String::new();
+            resp.body_mut()
+                .read_to_string(&mut body)
+                .await
+                .context("Authz proxied request body fetch failed")
+                .error(AppErrorKind::AuthorizationFailed)?;
+            Ok::<_, error::Error>(body)
+        };
+        let body = single_retry(get_response, Duration::from_secs(10)).await?;
 
         info!(
             crate::LOG,
