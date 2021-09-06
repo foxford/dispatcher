@@ -1,4 +1,4 @@
-use std::net::SocketAddr;
+use std::{net::SocketAddr, time::Duration};
 
 use serde_derive::Deserialize;
 use svc_agent::{mqtt::AgentConfig, AccountId};
@@ -23,6 +23,8 @@ pub struct Config {
     pub authn: Authn,
     pub authz: Authz,
     pub storage: StorageConfig,
+    #[serde(with = "humantime_serde")]
+    pub retry_delay: Duration,
 }
 
 #[derive(Clone, Debug, Deserialize)]

@@ -62,7 +62,8 @@ pub async fn proxy(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
 
     let http_proxy = req.state().authz().http_proxy(&request_audience);
 
-    let response = proxy_request(&authz_req, http_proxy, &old_action).await?;
+    let retry_delay = req.state().config().retry_delay;
+    let response = proxy_request(&authz_req, http_proxy, &old_action, retry_delay).await?;
 
     let response = Response::builder(200).body(response).build();
     Ok(response)
@@ -132,6 +133,7 @@ async fn proxy_request(
     authz_req: &AuthzRequest,
     http_proxy: Option<svc_authz::HttpProxy>,
     old_action: &str,
+    retry_delay: Duration,
 ) -> Result<String, AppError> {
     let _timer = AuthMetrics::start_timer();
     if let Some(http_proxy) = http_proxy {
@@ -153,7 +155,7 @@ async fn proxy_request(
                 .error(AppErrorKind::AuthorizationFailed)?;
             Ok::<_, error::Error>(body)
         };
-        let body = single_retry(get_response, Duration::from_secs(10)).await?;
+        let body = single_retry(get_response, retry_delay).await?;
 
         info!(
             crate::LOG,
