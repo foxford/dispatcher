@@ -556,62 +556,36 @@ impl ClassUpdateQuery {
     }
 
     pub async fn execute(self, conn: &mut PgConnection) -> sqlx::Result<Object> {
-        use quaint::ast::{Comparable, Update};
-        use quaint::visitor::{Postgres, Visitor};
-
-        let mut q = Update::table("class");
-        if self.time.is_some() {
-            q = q.set("time", "__placeholder_time__");
-        }
-        if self.reserve.is_some() {
-            q = q.set("reserve", "__placeholder_reserve__");
-        }
-        if self.host.is_some() {
-            q = q.set("host", "__placeholder_host__");
-        }
-
-        let q = q.so_that("id".equals("__placeholder__"));
-        let (mut sql, _bindings) = Postgres::build(q);
-        sql.push_str(
-            r#" RETURNING
-                    id,
-                    scope,
-                    kind AS "kind!: ClassType",
-                    audience,
-                    time AS "time!: Time",
-                    tags,
-                    preserve_history,
-                    created_at,
-                    event_room_id,
-                    conference_room_id,
-                    original_event_room_id,
-                    modified_event_room_id,
-                    reserve,
-                    room_events_uri,
-                    host AS "host: AgentId,
-                    timed_out"#,
+        let time: Option<PgRange<DateTime<Utc>>> = self.time.map(Into::into);
+        let query = sqlx::query_as!(
+            Object,
+            r#"
+            UPDATE class
+            SET time = COALESCE($2, time), reserve = COALESCE($3, reserve), host = COALESCE($4, host)
+            WHERE id = $1
+            RETURNING
+                id,
+                scope,
+                kind AS "kind!: ClassType",
+                audience,
+                time AS "time!: Time",
+                tags,
+                preserve_history,
+                created_at,
+                event_room_id,
+                conference_room_id,
+                original_event_room_id,
+                modified_event_room_id,
+                reserve,
+                room_events_uri,
+                host AS "host: AgentId",
+                timed_out
+            "#,
+            self.id,
+            time,
+            self.reserve,
+            self.host as Option<AgentId>,
         );
-        let query = sqlx::query_as(&sql);
-
-        let query = match &self.time {
-            Some(t) => {
-                let t: PgRange<DateTime<Utc>> = t.into();
-                query.bind(t)
-            }
-            None => query,
-        };
-
-        let query = match &self.reserve {
-            Some(r) => query.bind(r),
-            None => query,
-        };
-
-        let query = match &self.host {
-            Some(h) => query.bind(h),
-            None => query,
-        };
-
-        let query = query.bind(self.id);
 
         query.fetch_one(conn).await
     }

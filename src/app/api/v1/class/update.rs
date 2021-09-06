@@ -233,6 +233,7 @@ mod tests {
                 conference_room_id,
                 event_room_id,
             )
+            .reserve(20)
             .insert(&mut conn)
             .await
         };
@@ -272,7 +273,8 @@ mod tests {
 
         let time: BoundedDateTimeTuple = updated_webinar.time().to_owned().into();
         assert!(matches!(time.0, Bound::Included(_)));
-        assert_eq!(updated_webinar.id(), response.id());
+        assert_eq!(updated_webinar.reserve(), Some(20));
+        assert_eq!(response.reserve(), Some(20));
         assert_eq!(updated_webinar.time(), response.time());
         assert_eq!(updated_webinar.host(), response.host());
     }
