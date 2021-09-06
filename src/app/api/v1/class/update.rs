@@ -38,7 +38,7 @@ pub async fn update<T: AsClassType>(mut req: Request<Arc<dyn AppContext>>) -> Ap
     let class = find::<T>(state.as_ref(), id)
         .await
         .error(AppErrorKind::WebinarNotFound)?;
-    do_update::<T>(state.as_ref(), &account_id, class, body).await
+    let updated_class = do_update::<T>(state.as_ref(), &account_id, class, body).await;
 }
 
 pub async fn update_by_scope<T: AsClassType>(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
@@ -52,7 +52,7 @@ pub async fn update_by_scope<T: AsClassType>(mut req: Request<Arc<dyn AppContext
         .await
         .error(AppErrorKind::WebinarNotFound)?;
 
-    do_update::<T>(state.as_ref(), &account_id, class, body).await
+    let updated_class = do_update::<T>(state.as_ref(), &account_id, class, body).await;
 }
 
 async fn do_update<T: AsClassType>(
@@ -60,7 +60,7 @@ async fn do_update<T: AsClassType>(
     account_id: &AccountId,
     class: crate::db::class::Object,
     body: ClassUpdate,
-) -> AppResult {
+) -> class::Object {
     let object = AuthzObject::new(&["classrooms", &class.id().to_string()]).into();
 
     state
