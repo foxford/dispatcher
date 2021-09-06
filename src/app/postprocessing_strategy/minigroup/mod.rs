@@ -238,7 +238,7 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
                 recording_duration,
                 ..
             }) => {
-                let recording_duration = recording_duration.parse::<f64>()?.round() as u64;
+                let stream_duration = recording_duration.parse::<f64>()?.round() as u64;
 
                 {
                     let mut conn = self.ctx.get_conn().await?;
@@ -257,7 +257,7 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
                     scope: self.minigroup.scope().to_owned(),
                     tags: self.minigroup.tags().map(ToOwned::to_owned),
                     status: "success".to_string(),
-                    recording_duration,
+                    stream_duration,
                 };
 
                 let event = OutgoingEvent::broadcast(payload, props, &path);
@@ -503,7 +503,7 @@ struct MinigroupReady {
     #[serde(skip_serializing_if = "Option::is_none")]
     tags: Option<JsonValue>,
     status: String,
-    recording_duration: u64,
+    stream_duration: u64,
 }
 
 #[cfg(test)]
