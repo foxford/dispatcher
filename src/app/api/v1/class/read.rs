@@ -2,8 +2,6 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use chrono::Utc;
-use serde_derive::Serialize;
-use serde_json::Value as JsonValue;
 use svc_authn::AccountId;
 use tide::{Request, Response};
 use uuid::Uuid;

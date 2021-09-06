@@ -3,7 +3,6 @@ use std::{marker::PhantomData, ops::Bound};
 use chrono::serde::ts_seconds;
 use chrono::{DateTime, Utc};
 use sqlx::postgres::{types::PgRange, PgConnection};
-use sqlx::Done;
 use svc_agent::AgentId;
 use uuid::Uuid;
 
@@ -150,6 +149,11 @@ impl Object {
     pub fn timed_out(&self) -> bool {
         self.timed_out
     }
+
+    #[cfg(test)]
+    pub fn host(&self) -> Option<&AgentId> {
+        self.host.as_ref()
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -185,7 +189,7 @@ impl std::error::Error for WrongKind {}
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#[derive(Clone, Debug, Deserialize, Serialize, sqlx::Type)]
+#[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq, sqlx::Type)]
 #[sqlx(transparent)]
 #[serde(from = "BoundedDateTimeTuple")]
 #[serde(into = "BoundedDateTimeTuple")]
@@ -551,7 +555,7 @@ impl ClassUpdateQuery {
         self
     }
 
-    pub async fn execute(self, conn: &mut PgConnection) -> sqlx::Result<u64> {
+    pub async fn execute(self, conn: &mut PgConnection) -> sqlx::Result<Object> {
         use quaint::ast::{Comparable, Update};
         use quaint::visitor::{Postgres, Visitor};
 
@@ -567,10 +571,27 @@ impl ClassUpdateQuery {
         }
 
         let q = q.so_that("id".equals("__placeholder__"));
-
-        let (sql, _bindings) = Postgres::build(q);
-
-        let query = sqlx::query(&sql);
+        let (mut sql, _bindings) = Postgres::build(q);
+        sql.push_str(
+            r#" RETURNING
+                    id,
+                    scope,
+                    kind AS "kind!: ClassType",
+                    audience,
+                    time AS "time!: Time",
+                    tags,
+                    preserve_history,
+                    created_at,
+                    event_room_id,
+                    conference_room_id,
+                    original_event_room_id,
+                    modified_event_room_id,
+                    reserve,
+                    room_events_uri,
+                    host AS "host: AgentId,
+                    timed_out"#,
+        );
+        let query = sqlx::query_as(&sql);
 
         let query = match &self.time {
             Some(t) => {
@@ -592,7 +613,7 @@ impl ClassUpdateQuery {
 
         let query = query.bind(self.id);
 
-        query.execute(conn).await.map(|done| done.rows_affected())
+        query.fetch_one(conn).await
     }
 }
 

@@ -1,8 +1,13 @@
+use crate::db::class;
+
 use super::{extract_id, extract_param, find, find_by_scope, validate_token, AppResult};
 
 pub use read::{read, read_by_scope};
 pub use recreate::recreate;
+use serde::Serialize;
+use serde_json::Value;
 pub use update::{update, update_by_scope};
+use uuid::Uuid;
 
 mod read;
 mod recreate;
@@ -33,8 +38,8 @@ impl ClassResponseBody {
     }
 }
 
-impl From<&Class> for ClassResponseBody {
-    fn from(obj: &Class) -> Self {
+impl From<&class::Object> for ClassResponseBody {
+    fn from(obj: &class::Object) -> Self {
         Self {
             id: obj.scope().to_owned(),
             real_time: RealTimeObject {
@@ -58,7 +63,7 @@ pub struct ClassroomVersion {
     // right now its necessary to generate HLS links
     stream_id: Uuid,
     #[serde(skip_serializing_if = "Option::is_none")]
-    tags: Option<JsonValue>,
+    tags: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     room_events_uri: Option<String>,
 }
