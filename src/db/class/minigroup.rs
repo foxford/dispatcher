@@ -159,7 +159,8 @@ impl MinigroupInsertQuery {
                 modified_event_room_id,
                 reserve,
                 room_events_uri,
-                host AS "host: AgentId"
+                host AS "host: AgentId",
+                timed_out
             "#,
             self.scope,
             self.audience,

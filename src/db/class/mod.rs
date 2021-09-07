@@ -3,7 +3,6 @@ use std::{marker::PhantomData, ops::Bound};
 use chrono::serde::ts_seconds;
 use chrono::{DateTime, Utc};
 use sqlx::postgres::{types::PgRange, PgConnection};
-use sqlx::Done;
 use svc_agent::AgentId;
 use uuid::Uuid;
 
@@ -95,6 +94,7 @@ pub struct Object {
     reserve: Option<i32>,
     room_events_uri: Option<String>,
     host: Option<AgentId>,
+    timed_out: bool,
 }
 
 impl Object {
@@ -145,6 +145,15 @@ impl Object {
     pub fn room_events_uri(&self) -> Option<&String> {
         self.room_events_uri.as_ref()
     }
+
+    pub fn timed_out(&self) -> bool {
+        self.timed_out
+    }
+
+    #[cfg(test)]
+    pub fn host(&self) -> Option<&AgentId> {
+        self.host.as_ref()
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -180,7 +189,7 @@ impl std::error::Error for WrongKind {}
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#[derive(Clone, Debug, Deserialize, Serialize, sqlx::Type)]
+#[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq, sqlx::Type)]
 #[sqlx(transparent)]
 #[serde(from = "BoundedDateTimeTuple")]
 #[serde(into = "BoundedDateTimeTuple")]
@@ -444,7 +453,8 @@ impl UpdateQuery {
                 modified_event_room_id,
                 reserve,
                 room_events_uri,
-                host AS "host: AgentId"
+                host AS "host: AgentId",
+                timed_out
             "#,
             self.id,
             self.original_event_room_id,
@@ -498,7 +508,8 @@ impl RecreateQuery {
                 modified_event_room_id,
                 reserve,
                 room_events_uri,
-                host AS "host: AgentId"
+                host AS "host: AgentId",
+                timed_out
             "#,
             self.id,
             time,
@@ -544,68 +555,13 @@ impl ClassUpdateQuery {
         self
     }
 
-    pub async fn execute(self, conn: &mut PgConnection) -> sqlx::Result<u64> {
-        use quaint::ast::{Comparable, Update};
-        use quaint::visitor::{Postgres, Visitor};
-
-        let mut q = Update::table("class");
-        if self.time.is_some() {
-            q = q.set("time", "__placeholder_time__");
-        }
-        if self.reserve.is_some() {
-            q = q.set("reserve", "__placeholder_reserve__");
-        }
-        if self.host.is_some() {
-            q = q.set("host", "__placeholder_host__");
-        }
-
-        let q = q.so_that("id".equals("__placeholder__"));
-
-        let (sql, _bindings) = Postgres::build(q);
-
-        let query = sqlx::query(&sql);
-
-        let query = match &self.time {
-            Some(t) => {
-                let t: PgRange<DateTime<Utc>> = t.into();
-                query.bind(t)
-            }
-            None => query,
-        };
-
-        let query = match &self.reserve {
-            Some(r) => query.bind(r),
-            None => query,
-        };
-
-        let query = match &self.host {
-            Some(h) => query.bind(h),
-            None => query,
-        };
-
-        let query = query.bind(self.id);
-
-        query.execute(conn).await.map(|done| done.rows_affected())
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-pub struct RoomCloseQuery {
-    id: Uuid,
-}
-
-impl RoomCloseQuery {
-    pub fn new(id: Uuid) -> Self {
-        Self { id }
-    }
-
     pub async fn execute(self, conn: &mut PgConnection) -> sqlx::Result<Object> {
-        sqlx::query_as!(
+        let time: Option<PgRange<DateTime<Utc>>> = self.time.map(Into::into);
+        let query = sqlx::query_as!(
             Object,
             r#"
             UPDATE class
-            SET time = TSTZRANGE(LOWER(time), LEAST(UPPER(time), NOW()))
+            SET time = COALESCE($2, time), reserve = COALESCE($3, reserve), host = COALESCE($4, host)
             WHERE id = $1
             RETURNING
                 id,
@@ -622,9 +578,58 @@ impl RoomCloseQuery {
                 modified_event_room_id,
                 reserve,
                 room_events_uri,
-                host AS "host: AgentId"
+                host AS "host: AgentId",
+                timed_out
             "#,
-            self.id
+            self.id,
+            time,
+            self.reserve,
+            self.host as Option<AgentId>,
+        );
+
+        query.fetch_one(conn).await
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+pub struct RoomCloseQuery {
+    id: Uuid,
+    timed_out: bool,
+}
+
+impl RoomCloseQuery {
+    pub fn new(id: Uuid, timed_out: bool) -> Self {
+        Self { id, timed_out }
+    }
+
+    pub async fn execute(self, conn: &mut PgConnection) -> sqlx::Result<Object> {
+        sqlx::query_as!(
+            Object,
+            r#"
+            UPDATE class
+            SET time = TSTZRANGE(LOWER(time), LEAST(UPPER(time), NOW())), timed_out = $2
+            WHERE id = $1
+            RETURNING
+                id,
+                scope,
+                kind AS "kind!: ClassType",
+                audience,
+                time AS "time!: Time",
+                tags,
+                preserve_history,
+                created_at,
+                event_room_id,
+                conference_room_id,
+                original_event_room_id,
+                modified_event_room_id,
+                reserve,
+                room_events_uri,
+                host AS "host: AgentId",
+                timed_out
+            "#,
+            self.id,
+            self.timed_out
         )
         .fetch_one(conn)
         .await

@@ -148,6 +148,7 @@ pub struct Webinar {
     tags: Option<JsonValue>,
     original_event_room_id: Option<Uuid>,
     modified_event_room_id: Option<Uuid>,
+    reserve: Option<usize>,
 }
 
 impl Webinar {
@@ -167,6 +168,7 @@ impl Webinar {
             tags: None,
             original_event_room_id: None,
             modified_event_room_id: None,
+            reserve: None,
         }
     }
 
@@ -191,6 +193,13 @@ impl Webinar {
         }
     }
 
+    pub fn reserve(self, reserve: usize) -> Self {
+        Self {
+            reserve: Some(reserve),
+            ..self
+        }
+    }
+
     pub async fn insert(self, conn: &mut PgConnection) -> db::class::Object {
         let mut q = db::class::WebinarInsertQuery::new(
             self.scope,
@@ -210,6 +219,10 @@ impl Webinar {
 
         if let Some(modified_event_room_id) = self.modified_event_room_id {
             q = q.modified_event_room_id(modified_event_room_id);
+        }
+
+        if let Some(reserve) = self.reserve {
+            q = q.reserve(reserve as i32);
         }
 
         q.execute(conn).await.expect("Failed to insert webinar")

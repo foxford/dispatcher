@@ -10,11 +10,11 @@ use svc_authn::AccountId;
 use tide::{Request, Response};
 use uuid::Uuid;
 
-use super::{extract_id, find, validate_token, AppResult};
-use crate::app::AppContext;
+use super::{extract_id, find, validate_token, AppResult, ClassResponseBody};
 use crate::app::{api::v1::extract_param, error::ErrorKind as AppErrorKind};
 use crate::app::{api::v1::find_by_scope, error::ErrorExt};
 use crate::app::{authz::AuthzObject, metrics::AuthorizeMetrics};
+use crate::app::{error, AppContext};
 use crate::clients::{
     conference::RoomUpdate as ConfRoomUpdate, event::RoomUpdate as EventRoomUpdate,
 };
@@ -38,7 +38,14 @@ pub async fn update<T: AsClassType>(mut req: Request<Arc<dyn AppContext>>) -> Ap
     let class = find::<T>(state.as_ref(), id)
         .await
         .error(AppErrorKind::WebinarNotFound)?;
-    do_update::<T>(state.as_ref(), &account_id, class, body).await
+    let updated_class = do_update::<T>(state.as_ref(), &account_id, class, body).await?;
+    Ok(Response::builder(200)
+        .body(
+            serde_json::to_string(&updated_class)
+                .context("Failed to serialize minigroup")
+                .error(AppErrorKind::SerializationFailed)?,
+        )
+        .build())
 }
 
 pub async fn update_by_scope<T: AsClassType>(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
@@ -52,7 +59,15 @@ pub async fn update_by_scope<T: AsClassType>(mut req: Request<Arc<dyn AppContext
         .await
         .error(AppErrorKind::WebinarNotFound)?;
 
-    do_update::<T>(state.as_ref(), &account_id, class, body).await
+    let updated_class = do_update::<T>(state.as_ref(), &account_id, class, body).await?;
+    let response: ClassResponseBody = (&updated_class).into();
+    Ok(Response::builder(200)
+        .body(
+            serde_json::to_string(&response)
+                .context("Failed to serialize minigroup")
+                .error(AppErrorKind::SerializationFailed)?,
+        )
+        .build())
 }
 
 async fn do_update<T: AsClassType>(
@@ -60,7 +75,7 @@ async fn do_update<T: AsClassType>(
     account_id: &AccountId,
     class: crate::db::class::Object,
     body: ClassUpdate,
-) -> AppResult {
+) -> Result<class::Object, error::Error> {
     let object = AuthzObject::new(&["classrooms", &class.id().to_string()]).into();
 
     state
@@ -100,15 +115,13 @@ async fn do_update<T: AsClassType>(
     }
 
     let mut conn = state.get_conn().await.error(AppErrorKind::DbQueryFailed)?;
-    query
+    let class = query
         .execute(&mut conn)
         .await
         .context("Failed to update webinar")
         .error(AppErrorKind::DbQueryFailed)?;
 
-    let response = Response::builder(200).build();
-
-    Ok(response)
+    Ok(class)
 }
 
 fn get_coneference_update(
@@ -220,6 +233,7 @@ mod tests {
                 conference_room_id,
                 event_room_id,
             )
+            .reserve(20)
             .insert(&mut conn)
             .await
         };
@@ -245,9 +259,10 @@ mod tests {
             host: None,
         };
 
-        do_update::<WebinarType>(state.as_ref(), agent.account_id(), webinar.clone(), body)
-            .await
-            .expect("Failed to update");
+        let response =
+            do_update::<WebinarType>(state.as_ref(), agent.account_id(), webinar.clone(), body)
+                .await
+                .expect("Failed to update");
 
         let mut conn = state.get_conn().await.expect("Failed to get conn");
         let updated_webinar = WebinarReadQuery::by_id(webinar.id())
@@ -258,6 +273,10 @@ mod tests {
 
         let time: BoundedDateTimeTuple = updated_webinar.time().to_owned().into();
         assert!(matches!(time.0, Bound::Included(_)));
+        assert_eq!(updated_webinar.reserve(), Some(20));
+        assert_eq!(response.reserve(), Some(20));
+        assert_eq!(updated_webinar.time(), response.time());
+        assert_eq!(updated_webinar.host(), response.host());
     }
 
     fn update_webinar_mocks(state: &mut TestState, event_room_id: Uuid, conference_room_id: Uuid) {
