@@ -28,6 +28,7 @@ pub struct RoomUpdate {
     pub time: Option<BoundedDateTimeTuple>,
     pub reserve: Option<i32>,
     pub classroom_id: Option<Uuid>,
+    pub host: Option<AgentId>,
 }
 
 impl RoomUpdate {
@@ -36,8 +37,9 @@ impl RoomUpdate {
             self,
             RoomUpdate {
                 classroom_id: None,
-                time: None,
                 reserve: None,
+                host: None,
+                time: None
             }
         )
     }
@@ -136,6 +138,8 @@ struct ConferenceRoomUpdatePayload {
     time: Option<BoundedDateTimeTuple>,
     #[serde(skip_serializing_if = "Option::is_none")]
     classroom_id: Option<Uuid>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    host: Option<AgentId>,
     reserve: Option<i32>,
 }
 
@@ -245,6 +249,7 @@ impl ConferenceClient for MqttConferenceClient {
             id,
             time: update.time,
             classroom_id: update.classroom_id,
+            host: update.host,
             reserve: update.reserve,
         };
         let msg = if let OutgoingMessage::Request(msg) = OutgoingRequest::multicast(

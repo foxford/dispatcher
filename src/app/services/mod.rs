@@ -28,6 +28,7 @@ pub async fn update_classroom_id(
                 time: None,
                 reserve: None,
                 classroom_id: Some(classroom_id),
+                host: None,
             },
         );
 

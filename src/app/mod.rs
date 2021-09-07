@@ -32,6 +32,7 @@ use api::v1::chat::{
 use api::v1::minigroup::{
     create as create_minigroup, read as read_minigroup, read_by_scope as read_minigroup_by_scope,
     recreate as recreate_minigroup, update as update_minigroup,
+    update_by_scope as update_minigroup_by_scope,
 };
 use api::v1::p2p::{
     convert as convert_p2p, create as create_p2p, read as read_p2p,
@@ -350,7 +351,8 @@ fn bind_minigroups_routes(app: &mut tide::Server<Arc<dyn AppContext>>) {
         .with_metrics()
         .with(cors())
         .options(read_options)
-        .get(AppEndpoint(read_minigroup_by_scope));
+        .get(AppEndpoint(read_minigroup_by_scope))
+        .put(AppEndpoint(update_minigroup_by_scope));
 
     app.at("/api/v1/minigroups/:id/recreate")
         .with_metrics()
@@ -437,7 +439,7 @@ fn build_tq_client(config: &Config, token: &str) -> Arc<dyn TqClient> {
 
 fn cors() -> CorsMiddleware {
     CorsMiddleware::new()
-        .allow_methods("GET, OPTIONS".parse::<HeaderValue>().unwrap())
+        .allow_methods("GET, OPTIONS, PUT".parse::<HeaderValue>().unwrap())
         .allow_origin(Origin::from("*"))
         .allow_headers("*".parse::<HeaderValue>().unwrap())
 }

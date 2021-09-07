@@ -5,25 +5,28 @@ use anyhow::Context;
 use async_std::prelude::FutureExt;
 use chrono::Utc;
 use serde_derive::Deserialize;
+use svc_agent::AgentId;
 use svc_authn::AccountId;
 use tide::{Request, Response};
 use uuid::Uuid;
 
-use super::{extract_id, find, validate_token, AppResult};
-use crate::app::error::ErrorKind as AppErrorKind;
-use crate::app::AppContext;
+use super::{extract_id, find, validate_token, AppResult, ClassResponseBody};
+use crate::app::{api::v1::extract_param, error::ErrorKind as AppErrorKind};
+use crate::app::{api::v1::find_by_scope, error::ErrorExt};
 use crate::app::{authz::AuthzObject, metrics::AuthorizeMetrics};
+use crate::app::{error, AppContext};
 use crate::clients::{
     conference::RoomUpdate as ConfRoomUpdate, event::RoomUpdate as EventRoomUpdate,
 };
+use crate::db::class;
 use crate::db::class::{AsClassType, BoundedDateTimeTuple};
-use crate::{app::error::ErrorExt, db::class};
 
 #[derive(Deserialize)]
 struct ClassUpdate {
     #[serde(default, with = "crate::serde::ts_seconds_option_bound_tuple")]
     time: Option<BoundedDateTimeTuple>,
     reserve: Option<i32>,
+    host: Option<AgentId>,
 }
 
 pub async fn update<T: AsClassType>(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
@@ -32,20 +35,47 @@ pub async fn update<T: AsClassType>(mut req: Request<Arc<dyn AppContext>>) -> Ap
     let account_id = validate_token(&req).error(AppErrorKind::Unauthorized)?;
     let state = req.state();
     let id = extract_id(&req).error(AppErrorKind::InvalidParameter)?;
+    let class = find::<T>(state.as_ref(), id)
+        .await
+        .error(AppErrorKind::WebinarNotFound)?;
+    let updated_class = do_update::<T>(state.as_ref(), &account_id, class, body).await?;
+    Ok(Response::builder(200)
+        .body(
+            serde_json::to_string(&updated_class)
+                .context("Failed to serialize minigroup")
+                .error(AppErrorKind::SerializationFailed)?,
+        )
+        .build())
+}
 
-    do_update::<T>(state.as_ref(), &account_id, id, body).await
+pub async fn update_by_scope<T: AsClassType>(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
+    let body: ClassUpdate = req.body_json().await.error(AppErrorKind::InvalidPayload)?;
+
+    let account_id = validate_token(&req).error(AppErrorKind::Unauthorized)?;
+    let audience = extract_param(&req, "audience").error(AppErrorKind::InvalidParameter)?;
+    let scope = extract_param(&req, "scope").error(AppErrorKind::InvalidParameter)?;
+    let state = req.state();
+    let class = find_by_scope::<T>(state.as_ref(), audience, scope)
+        .await
+        .error(AppErrorKind::WebinarNotFound)?;
+
+    let updated_class = do_update::<T>(state.as_ref(), &account_id, class, body).await?;
+    let response: ClassResponseBody = (&updated_class).into();
+    Ok(Response::builder(200)
+        .body(
+            serde_json::to_string(&response)
+                .context("Failed to serialize minigroup")
+                .error(AppErrorKind::SerializationFailed)?,
+        )
+        .build())
 }
 
 async fn do_update<T: AsClassType>(
     state: &dyn AppContext,
     account_id: &AccountId,
-    id: Uuid,
+    class: crate::db::class::Object,
     body: ClassUpdate,
-) -> AppResult {
-    let class = find::<T>(state, id)
-        .await
-        .error(AppErrorKind::WebinarNotFound)?;
-
+) -> Result<class::Object, error::Error> {
     let object = AuthzObject::new(&["classrooms", &class.id().to_string()]).into();
 
     state
@@ -58,7 +88,6 @@ async fn do_update<T: AsClassType>(
         )
         .await
         .measure()?;
-
     let event_update = get_event_update(&class, &body)
         .map(|(id, update)| state.event_client().update_room(id, update));
     let conference_update = get_coneference_update(&class, &body)
@@ -72,7 +101,7 @@ async fn do_update<T: AsClassType>(
     .context("Services requests")
     .error(AppErrorKind::MqttRequestFailed)?;
 
-    let mut query = crate::db::class::TimeUpdateQuery::new(class.id());
+    let mut query = crate::db::class::ClassUpdateQuery::new(class.id());
     if let Some(t) = body.time {
         query = query.time(t.into());
     }
@@ -81,20 +110,18 @@ async fn do_update<T: AsClassType>(
         query = query.reserve(r);
     }
 
+    if let Some(host) = body.host {
+        query = query.host(host);
+    }
+
     let mut conn = state.get_conn().await.error(AppErrorKind::DbQueryFailed)?;
-    let webinar = query
+    let class = query
         .execute(&mut conn)
         .await
         .context("Failed to update webinar")
         .error(AppErrorKind::DbQueryFailed)?;
 
-    let body = serde_json::to_string(&webinar)
-        .context("Failed to serialize webinar")
-        .error(AppErrorKind::SerializationFailed)?;
-
-    let response = Response::builder(200).body(body).build();
-
-    Ok(response)
+    Ok(class)
 }
 
 fn get_coneference_update(
@@ -109,6 +136,7 @@ fn get_coneference_update(
         }),
         reserve: update.reserve,
         classroom_id: None,
+        host: update.host.clone(),
     };
     conf_update
         .is_empty_update()
@@ -144,6 +172,15 @@ mod tests {
     use mockall::predicate as pred;
     use uuid::Uuid;
 
+    #[test]
+    fn update_serde_test() {
+        let update = "{}";
+        let update: ClassUpdate = serde_json::from_str(update).unwrap();
+        assert!(update.time.is_none());
+        let update = "{\"reserve\": 10}";
+        let _update: ClassUpdate = serde_json::from_str(update).unwrap();
+    }
+
     #[async_std::test]
     async fn update_webinar_unauthorized() {
         let agent = TestAgent::new("web", "user1", USR_AUDIENCE);
@@ -171,9 +208,10 @@ mod tests {
                 Bound::Unbounded,
             )),
             reserve: None,
+            host: None,
         };
 
-        do_update::<WebinarType>(state.as_ref(), agent.account_id(), webinar.id(), body)
+        do_update::<WebinarType>(state.as_ref(), agent.account_id(), webinar, body)
             .await
             .expect_err("Unexpectedly succeeded");
     }
@@ -195,6 +233,7 @@ mod tests {
                 conference_room_id,
                 event_room_id,
             )
+            .reserve(20)
             .insert(&mut conn)
             .await
         };
@@ -217,11 +256,13 @@ mod tests {
                 Bound::Unbounded,
             )),
             reserve: None,
+            host: None,
         };
 
-        do_update::<WebinarType>(state.as_ref(), agent.account_id(), webinar.id(), body)
-            .await
-            .expect("Failed to update");
+        let response =
+            do_update::<WebinarType>(state.as_ref(), agent.account_id(), webinar.clone(), body)
+                .await
+                .expect("Failed to update");
 
         let mut conn = state.get_conn().await.expect("Failed to get conn");
         let updated_webinar = WebinarReadQuery::by_id(webinar.id())
@@ -232,6 +273,10 @@ mod tests {
 
         let time: BoundedDateTimeTuple = updated_webinar.time().to_owned().into();
         assert!(matches!(time.0, Bound::Included(_)));
+        assert_eq!(updated_webinar.reserve(), Some(20));
+        assert_eq!(response.reserve(), Some(20));
+        assert_eq!(updated_webinar.time(), response.time());
+        assert_eq!(updated_webinar.host(), response.host());
     }
 
     fn update_webinar_mocks(state: &mut TestState, event_room_id: Uuid, conference_room_id: Uuid) {
