@@ -267,6 +267,7 @@ pub struct Recording {
     adjusted_at: Option<DateTime<Utc>>,
     transcoded_at: Option<DateTime<Utc>>,
     created_by: AgentId,
+    deleted_at: Option<DateTime<Utc>>,
 }
 
 impl Recording {
@@ -280,6 +281,7 @@ impl Recording {
             started_at: None,
             adjusted_at: None,
             transcoded_at: None,
+            deleted_at: None,
             created_by,
         }
     }
@@ -326,9 +328,19 @@ impl Recording {
         }
     }
 
+    pub fn deleted_at(self, deleted_at: DateTime<Utc>) -> Self {
+        Self {
+            deleted_at: Some(deleted_at),
+            ..self
+        }
+    }
+
     pub async fn insert(self, conn: &mut PgConnection) -> db::recording::Object {
-        let mut q =
-            db::recording::RecordingInsertQuery::new(self.class_id, self.rtc_id, self.created_by);
+        let mut q = crate::db::recording::tests::RecordingInsertQuery::new(
+            self.class_id,
+            self.rtc_id,
+            self.created_by,
+        );
 
         if let Some(modified_segments) = self.modified_segments {
             q = q.modified_segments(modified_segments);
@@ -352,6 +364,10 @@ impl Recording {
 
         if let Some(started_at) = self.started_at {
             q = q.started_at(started_at);
+        }
+
+        if let Some(deleted_at) = self.deleted_at {
+            q = q.deleted_at(deleted_at);
         }
 
         q.execute(conn).await.expect("Failed to insert recording")
