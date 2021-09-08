@@ -148,6 +148,7 @@ pub struct Webinar {
     tags: Option<JsonValue>,
     original_event_room_id: Option<Uuid>,
     modified_event_room_id: Option<Uuid>,
+    reserve: Option<usize>,
 }
 
 impl Webinar {
@@ -167,6 +168,7 @@ impl Webinar {
             tags: None,
             original_event_room_id: None,
             modified_event_room_id: None,
+            reserve: None,
         }
     }
 
@@ -191,6 +193,13 @@ impl Webinar {
         }
     }
 
+    pub fn reserve(self, reserve: usize) -> Self {
+        Self {
+            reserve: Some(reserve),
+            ..self
+        }
+    }
+
     pub async fn insert(self, conn: &mut PgConnection) -> db::class::Object {
         let mut q = db::class::WebinarInsertQuery::new(
             self.scope,
@@ -210,6 +219,10 @@ impl Webinar {
 
         if let Some(modified_event_room_id) = self.modified_event_room_id {
             q = q.modified_event_room_id(modified_event_room_id);
+        }
+
+        if let Some(reserve) = self.reserve {
+            q = q.reserve(reserve as i32);
         }
 
         q.execute(conn).await.expect("Failed to insert webinar")
@@ -267,6 +280,7 @@ pub struct Recording {
     adjusted_at: Option<DateTime<Utc>>,
     transcoded_at: Option<DateTime<Utc>>,
     created_by: AgentId,
+    deleted_at: Option<DateTime<Utc>>,
 }
 
 impl Recording {
@@ -280,6 +294,7 @@ impl Recording {
             started_at: None,
             adjusted_at: None,
             transcoded_at: None,
+            deleted_at: None,
             created_by,
         }
     }
@@ -326,9 +341,19 @@ impl Recording {
         }
     }
 
+    pub fn deleted_at(self, deleted_at: DateTime<Utc>) -> Self {
+        Self {
+            deleted_at: Some(deleted_at),
+            ..self
+        }
+    }
+
     pub async fn insert(self, conn: &mut PgConnection) -> db::recording::Object {
-        let mut q =
-            db::recording::RecordingInsertQuery::new(self.class_id, self.rtc_id, self.created_by);
+        let mut q = crate::db::recording::tests::RecordingInsertQuery::new(
+            self.class_id,
+            self.rtc_id,
+            self.created_by,
+        );
 
         if let Some(modified_segments) = self.modified_segments {
             q = q.modified_segments(modified_segments);
@@ -352,6 +377,10 @@ impl Recording {
 
         if let Some(started_at) = self.started_at {
             q = q.started_at(started_at);
+        }
+
+        if let Some(deleted_at) = self.deleted_at {
+            q = q.deleted_at(deleted_at);
         }
 
         q.execute(conn).await.expect("Failed to insert recording")

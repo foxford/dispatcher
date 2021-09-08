@@ -937,7 +937,7 @@ mod handle_transcoding_completion {
                 scope: minigroup.scope().to_owned(),
                 tags: minigroup.tags().map(ToOwned::to_owned),
                 status: "success".to_string(),
-                recording_duration: 3000,
+                stream_duration: 3000,
             }
         );
     }

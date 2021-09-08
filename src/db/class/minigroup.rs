@@ -3,6 +3,7 @@ use chrono::{DateTime, Utc};
 use serde::Serialize;
 use serde_json::Value as JsonValue;
 use sqlx::postgres::{types::PgRange, PgConnection};
+use svc_agent::AgentId;
 use uuid::Uuid;
 
 use super::{ClassType, Object, Time, WrongKind};
@@ -29,6 +30,7 @@ pub struct Minigroup {
     preserve_history: bool,
     reserve: Option<i32>,
     room_events_uri: Option<String>,
+    host: Option<AgentId>,
 }
 
 impl std::convert::TryFrom<Object> for Minigroup {
@@ -53,6 +55,7 @@ impl std::convert::TryFrom<Object> for Minigroup {
                 preserve_history: value.preserve_history,
                 reserve: value.reserve,
                 room_events_uri: value.room_events_uri,
+                host: value.host,
             }),
             _ => Err(WrongKind::new(&value, ClassType::Minigroup)),
         }
@@ -155,7 +158,9 @@ impl MinigroupInsertQuery {
                 original_event_room_id,
                 modified_event_room_id,
                 reserve,
-                room_events_uri
+                room_events_uri,
+                host AS "host: AgentId",
+                timed_out
             "#,
             self.scope,
             self.audience,

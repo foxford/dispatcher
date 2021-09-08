@@ -192,54 +192,6 @@ impl RecordingInsertQuery {
         }
     }
 
-    #[cfg(test)]
-    pub fn modified_segments(self, modified_segments: Segments) -> Self {
-        Self {
-            modified_segments: Some(modified_segments),
-            ..self
-        }
-    }
-
-    #[cfg(test)]
-    pub fn adjusted_at(self, adjusted_at: DateTime<Utc>) -> Self {
-        Self {
-            adjusted_at: Some(adjusted_at),
-            ..self
-        }
-    }
-
-    #[cfg(test)]
-    pub fn transcoded_at(self, transcoded_at: DateTime<Utc>) -> Self {
-        Self {
-            transcoded_at: Some(transcoded_at),
-            ..self
-        }
-    }
-
-    #[cfg(test)]
-    pub fn stream_uri(self, uri: String) -> Self {
-        Self {
-            stream_uri: Some(uri),
-            ..self
-        }
-    }
-
-    #[cfg(test)]
-    pub fn segments(self, segments: Segments) -> Self {
-        Self {
-            segments: Some(segments),
-            ..self
-        }
-    }
-
-    #[cfg(test)]
-    pub fn started_at(self, started_at: DateTime<Utc>) -> Self {
-        Self {
-            started_at: Some(started_at),
-            ..self
-        }
-    }
-
     pub async fn execute(self, conn: &mut PgConnection) -> sqlx::Result<Object> {
         sqlx::query_as!(
             Object,
@@ -358,7 +310,7 @@ impl AdjustMinigroupUpdateQuery {
                     ELSE segments
                 END,
                 adjusted_at = NOW()
-            WHERE class_id = $1
+            WHERE class_id = $1 AND deleted_at IS NULL
             RETURNING
                 id,
                 class_id,
@@ -606,6 +558,170 @@ pub(crate) mod serde {
         match opt {
             Some(value) => segments::serialize(value, serializer),
             None => serializer.serialize_none(),
+        }
+    }
+}
+
+#[cfg(test)]
+pub mod tests {
+    use super::*;
+    use crate::app::AppContext;
+    use crate::test_helpers::prelude::*;
+
+    #[async_std::test]
+    async fn test_minigroup_adjust_not_using_deleted_recordings() {
+        let agent = TestAgent::new("web", "user1", USR_AUDIENCE);
+
+        let state = TestState::new(TestAuthz::new()).await;
+        let mut conn = state.get_conn().await.expect("Failed to fetch connection");
+        let minigroup = factory::Minigroup::new(
+            random_string(),
+            USR_AUDIENCE.to_string(),
+            (Bound::Unbounded, Bound::Unbounded).into(),
+            Uuid::new_v4(),
+            Uuid::new_v4(),
+        )
+        .insert(&mut conn)
+        .await;
+
+        // Deleted recording
+        factory::Recording::new(minigroup.id(), Uuid::new_v4(), agent.agent_id().to_owned())
+            .deleted_at(Utc::now())
+            .insert(&mut conn)
+            .await;
+
+        // Actual recording
+        let recording = factory::Recording::new(minigroup.id(), Uuid::new_v4(), agent.agent_id().to_owned())
+            .insert(&mut conn)
+            .await;
+
+        let recordings = AdjustMinigroupUpdateQuery::new(
+            minigroup.id(),
+            vec![(Bound::Included(0), Bound::Excluded(1000))].into(),
+            agent.agent_id().to_owned(),
+        )
+        .execute(&mut conn)
+        .await
+        .expect("Query failed");
+
+        assert_eq!(recordings.len(), 1);
+        assert_eq!(recordings[0].rtc_id(), recording.rtc_id());
+    }
+
+    pub struct RecordingInsertQuery {
+        class_id: Uuid,
+        rtc_id: Uuid,
+        segments: Option<Segments>,
+        started_at: Option<DateTime<Utc>>,
+        stream_uri: Option<String>,
+        modified_segments: Option<Segments>,
+        adjusted_at: Option<DateTime<Utc>>,
+        transcoded_at: Option<DateTime<Utc>>,
+        created_by: AgentId,
+        deleted_at: Option<DateTime<Utc>>,
+    }
+
+    impl RecordingInsertQuery {
+        pub fn new(class_id: Uuid, rtc_id: Uuid, created_by: AgentId) -> Self {
+            Self {
+                class_id,
+                rtc_id,
+                segments: None,
+                started_at: None,
+                stream_uri: None,
+                modified_segments: None,
+                adjusted_at: None,
+                transcoded_at: None,
+                created_by,
+                deleted_at: None,
+            }
+        }
+
+        pub fn modified_segments(self, modified_segments: Segments) -> Self {
+            Self {
+                modified_segments: Some(modified_segments),
+                ..self
+            }
+        }
+
+        pub fn adjusted_at(self, adjusted_at: DateTime<Utc>) -> Self {
+            Self {
+                adjusted_at: Some(adjusted_at),
+                ..self
+            }
+        }
+
+        pub fn transcoded_at(self, transcoded_at: DateTime<Utc>) -> Self {
+            Self {
+                transcoded_at: Some(transcoded_at),
+                ..self
+            }
+        }
+
+        pub fn stream_uri(self, uri: String) -> Self {
+            Self {
+                stream_uri: Some(uri),
+                ..self
+            }
+        }
+
+        pub fn segments(self, segments: Segments) -> Self {
+            Self {
+                segments: Some(segments),
+                ..self
+            }
+        }
+
+        pub fn started_at(self, started_at: DateTime<Utc>) -> Self {
+            Self {
+                started_at: Some(started_at),
+                ..self
+            }
+        }
+
+        pub fn deleted_at(self, deleted_at: DateTime<Utc>) -> Self {
+            Self {
+                deleted_at: Some(deleted_at),
+                ..self
+            }
+        }
+
+        pub async fn execute(self, conn: &mut PgConnection) -> sqlx::Result<Object> {
+            sqlx::query_as!(
+                Object,
+                r#"
+                INSERT INTO recording (
+                    class_id, rtc_id, stream_uri, segments, modified_segments, started_at, adjusted_at,
+                    transcoded_at, created_by, deleted_at
+                )
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                RETURNING
+                    id,
+                    class_id,
+                    rtc_id,
+                    stream_uri,
+                    segments AS "segments!: Option<Segments>",
+                    started_at,
+                    modified_segments AS "modified_segments!: Option<Segments>",
+                    created_at,
+                    adjusted_at,
+                    transcoded_at,
+                    created_by AS "created_by: AgentId",
+                    deleted_at
+                "#,
+                self.class_id,
+                self.rtc_id,
+                self.stream_uri,
+                self.segments as Option<Segments>,
+                self.modified_segments as Option<Segments>,
+                self.started_at,
+                self.adjusted_at,
+                self.transcoded_at,
+                self.created_by as AgentId,
+                self.deleted_at
+            )
+            .fetch_one(conn)
+            .await
         }
     }
 }

@@ -55,7 +55,7 @@ impl MessageHandler {
             .label()
             .map(|s| format!("Some({})", s))
             .unwrap_or_else(|| "None".into());
-        slog::info!(
+        slog::warn!(
             crate::LOG,
             "Incoming event, label = {}, payload = {}, topic = {}",
             &label,
@@ -135,6 +135,8 @@ impl MessageHandler {
         let payload = serde_json::from_str::<RoomClose>(&data.extract_payload())?;
         let mut conn = self.ctx.get_conn().await?;
 
+        warn!(crate::LOG, "Close event, payload id = {:?}", payload.id);
+
         let query = match topic.get(1) {
             Some(app) if app.starts_with("event.") => {
                 crate::db::class::ReadQuery::by_event_room(payload.id)
@@ -150,6 +152,13 @@ impl MessageHandler {
             .await?
             .ok_or_else(|| anyhow!("Class not found by id from payload = {:?}", payload,))?;
 
+        warn!(
+            crate::LOG,
+            "Close event, found class, payload id = {:?}, class id = {:?}",
+            payload.id,
+            class.id()
+        );
+
         let label = match class.kind() {
             ClassType::P2P => "p2p.stop",
             ClassType::Minigroup => "minigroup.stop",
@@ -157,9 +166,16 @@ impl MessageHandler {
             ClassType::Chat => "chat.stop",
         };
 
-        crate::db::class::RoomCloseQuery::new(class.id())
+        crate::db::class::RoomCloseQuery::new(class.id(), payload.timed_out.unwrap_or(false))
             .execute(&mut conn)
             .await?;
+
+        warn!(
+            crate::LOG,
+            "Close event, room close query done, payload id = {:?}, class id = {:?}",
+            payload.id,
+            class.id()
+        );
 
         let timing = ShortTermTimingProperties::new(chrono::Utc::now());
         let props = OutgoingEventProperties::new(label, timing);
@@ -170,6 +186,14 @@ impl MessageHandler {
             scope: class.scope().to_owned(),
             id: class.id(),
         };
+
+        warn!(
+            crate::LOG,
+            "Close event, sending notification, payload id = {:?}, class id = {:?}, payload = {:?}",
+            payload.id,
+            class.id(),
+            payload
+        );
 
         let event = OutgoingEvent::broadcast(payload, props, &path);
         let boxed_event = Box::new(event) as Box<dyn IntoPublishableMessage + Send>;
@@ -389,6 +413,7 @@ impl EditionCommitResult {
 struct RoomClose {
     id: Uuid,
     audience: String,
+    timed_out: Option<bool>,
     #[serde(with = "crate::serde::ts_seconds_bound_tuple")]
     time: crate::db::class::BoundedDateTimeTuple,
 }
@@ -399,7 +424,7 @@ struct RoomUpload {
     rtcs: Vec<postprocessing_strategy::MjrDumpsUploadResult>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 struct ClassStop {
     #[serde(skip_serializing_if = "Option::is_none")]
     tags: Option<JsonValue>,

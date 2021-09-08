@@ -5,7 +5,7 @@ use serde_json::Value as JsonValue;
 use sqlx::postgres::{types::PgRange, PgConnection};
 use uuid::Uuid;
 
-use super::{ClassType, Object, Time};
+use super::{AgentId, ClassType, Object, Time};
 
 pub struct P2PInsertQuery {
     scope: String,
@@ -63,7 +63,9 @@ impl P2PInsertQuery {
                 original_event_room_id,
                 modified_event_room_id,
                 reserve,
-                room_events_uri
+                room_events_uri,
+                host AS "host: AgentId",
+                timed_out
             "#,
             self.scope,
             self.audience,
