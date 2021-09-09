@@ -434,6 +434,7 @@ fn build_tq_client(config: &Config, token: &str) -> Arc<dyn TqClient> {
         config.tq_client.base_url.clone(),
         token.to_owned(),
         config.tq_client.timeout,
+        config.tq_client.audience_settings.clone(),
     ))
 }
 

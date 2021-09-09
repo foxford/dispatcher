@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::time::Duration;
 
 use anyhow::Result;
@@ -11,11 +12,53 @@ use serde_json::{json, Value as JsonValue};
 use uuid::Uuid;
 
 use super::ClientError;
+use crate::config::TqAudienceSettings;
 use crate::db::recording::Segments;
 
 const PRIORITY: &str = "normal";
 
 ////////////////////////////////////////////////////////////////////////////////
+
+#[derive(Debug, Serialize)]
+struct TaskWithOptions<'a> {
+    #[serde(flatten)]
+    task: Task,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    to: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    preroll: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    postroll: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    watermark: Option<&'a str>,
+}
+
+impl<'a> TaskWithOptions<'a> {
+    fn new(task: Task) -> Self {
+        Self {
+            task,
+            to: None,
+            preroll: None,
+            postroll: None,
+            watermark: None,
+        }
+    }
+
+    fn set_audience_settings(&mut self, settings: &'a TqAudienceSettings) {
+        match self.task {
+            Task::TranscodeStreamToHls { .. } => {
+                self.to = settings.to.as_deref();
+                self.preroll = settings.preroll.as_deref();
+                self.postroll = settings.postroll.as_deref();
+                self.watermark = settings.watermark.as_deref();
+            }
+            Task::ConvertMjrDumpsToStream { .. } => {
+                self.to = settings.to.as_deref();
+            }
+            _ => {}
+        }
+    }
+}
 
 #[derive(Debug, PartialEq, Serialize)]
 #[serde(untagged)]
@@ -192,10 +235,16 @@ pub trait TqClient: Sync + Send {
 pub struct HttpTqClient {
     client: isahc::HttpClient,
     base_url: url::Url,
+    audience_settings: HashMap<String, TqAudienceSettings>,
 }
 
 impl HttpTqClient {
-    pub fn new(base_url: String, token: String, timeout: u64) -> Self {
+    pub fn new(
+        base_url: String,
+        token: String,
+        timeout: u64,
+        audience_settings: HashMap<String, TqAudienceSettings>,
+    ) -> Self {
         let base_url = url::Url::parse(&base_url).expect("Failed to convert HttpTqClient base url");
 
         let client = isahc::HttpClient::builder()
@@ -212,17 +261,21 @@ impl HttpTqClient {
             .build()
             .expect("Failed to build HttpTqClient");
 
-        Self { client, base_url }
+        Self {
+            client,
+            base_url,
+            audience_settings,
+        }
     }
 }
 
 #[derive(Serialize)]
-struct TaskPayload {
-    audience: String,
+struct TaskPayload<'a> {
+    audience: &'a str,
     tags: JsonValue,
-    priority: String,
-    template: String,
-    bindings: Task,
+    priority: &'a str,
+    template: &'a str,
+    bindings: TaskWithOptions<'a>,
 }
 
 #[async_trait]
@@ -232,6 +285,8 @@ impl TqClient for HttpTqClient {
         class: &crate::db::class::Object,
         task: Task,
     ) -> Result<(), ClientError> {
+        let template = task.template();
+
         let mut task_id = String::new();
         task_id.push_str(task.template());
         task_id.push_str(class.scope());
@@ -249,12 +304,21 @@ impl TqClient for HttpTqClient {
                 .and_then(|map| map.insert("conference_room_id".to_string(), json!(cid)))
         });
 
+        let task_with_options = if let Some(settings) = self.audience_settings.get(class.audience())
+        {
+            let mut t = TaskWithOptions::new(task);
+            t.set_audience_settings(&settings);
+            t
+        } else {
+            TaskWithOptions::new(task)
+        };
+
         let task = TaskPayload {
-            audience: class.audience().to_owned(),
+            audience: class.audience(),
             tags,
-            priority: PRIORITY.into(),
-            template: task.template().into(),
-            bindings: task,
+            priority: PRIORITY,
+            bindings: task_with_options,
+            template,
         };
 
         let url = self.base_url.join(&route).map_err(|e| {

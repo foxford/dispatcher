@@ -574,9 +574,10 @@ pub mod tests {
             .await;
 
         // Actual recording
-        let recording = factory::Recording::new(minigroup.id(), Uuid::new_v4(), agent.agent_id().to_owned())
-            .insert(&mut conn)
-            .await;
+        let recording =
+            factory::Recording::new(minigroup.id(), Uuid::new_v4(), agent.agent_id().to_owned())
+                .insert(&mut conn)
+                .await;
 
         let recordings = AdjustMinigroupUpdateQuery::new(
             minigroup.id(),
