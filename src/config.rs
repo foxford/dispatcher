@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::{net::SocketAddr, time::Duration};
 
 use serde_derive::Deserialize;
@@ -53,6 +54,16 @@ pub struct TqClientConfig {
     pub timeout: u64,
     pub account_id: AccountId,
     pub api_version: String,
+    #[serde(default)]
+    pub audience_settings: HashMap<String, TqAudienceSettings>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct TqAudienceSettings {
+    pub to: Option<String>,
+    pub preroll: Option<String>,
+    pub postroll: Option<String>,
+    pub watermark: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
