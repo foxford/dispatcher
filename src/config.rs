@@ -64,6 +64,7 @@ pub struct TqAudienceSettings {
     pub preroll: Option<String>,
     pub postroll: Option<String>,
     pub watermark: Option<String>,
+    pub preroll_offset: Option<i64>,
 }
 
 #[derive(Clone, Debug, Deserialize)]

@@ -21,9 +21,6 @@ use crate::{
 
 use super::{MjrDumpsUploadResult, TranscodeSuccess, UploadedStream};
 
-// TODO: make configurable for each audience.
-const PREROLL_OFFSET: i64 = 4018;
-
 pub(super) struct WebinarPostprocessingStrategy {
     ctx: Arc<dyn AppContext>,
     webinar: Class,
@@ -207,7 +204,7 @@ impl super::PostprocessingStrategy for WebinarPostprocessingStrategy {
                 rtc.segments()
                     .ok_or_else(|| anyhow!("Missing segments after upload"))?
                     .clone(),
-                PREROLL_OFFSET,
+                self.ctx.get_preroll_offset(self.webinar.audience()),
             )
             .await
             .context("Failed to adjust room")

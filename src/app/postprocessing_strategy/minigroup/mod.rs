@@ -30,8 +30,6 @@ use super::{
 const NS_IN_MS: i64 = 1000000;
 const PIN_EVENT_TYPE: &str = "pin";
 const HOST_EVENT_TYPE: &str = "host";
-// TODO: make configurable for each audience.
-const PREROLL_OFFSET: i64 = 4018;
 
 pub(super) struct MinigroupPostprocessingStrategy {
     ctx: Arc<dyn AppContext>,
@@ -81,6 +79,7 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
             self.minigroup.event_room_id(),
             ready_recordings,
             host,
+            self.ctx.get_preroll_offset(self.minigroup.audience()),
         )
         .await?;
         Ok(())
@@ -195,7 +194,8 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
                     .iter()
                     .map(|recording| {
                         let event_room_offset = recording.started_at
-                            - (host_stream.started_at - Duration::milliseconds(PREROLL_OFFSET));
+                            - (host_stream.started_at
+                                - Duration::milliseconds(self.ctx.get_preroll_offset(self.minigroup.audience())));
 
                         let recording_offset = recording.started_at - earliest_recording.started_at;
 
@@ -351,6 +351,7 @@ async fn call_adjust(
     room_id: Uuid,
     recordings: Vec<ReadyRecording>,
     host: AgentId,
+    offset: i64,
 ) -> Result<()> {
     let host_recording = recordings
         .into_iter()
@@ -362,7 +363,7 @@ async fn call_adjust(
             room_id,
             host_recording.started_at,
             host_recording.segments,
-            PREROLL_OFFSET,
+            offset,
         )
         .await
         .map_err(|err| anyhow!("Failed to adjust room, id = {}: {}", room_id, err))?;
