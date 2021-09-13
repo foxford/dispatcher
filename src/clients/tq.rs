@@ -307,7 +307,7 @@ impl TqClient for HttpTqClient {
         let task_with_options = if let Some(settings) = self.audience_settings.get(class.audience())
         {
             let mut t = TaskWithOptions::new(task);
-            t.set_audience_settings(&settings);
+            t.set_audience_settings(settings);
             t
         } else {
             TaskWithOptions::new(task)

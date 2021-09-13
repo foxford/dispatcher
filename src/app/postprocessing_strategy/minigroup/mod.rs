@@ -195,7 +195,9 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
                     .map(|recording| {
                         let event_room_offset = recording.started_at
                             - (host_stream.started_at
-                                - Duration::milliseconds(self.ctx.get_preroll_offset(self.minigroup.audience())));
+                                - Duration::milliseconds(
+                                    self.ctx.get_preroll_offset(self.minigroup.audience()),
+                                ));
 
                         let recording_offset = recording.started_at - earliest_recording.started_at;
 

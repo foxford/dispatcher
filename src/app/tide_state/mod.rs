@@ -36,8 +36,7 @@ pub trait AppContext: Sync + Send {
 
 impl dyn AppContext {
     pub fn get_preroll_offset(&self, audience: &str) -> i64 {
-        self
-            .config()
+        self.config()
             .tq_client
             .audience_settings
             .get(audience)
