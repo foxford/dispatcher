@@ -34,6 +34,18 @@ pub trait AppContext: Sync + Send {
     fn agent(&self) -> Option<&Agent>;
 }
 
+impl dyn AppContext {
+    pub fn get_preroll_offset(&self, audience: &str) -> i64 {
+        self
+            .config()
+            .tq_client
+            .audience_settings
+            .get(audience)
+            .and_then(|c| c.preroll_offset)
+            .unwrap_or(0)
+    }
+}
+
 pub trait Publisher {
     fn publish(&self, message: Box<dyn IntoPublishableMessage>) -> Result<(), AgentError>;
 }
