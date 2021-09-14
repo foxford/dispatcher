@@ -483,7 +483,7 @@ fn build_stream(
 
     let v = TranscodeMinigroupToHlsStream::new(recording.rtc_id, recording.stream_uri.to_owned())
         .offset(recording_offset.num_milliseconds() as u64)
-        .segments(recording.segments.to_owned())
+        .segments(recording.modified_segments.to_owned())
         .pin_segments(pin_segments.into())
         .video_mute_segments(video_mute_segments.into())
         .audio_mute_segments(audio_mute_segments.into());
