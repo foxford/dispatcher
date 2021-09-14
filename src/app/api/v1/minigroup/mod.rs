@@ -78,6 +78,7 @@ async fn do_create(
         Some("owned".into()),
         body.reserve,
         body.tags.clone(),
+        None
     );
 
     let event_time = (Bound::Included(Utc::now()), Bound::Unbounded);
@@ -86,6 +87,7 @@ async fn do_create(
         body.audience.clone(),
         Some(true),
         body.tags.clone(),
+        None
     );
 
     let (event_room_id, conference_room_id) = event_fut
@@ -291,8 +293,9 @@ mod tests {
                     pred::always(),
                     pred::always(),
                     pred::always(),
+                    pred::always(),
                 )
-                .returning(move |_, _, _, _| Ok(event_room_id));
+                .returning(move |_, _, _, _, _| Ok(event_room_id));
 
             state
                 .event_client_mock()
@@ -309,12 +312,12 @@ mod tests {
             state
                 .conference_client_mock()
                 .expect_create_room()
-                .withf(move |_time, _audience, policy, reserve, _tags| {
+                .withf(move |_time, _audience, policy, reserve, _tags, _cid| {
                     assert_eq!(*policy, Some(String::from("owned")));
                     assert_eq!(*reserve, Some(10));
                     true
                 })
-                .returning(move |_, _, _, _, _| Ok(conference_room_id));
+                .returning(move |_, _, _, _, _, _| Ok(conference_room_id));
 
             state
                 .conference_client_mock()

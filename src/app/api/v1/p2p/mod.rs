@@ -69,6 +69,7 @@ pub async fn create(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
         None,
         None,
         body.tags.clone(),
+        None
     );
 
     let event_fut = req.state().event_client().create_room(
@@ -76,6 +77,7 @@ pub async fn create(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
         body.audience.clone(),
         Some(false),
         body.tags.clone(),
+        None
     );
 
     let (event_room_id, conference_room_id) = event_fut

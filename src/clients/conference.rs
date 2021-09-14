@@ -66,6 +66,7 @@ pub trait ConferenceClient: Sync + Send {
         rtc_sharing_policy: Option<String>,
         reserve: Option<i32>,
         tags: Option<JsonValue>,
+        classroom_id: Option<Uuid>
     ) -> Result<Uuid, ClientError>;
 
     async fn update_room(&self, id: Uuid, update: RoomUpdate) -> Result<(), ClientError>;
@@ -129,6 +130,8 @@ struct ConferenceRoomPayload {
     reserve: Option<i32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     tags: Option<JsonValue>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    classroom_id: Option<Uuid>
 }
 
 #[derive(Serialize)]
@@ -197,6 +200,7 @@ impl ConferenceClient for MqttConferenceClient {
         rtc_sharing_policy: Option<String>,
         reserve: Option<i32>,
         tags: Option<JsonValue>,
+        classroom_id: Option<Uuid>
     ) -> Result<Uuid, ClientError> {
         let reqp = self.build_reqp("room.create")?;
 
@@ -206,6 +210,7 @@ impl ConferenceClient for MqttConferenceClient {
             rtc_sharing_policy,
             reserve,
             tags,
+            classroom_id,
         };
         let msg = if let OutgoingMessage::Request(msg) = OutgoingRequest::multicast(
             payload,
