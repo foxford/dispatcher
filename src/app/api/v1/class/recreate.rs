@@ -124,6 +124,7 @@ async fn create_event_and_conference<T: AsClassType>(
         policy,
         webinar.reserve(),
         webinar.tags().map(ToOwned::to_owned),
+        Some(webinar.id())
     );
 
     let event_time = (Bound::Included(Utc::now()), Bound::Unbounded);
@@ -132,6 +133,7 @@ async fn create_event_and_conference<T: AsClassType>(
         webinar.audience().to_owned(),
         Some(true),
         webinar.tags().map(ToOwned::to_owned),
+        Some(webinar.id())
     );
 
     let (event_room_id, conference_room_id) = event_fut

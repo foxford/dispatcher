@@ -120,6 +120,7 @@ pub async fn create(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
             body.audience.clone(),
             Some(true),
             body.tags.clone(),
+            None,
         )
         .await
         .map_err(|e| anyhow!("Failed to create event room, reason = {:?}", e))

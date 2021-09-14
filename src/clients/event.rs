@@ -170,6 +170,7 @@ pub trait EventClient: Sync + Send {
         audience: String,
         preserve_history: Option<bool>,
         tags: Option<JsonValue>,
+        classroom_id: Option<Uuid>
     ) -> Result<Uuid, ClientError>;
 
     async fn update_room(&self, id: Uuid, update: RoomUpdate) -> Result<(), ClientError>;
@@ -254,6 +255,8 @@ struct EventRoomPayload {
     preserve_history: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     tags: Option<JsonValue>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    classroom_id: Option<Uuid>,
 }
 
 #[derive(Debug, Serialize)]
@@ -345,6 +348,7 @@ impl EventClient for MqttEventClient {
         audience: String,
         preserve_history: Option<bool>,
         tags: Option<JsonValue>,
+        classroom_id: Option<Uuid>
     ) -> Result<Uuid, ClientError> {
         let reqp = self.build_reqp("room.create")?;
 
@@ -353,6 +357,7 @@ impl EventClient for MqttEventClient {
             time,
             preserve_history,
             tags,
+            classroom_id,
         };
         let msg = if let OutgoingMessage::Request(msg) =
             OutgoingRequest::multicast(payload, reqp, &self.event_account_id, &self.api_version)
