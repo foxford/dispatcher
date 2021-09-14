@@ -58,7 +58,7 @@ pub struct TqClientConfig {
     pub audience_settings: HashMap<String, TqAudienceSettings>,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Default)]
 pub struct TqAudienceSettings {
     pub to: Option<String>,
     pub preroll: Option<String>,

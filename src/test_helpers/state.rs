@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::result::Result as StdResult;
 use std::sync::{Arc, Mutex};
 
@@ -19,7 +20,7 @@ use crate::app::{AppContext, Publisher};
 use crate::clients::conference::{ConferenceClient, MockConferenceClient};
 use crate::clients::event::{EventClient, MockEventClient};
 use crate::clients::tq::{MockTqClient, TqClient};
-use crate::config::{Config, StorageConfig};
+use crate::config::{Config, StorageConfig, TqAudienceSettings};
 
 use super::agent::TestAgent;
 use super::authz::TestAuthz;
@@ -39,6 +40,7 @@ pub struct TestState {
     event_client: Arc<MockEventClient>,
     tq_client: Arc<MockTqClient>,
     authz: Authz,
+    audience_settings: HashMap<String, TqAudienceSettings>,
 }
 
 fn build_config() -> Config {
@@ -83,7 +85,8 @@ fn build_config() -> Config {
             "account_id": "tq.dev.svc.example.org",
             "timeout": 5,
             "api_version": "v1"
-        }
+        },
+        "retry_delay": "1 seconds"
     });
 
     serde_json::from_value::<Config>(config).expect("Failed to parse test config")
@@ -106,6 +109,7 @@ impl TestState {
             event_client: Arc::new(MockEventClient::new()),
             tq_client: Arc::new(MockTqClient::new()),
             authz: authz.into(),
+            audience_settings: Default::default(),
         }
     }
 
@@ -125,7 +129,20 @@ impl TestState {
             event_client: Arc::new(MockEventClient::new()),
             tq_client: Arc::new(MockTqClient::new()),
             authz: authz.into(),
+            audience_settings: Default::default(),
         }
+    }
+
+    pub fn set_audience_preroll_offset(&mut self, audience: &str, value: i64) {
+        self.config
+            .tq_client
+            .audience_settings
+            .entry(audience.to_owned())
+            .and_modify(|v| v.preroll_offset = Some(value))
+            .or_insert_with(|| TqAudienceSettings {
+                preroll_offset: Some(value),
+                ..Default::default()
+            });
     }
 }
 

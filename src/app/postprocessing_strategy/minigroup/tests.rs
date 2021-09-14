@@ -100,6 +100,8 @@ mod handle_upload {
                 other => panic!("Event client mock got unknown kind: {}", other),
             });
 
+        state.set_audience_preroll_offset(minigroup.audience(), 1234);
+
         state
             .event_client_mock()
             .expect_adjust_room()
@@ -114,7 +116,7 @@ mod handle_upload {
                         started_at1.timestamp_millis()
                     );
                     assert_eq!(segments, &expected_segments);
-                    assert_eq!(*offset, PREROLL_OFFSET);
+                    assert_eq!(*offset, 1234);
                     true
                 },
             )
@@ -341,7 +343,7 @@ mod handle_adjust {
     use super::super::*;
 
     #[async_std::test]
-    async fn handle_adjust() {
+    async fn handle_adjust_1() {
         let now = Utc::now();
         let agent1 = TestAgent::new("web", "user1", USR_AUDIENCE);
         let agent2 = TestAgent::new("web", "user2", USR_AUDIENCE);
@@ -503,7 +505,7 @@ mod handle_adjust {
                 TranscodeMinigroupToHlsStream::new(recording2.rtc_id(), uri2)
                     .offset(600000)
                     .segments(recording2.segments().unwrap().to_owned())
-                    .pin_segments(vec![(Bound::Included(600001), Bound::Excluded(900001))].into()),
+                    .pin_segments(vec![(Bound::Included(600000), Bound::Excluded(900000))].into()),
             ],
             host_stream_id: recording1.rtc_id(),
         };
