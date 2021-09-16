@@ -5,7 +5,7 @@ mod handle_upload {
     use chrono::{DateTime, Duration, Utc};
     use uuid::Uuid;
 
-    use crate::app::AppContext;
+    use crate::app::{postprocessing_strategy::StreamData, AppContext};
     use crate::clients::event::test_helpers::EventBuilder;
     use crate::clients::event::{EventData, HostEventData};
     use crate::db::recording::{RecordingListQuery, Segments};
@@ -23,6 +23,7 @@ mod handle_upload {
         let agent1 = TestAgent::new("web", "user1", USR_AUDIENCE);
         let agent1_clone = agent1.clone();
         let agent2 = TestAgent::new("web", "user2", USR_AUDIENCE);
+        let agent3 = TestAgent::new("web", "user3", USR_AUDIENCE);
 
         // Insert a minigroup.
         let minigroup = {
@@ -47,6 +48,7 @@ mod handle_upload {
         };
         let rtc1_id = Uuid::new_v4();
         let rtc2_id = Uuid::new_v4();
+        let rtc3_id = Uuid::new_v4();
 
         let minigroup_id = minigroup.id();
 
@@ -60,6 +62,10 @@ mod handle_upload {
 
             let agent2 = TestAgent::new("web", "user2", USR_AUDIENCE);
             factory::Recording::new(minigroup_id, rtc2_id, agent2.agent_id().clone())
+                .insert(&mut conn)
+                .await;
+
+            factory::Recording::new(minigroup_id, rtc3_id, agent3.agent_id().clone())
                 .insert(&mut conn)
                 .await;
         };
@@ -119,9 +125,11 @@ mod handle_upload {
 
         let stream1 = UploadedStream {
             id: rtc1_id,
-            uri: uri1.to_string(),
-            started_at: started_at1,
-            segments: segments1.clone(),
+            parsed_data: Ok(StreamData {
+                uri: uri1.to_string(),
+                started_at: started_at1,
+                segments: segments1.clone(),
+            }),
         };
 
         let uri2 = "s3://minigroup.origin.dev.example.com/rtc2.webm";
@@ -130,9 +138,16 @@ mod handle_upload {
 
         let stream2 = UploadedStream {
             id: rtc2_id,
-            uri: uri2.to_string(),
-            started_at: started_at2,
-            segments: segments2.clone(),
+            parsed_data: Ok(StreamData {
+                uri: uri2.to_string(),
+                started_at: started_at2,
+                segments: segments2.clone(),
+            }),
+        };
+
+        let stream3 = UploadedStream {
+            id: rtc3_id,
+            parsed_data: Err(anyhow!("Err")),
         };
 
         let state = Arc::new(state);
@@ -156,7 +171,7 @@ mod handle_upload {
             assert_eq!(ready_items, 1);
         }
 
-        MinigroupPostprocessingStrategy::new(state.clone(), minigroup)
+        MinigroupPostprocessingStrategy::new(state.clone(), minigroup.clone())
             .handle_stream_upload(stream2)
             .await
             .expect("Failed to handle upload");
@@ -172,6 +187,11 @@ mod handle_upload {
                 .filter_map(|recording| ReadyRecording::from_db_object(&recording))
                 .collect::<Vec<_>>()
         };
+
+        MinigroupPostprocessingStrategy::new(state.clone(), minigroup)
+            .handle_stream_upload(stream3)
+            .await
+            .expect("Failed to handle upload");
 
         assert_eq!(recordings.len(), 2);
 

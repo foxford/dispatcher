@@ -76,21 +76,31 @@ pub enum TranscodeSuccess {
 }
 
 #[derive(Debug)]
-pub struct UploadedStream {
-    pub id: Uuid,
+pub struct StreamData {
     pub uri: String,
     pub started_at: DateTime<Utc>,
     pub segments: Segments,
 }
 
+#[derive(Debug)]
+pub struct UploadedStream {
+    pub id: Uuid,
+    pub parsed_data: Result<StreamData>,
+}
+
 impl UploadedStream {
     pub fn from_convert_result(result: &ConvertMjrDumpsToStreamSuccess) -> Result<Self> {
-        let (started_at, segments) = shared_helpers::parse_segments(&result.segments)?;
+        let parsed_data =
+            shared_helpers::parse_segments(&result.segments).map(|(started_at, segments)| {
+                StreamData {
+                    uri: result.stream_uri.clone(),
+                    started_at,
+                    segments,
+                }
+            });
         Ok(Self {
             id: result.stream_id,
-            uri: result.stream_uri.clone(),
-            started_at,
-            segments,
+            parsed_data,
         })
     }
 }
