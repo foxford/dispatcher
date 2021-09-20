@@ -38,7 +38,12 @@ pub async fn redirect_to_frontend(req: Request<Arc<dyn AppContext>>) -> tide::Re
         (Ok(tenant), Ok(app)) => {
             let base_url = match req.query::<RedirQuery>() {
                 Err(e) => {
-                    error!(crate::LOG, "Failed to parse query: {}", e);
+                    error!(
+                        crate::LOG,
+                        "Failed to parse query: {}, query = {:?}",
+                        e,
+                        req.url().query()
+                    );
                     None
                 }
                 Ok(query) => {

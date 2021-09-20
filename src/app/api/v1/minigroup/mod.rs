@@ -78,7 +78,7 @@ async fn do_create(
         Some("owned".into()),
         body.reserve,
         body.tags.clone(),
-        None
+        None,
     );
 
     let event_time = (Bound::Included(Utc::now()), Bound::Unbounded);
@@ -87,7 +87,7 @@ async fn do_create(
         body.audience.clone(),
         Some(true),
         body.tags.clone(),
-        None
+        None,
     );
 
     let (event_room_id, conference_room_id) = event_fut
