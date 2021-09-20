@@ -170,7 +170,7 @@ pub trait EventClient: Sync + Send {
         audience: String,
         preserve_history: Option<bool>,
         tags: Option<JsonValue>,
-        classroom_id: Option<Uuid>
+        classroom_id: Option<Uuid>,
     ) -> Result<Uuid, ClientError>;
 
     async fn update_room(&self, id: Uuid, update: RoomUpdate) -> Result<(), ClientError>;
@@ -348,7 +348,7 @@ impl EventClient for MqttEventClient {
         audience: String,
         preserve_history: Option<bool>,
         tags: Option<JsonValue>,
-        classroom_id: Option<Uuid>
+        classroom_id: Option<Uuid>,
     ) -> Result<Uuid, ClientError> {
         let reqp = self.build_reqp("room.create")?;
 
