@@ -4,6 +4,7 @@ use std::{str::FromStr, time::Duration};
 use anyhow::Context;
 use futures::AsyncReadExt;
 use serde_derive::{Deserialize, Serialize};
+use serde_json::json;
 use svc_authn::{AccountId, Authenticable};
 use tide::{Request, Response};
 use uuid::Uuid;
@@ -162,16 +163,16 @@ async fn proxy_request(
             "Authz proxy: adjusted request {:?}, response = {}", authz_req, body
         );
 
-        let body = match serde_json::from_str::<Vec<String>>(&body) {
-            Ok(v) if v.contains(&authz_req.action) => serde_json::to_string(&[old_action]).unwrap(),
-            Ok(_) => {
-                return Err(anyhow!("Not allowed")).error(AppErrorKind::AuthorizationFailed);
-            }
+        let json_body = match serde_json::from_str::<Vec<String>>(&body) {
+            Ok(v) if v.contains(&authz_req.action) => json!([old_action]),
+            Ok(_) => json!([]),
             Err(_) => {
                 return Err(anyhow!("Invalid response format"))
                     .error(AppErrorKind::AuthorizationFailed);
             }
         };
+
+        let body = serde_json::to_string(&json_body).unwrap();
 
         Ok(body)
     } else {
