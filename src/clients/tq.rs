@@ -287,12 +287,11 @@ impl TqClient for HttpTqClient {
     ) -> Result<(), ClientError> {
         let template = task.template();
 
-        let mut task_id = String::new();
-        task_id.push_str(task.template());
-        task_id.push_str(class.scope());
+        let mut task_id = format!("{}-{}", task.template(), class.scope());
         if let Some(id) = task.stream_id() {
-            task_id.push_str(&id.to_string())
+            task_id = format!("{}-{}", task_id, id.to_string())
         }
+
         let route = format!("/api/v1/audiences/{}/tasks/{}", class.audience(), task_id,);
         let mut tags = class
             .tags()
