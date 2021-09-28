@@ -2,12 +2,13 @@ use std::ops::Bound;
 use std::sync::Arc;
 
 use anyhow::Context;
-use async_std::prelude::FutureExt;
+use axum::extract::{Extension, Json, TypedHeader};
 use chrono::{DateTime, Utc};
+use headers::{authorization::Bearer, Authorization};
+use hyper::{Body, Response};
 use serde_derive::Deserialize;
 use sqlx::Acquire;
 use svc_agent::AccountId;
-use tide::{Request, Response};
 use uuid::Uuid;
 
 use crate::app::error::ErrorExt;
@@ -21,7 +22,7 @@ use crate::db::recording::Segments;
 use super::{validate_token, AppResult};
 
 #[derive(Deserialize)]
-struct WebinarConvertObject {
+pub struct WebinarConvertObject {
     scope: String,
     audience: String,
     event_room_id: Uuid,
@@ -44,12 +45,14 @@ struct RecordingConvertObject {
     uri: String,
 }
 
-pub async fn convert(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
-    let account_id = validate_token(&req).error(AppErrorKind::Unauthorized)?;
-    let body = req.body_json().await.error(AppErrorKind::InvalidPayload)?;
-    let state = req.state();
-
-    do_convert(state.as_ref(), &account_id, body).await
+pub async fn convert(
+    Extension(ctx): Extension<Arc<dyn AppContext>>,
+    TypedHeader(Authorization(token)): TypedHeader<Authorization<Bearer>>,
+    Json(payload): Json<WebinarConvertObject>,
+) -> AppResult {
+    let account_id =
+        validate_token(ctx.as_ref(), token.token()).error(AppErrorKind::Unauthorized)?;
+    do_convert(ctx.as_ref(), &account_id, payload).await
 }
 async fn do_convert(
     state: &dyn AppContext,
@@ -76,7 +79,7 @@ async fn do_convert(
         _ => {
             let conference_fut = state.conference_client().read_room(body.conference_room_id);
             let event_fut = state.event_client().read_room(body.event_room_id);
-            match event_fut.try_join(conference_fut).await {
+            match tokio::try_join!(event_fut, conference_fut) {
                 // if we got times back correctly lets pick the overlap of event and conf times
                 Ok((
                     EventRoomResponse {
@@ -175,7 +178,10 @@ async fn do_convert(
         .context("Failed to serialize webinar")
         .error(AppErrorKind::SerializationFailed)?;
 
-    let response = Response::builder(201).body(body).build();
+    let response = Response::builder()
+        .status(201)
+        .body(Body::from(body))
+        .unwrap();
 
     Ok(response)
 }
@@ -227,7 +233,7 @@ mod tests {
     use mockall::predicate as pred;
     use serde_json::{json, Value};
 
-    #[async_std::test]
+    #[tokio::test]
     async fn convert_webinar_unauthorized() {
         let agent = TestAgent::new("web", "user1", USR_AUDIENCE);
 
@@ -255,7 +261,7 @@ mod tests {
             .expect_err("Unexpectedly succeeded");
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn convert_webinar() {
         let agent = TestAgent::new("web", "user1", USR_AUDIENCE);
 
@@ -282,16 +288,12 @@ mod tests {
             recording: None,
         };
 
-        let mut r = do_convert(state.as_ref(), agent.account_id(), body)
+        let r = do_convert(state.as_ref(), agent.account_id(), body)
             .await
             .expect("Failed to convert webinar");
 
-        let r = r
-            .take_body()
-            .into_string()
-            .await
-            .expect("Failed to get body");
-        let v = serde_json::from_str::<Value>(&r).expect("Failed to parse json");
+        let r = hyper::body::to_bytes(r.into_body()).await.unwrap();
+        let v = serde_json::from_slice::<Value>(&r[..]).expect("Failed to parse json");
         assert_eq!(
             v.get("event_room_id").and_then(|v| v.as_str()),
             Some(event_room_id.to_string()).as_deref()
@@ -302,7 +304,7 @@ mod tests {
         );
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn convert_webinar_with_recording() {
         let agent = TestAgent::new("web", "user1", USR_AUDIENCE);
 
@@ -337,16 +339,12 @@ mod tests {
             }),
         };
 
-        let mut r = do_convert(state.as_ref(), agent.account_id(), body)
+        let r = do_convert(state.as_ref(), agent.account_id(), body)
             .await
             .expect("Failed to convert webinar");
 
-        let r = r
-            .take_body()
-            .into_string()
-            .await
-            .expect("Failed to get body");
-        let v = serde_json::from_str::<Value>(&r).expect("Failed to parse json");
+        let r = hyper::body::to_bytes(r.into_body()).await.unwrap();
+        let v = serde_json::from_slice::<Value>(&r).expect("Failed to parse json");
         assert_eq!(
             v.get("event_room_id").and_then(|v| v.as_str()),
             Some(event_room_id.to_string()).as_deref()
@@ -357,7 +355,7 @@ mod tests {
         );
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn convert_webinar_unspecified_time() {
         let agent = TestAgent::new("web", "user1", USR_AUDIENCE);
 
@@ -384,16 +382,12 @@ mod tests {
             recording: None,
         };
 
-        let mut r = do_convert(state.as_ref(), agent.account_id(), body)
+        let r = do_convert(state.as_ref(), agent.account_id(), body)
             .await
             .expect("Failed to convert webinar");
 
-        let r = r
-            .take_body()
-            .into_string()
-            .await
-            .expect("Failed to get body");
-        let v = serde_json::from_str::<Value>(&r).expect("Failed to parse json");
+        let r = hyper::body::to_bytes(r.into_body()).await.unwrap();
+        let v = serde_json::from_slice::<Value>(&r).expect("Failed to parse json");
         assert_eq!(
             v.get("event_room_id").and_then(|v| v.as_str()),
             Some(event_room_id.to_string()).as_deref()

@@ -14,7 +14,7 @@ use svc_agent::{
 };
 use svc_authn::{token::jws_compact::extract::parse_jws_compact, Error as AuthnError};
 use svc_authz::ClientMap as Authz;
-use tide::http::url::Url;
+use url::Url;
 
 use crate::app::{AppContext, Publisher};
 use crate::clients::conference::{ConferenceClient, MockConferenceClient};
@@ -179,10 +179,8 @@ impl AppContext for TestState {
         self.config.default_frontend_base.clone()
     }
 
-    fn validate_token(&self, token: Option<&str>) -> StdResult<AccountId, AuthnError> {
-        let token = token
-            .map(|s| s.replace("Bearer ", ""))
-            .unwrap_or_else(|| "".to_string());
+    fn validate_token(&self, token: &str) -> StdResult<AccountId, AuthnError> {
+        let token = token.replace("Bearer ", "");
 
         // Parse but skip key verification.
         let claims = parse_jws_compact::<String>(&token)?.claims;

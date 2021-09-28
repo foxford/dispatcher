@@ -1,5 +1,4 @@
 use anyhow::Context;
-use async_std::prelude::FutureExt;
 use uuid::Uuid;
 
 use crate::app::tide_state::AppContext;
@@ -32,7 +31,7 @@ pub async fn update_classroom_id(
             },
         );
 
-        event_fut.try_join(conference_fut).await.map(|_| ())
+        tokio::try_join!(event_fut, conference_fut).map(|_| ())
     } else {
         event_fut.await
     };

@@ -10,7 +10,7 @@ use svc_agent::AgentId;
 use svc_authn::token::jws_compact::extract::decode_jws_compact_with_config;
 use svc_authn::{AccountId, Error};
 use svc_authz::ClientMap as Authz;
-use tide::http::url::Url;
+use url::Url;
 
 use crate::clients::conference::ConferenceClient;
 use crate::clients::event::EventClient;
@@ -22,7 +22,7 @@ use crate::config::StorageConfig;
 pub trait AppContext: Sync + Send {
     async fn get_conn(&self) -> Result<PoolConnection<Postgres>>;
     fn default_frontend_base(&self) -> Url;
-    fn validate_token(&self, token: Option<&str>) -> Result<AccountId, Error>;
+    fn validate_token(&self, token: &str) -> Result<AccountId, Error>;
     fn agent_id(&self) -> &AgentId;
     fn publisher(&self) -> &dyn Publisher;
     fn conference_client(&self) -> &dyn ConferenceClient;
@@ -101,10 +101,8 @@ impl AppContext for TideState {
         self.config.default_frontend_base.clone()
     }
 
-    fn validate_token(&self, token: Option<&str>) -> Result<AccountId, Error> {
-        let token = token
-            .map(|s| s.replace("Bearer ", ""))
-            .unwrap_or_else(|| "".to_string());
+    fn validate_token(&self, token: &str) -> Result<AccountId, Error> {
+        let token = token.replace("Bearer ", "");
 
         let claims = decode_jws_compact_with_config::<String>(&token, &self.config.authn)?.claims;
         let account = AccountId::new(claims.subject(), claims.audience());

@@ -2,40 +2,33 @@ use std::ops::Bound;
 use std::sync::Arc;
 
 use anyhow::Context;
-use async_std::prelude::FutureExt;
+use axum::extract::{Extension, Json, TypedHeader};
 use chrono::Utc;
+use headers::{authorization::Bearer, Authorization};
+use hyper::{Body, Response};
 use serde_derive::Deserialize;
-use tide::{Request, Response};
 use uuid::Uuid;
 
+use crate::app::authz::AuthzObject;
 use crate::app::error::ErrorExt;
 use crate::app::error::ErrorKind as AppErrorKind;
+use crate::app::metrics::AuthorizeMetrics;
 use crate::app::AppContext;
-use crate::app::{
-    api::v1::class::{read as read_generic, read_by_scope as read_by_scope_generic},
-    metrics::AuthorizeMetrics,
-};
-use crate::{app::authz::AuthzObject, db::class::P2PType};
 
 use super::{validate_token, AppResult};
 
-pub async fn read(req: Request<Arc<dyn AppContext>>) -> AppResult {
-    read_generic::<P2PType>(req).await
-}
-
-pub async fn read_by_scope(req: Request<Arc<dyn AppContext>>) -> AppResult {
-    read_by_scope_generic::<P2PType>(req).await
-}
-
 #[derive(Deserialize)]
-struct P2P {
+pub struct P2P {
     scope: String,
     audience: String,
     tags: Option<serde_json::Value>,
 }
 
-pub async fn create(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
-    let body: P2P = req.body_json().await.error(AppErrorKind::InvalidPayload)?;
+pub async fn create(
+    Extension(ctx): Extension<Arc<dyn AppContext>>,
+    TypedHeader(Authorization(token)): TypedHeader<Authorization<Bearer>>,
+    Json(body): Json<P2P>,
+) -> AppResult {
     let log = crate::LOG.new(slog::o!(
         "audience" => body.audience.clone(),
         "scope" => body.scope.clone(),
@@ -45,13 +38,12 @@ pub async fn create(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
         "Creating p2p, audience = {}, scope = {}", body.audience, body.scope
     );
 
-    let account_id = validate_token(&req).error(AppErrorKind::Unauthorized)?;
-    let state = req.state();
+    let account_id =
+        validate_token(ctx.as_ref(), token.token()).error(AppErrorKind::Unauthorized)?;
 
     let object = AuthzObject::new(&["classrooms"]).into();
 
-    state
-        .authz()
+    ctx.authz()
         .authorize(
             body.audience.clone(),
             account_id.clone(),
@@ -63,7 +55,7 @@ pub async fn create(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
 
     info!(log, "Authorized p2p create");
 
-    let conference_fut = req.state().conference_client().create_room(
+    let conference_fut = ctx.conference_client().create_room(
         (Bound::Included(Utc::now()), Bound::Unbounded),
         body.audience.clone(),
         None,
@@ -72,7 +64,7 @@ pub async fn create(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
         None,
     );
 
-    let event_fut = req.state().event_client().create_room(
+    let event_fut = ctx.event_client().create_room(
         (Bound::Included(Utc::now()), Bound::Unbounded),
         body.audience.clone(),
         Some(false),
@@ -80,9 +72,7 @@ pub async fn create(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
         None,
     );
 
-    let (event_room_id, conference_room_id) = event_fut
-        .try_join(conference_fut)
-        .await
+    let (event_room_id, conference_room_id) = tokio::try_join!(event_fut, conference_fut)
         .context("Services requests")
         .error(AppErrorKind::MqttRequestFailed)?;
 
@@ -104,8 +94,7 @@ pub async fn create(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
         query
     };
     let p2p = {
-        let mut conn = req
-            .state()
+        let mut conn = ctx
             .get_conn()
             .await
             .error(AppErrorKind::DbConnAcquisitionFailed)?;
@@ -118,7 +107,7 @@ pub async fn create(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
     info!(log, "Inserted p2p into db, id = {}", p2p.id());
 
     crate::app::services::update_classroom_id(
-        req.state().as_ref(),
+        ctx.as_ref(),
         p2p.id(),
         p2p.event_room_id(),
         p2p.conference_room_id(),
@@ -132,13 +121,16 @@ pub async fn create(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
         .context("Failed to serialize p2p")
         .error(AppErrorKind::SerializationFailed)?;
 
-    let response = Response::builder(201).body(body).build();
+    let response = Response::builder()
+        .status(201)
+        .body(Body::from(body))
+        .unwrap();
 
     Ok(response)
 }
 
 #[derive(Deserialize)]
-struct P2PConvertObject {
+pub struct P2PConvertObject {
     scope: String,
     audience: String,
     event_room_id: Uuid,
@@ -146,19 +138,17 @@ struct P2PConvertObject {
     tags: Option<serde_json::Value>,
 }
 
-pub async fn convert(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
-    let body = req
-        .body_json::<P2PConvertObject>()
-        .await
-        .error(AppErrorKind::InvalidPayload)?;
-
-    let account_id = validate_token(&req).error(AppErrorKind::Unauthorized)?;
-    let state = req.state();
+pub async fn convert(
+    Extension(ctx): Extension<Arc<dyn AppContext>>,
+    TypedHeader(Authorization(token)): TypedHeader<Authorization<Bearer>>,
+    Json(body): Json<P2PConvertObject>,
+) -> AppResult {
+    let account_id =
+        validate_token(ctx.as_ref(), token.token()).error(AppErrorKind::Unauthorized)?;
 
     let object = AuthzObject::new(&["classrooms"]).into();
 
-    state
-        .authz()
+    ctx.authz()
         .authorize(
             body.audience.clone(),
             account_id.clone(),
@@ -182,8 +172,7 @@ pub async fn convert(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
     };
 
     let p2p = {
-        let mut conn = req
-            .state()
+        let mut conn = ctx
             .get_conn()
             .await
             .error(AppErrorKind::DbConnAcquisitionFailed)?;
@@ -198,7 +187,7 @@ pub async fn convert(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
     };
 
     crate::app::services::update_classroom_id(
-        req.state().as_ref(),
+        ctx.as_ref(),
         p2p.id(),
         p2p.event_room_id(),
         p2p.conference_room_id(),
@@ -210,7 +199,10 @@ pub async fn convert(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
         .context("Failed to serialize p2p")
         .error(AppErrorKind::SerializationFailed)?;
 
-    let response = Response::builder(201).body(body).build();
+    let response = Response::builder()
+        .status(201)
+        .body(Body::from(body))
+        .unwrap();
 
     Ok(response)
 }

@@ -2,34 +2,24 @@ use std::ops::Bound;
 use std::sync::Arc;
 
 use anyhow::Context;
-use async_std::prelude::FutureExt;
+use axum::extract::{Extension, Json, TypedHeader};
 use chrono::Utc;
+use headers::{authorization::Bearer, Authorization};
+use hyper::{Body, Response};
 use serde_derive::Deserialize;
 use svc_agent::AccountId;
-use tide::{Request, Response};
 
 use crate::app::authz::AuthzObject;
 use crate::app::error::ErrorExt;
 use crate::app::error::ErrorKind as AppErrorKind;
+use crate::app::metrics::AuthorizeMetrics;
 use crate::app::AppContext;
-use crate::app::{
-    api::v1::class::{read as read_generic, read_by_scope as read_by_scope_generic},
-    metrics::AuthorizeMetrics,
-};
 use crate::db::class::BoundedDateTimeTuple;
-use crate::db::class::MinigroupType;
 
 use super::{validate_token, AppResult};
-pub async fn read(req: Request<Arc<dyn AppContext>>) -> AppResult {
-    read_generic::<MinigroupType>(req).await
-}
-
-pub async fn read_by_scope(req: Request<Arc<dyn AppContext>>) -> AppResult {
-    read_by_scope_generic::<MinigroupType>(req).await
-}
 
 #[derive(Deserialize)]
-struct MinigroupCreatePayload {
+pub struct MinigroupCreatePayload {
     scope: String,
     audience: String,
     #[serde(default, with = "crate::serde::ts_seconds_option_bound_tuple")]
@@ -40,12 +30,14 @@ struct MinigroupCreatePayload {
     locked_chat: bool,
 }
 
-pub async fn create(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
-    let account_id = validate_token(&req).error(AppErrorKind::Unauthorized)?;
-    let body = req.body_json().await.error(AppErrorKind::InvalidPayload)?;
-    let state = req.state();
-
-    do_create(state.as_ref(), &account_id, body).await
+pub async fn create(
+    Extension(ctx): Extension<Arc<dyn AppContext>>,
+    TypedHeader(Authorization(token)): TypedHeader<Authorization<Bearer>>,
+    Json(body): Json<MinigroupCreatePayload>,
+) -> AppResult {
+    let account_id =
+        validate_token(ctx.as_ref(), token.token()).error(AppErrorKind::Unauthorized)?;
+    do_create(ctx.as_ref(), &account_id, body).await
 }
 
 async fn do_create(
@@ -90,9 +82,7 @@ async fn do_create(
         None,
     );
 
-    let (event_room_id, conference_room_id) = event_fut
-        .try_join(conference_fut)
-        .await
+    let (event_room_id, conference_room_id) = tokio::try_join!(event_fut, conference_fut)
         .context("Services requests")
         .error(AppErrorKind::MqttRequestFailed)?;
 
@@ -150,17 +140,13 @@ async fn do_create(
         .context("Failed to serialize minigroup")
         .error(AppErrorKind::SerializationFailed)?;
 
-    let response = Response::builder(201).body(body).build();
+    let response = Response::builder()
+        .status(201)
+        .body(Body::from(body))
+        .unwrap();
 
     Ok(response)
 }
-
-pub use recreate::recreate;
-pub use update::update;
-pub use update::update_by_scope;
-
-mod recreate;
-mod update;
 
 #[cfg(test)]
 mod tests {
@@ -171,7 +157,7 @@ mod tests {
         use mockall::predicate as pred;
         use uuid::Uuid;
 
-        #[async_std::test]
+        #[tokio::test]
         async fn create_minigroup_no_time() {
             let agent = TestAgent::new("web", "user1", USR_AUDIENCE);
 
@@ -211,7 +197,7 @@ mod tests {
             assert_eq!(new_minigroup.reserve(), Some(10),);
         }
 
-        #[async_std::test]
+        #[tokio::test]
         async fn create_minigroup_with_time() {
             let agent = TestAgent::new("web", "user1", USR_AUDIENCE);
 
@@ -257,7 +243,7 @@ mod tests {
             assert_eq!(new_minigroup.reserve(), Some(10),);
         }
 
-        #[async_std::test]
+        #[tokio::test]
         async fn create_minigroup_unauthorized() {
             let agent = TestAgent::new("web", "user1", USR_AUDIENCE);
 

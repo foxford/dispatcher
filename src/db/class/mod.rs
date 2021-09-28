@@ -12,7 +12,7 @@ use serde_json::Value as JsonValue;
 pub type BoundedDateTimeTuple = (Bound<DateTime<Utc>>, Bound<DateTime<Utc>>);
 
 #[derive(Clone, Copy, Debug, sqlx::Type)]
-#[sqlx(rename = "class_type", rename_all = "lowercase")]
+#[sqlx(type_name = "class_type", rename_all = "lowercase")]
 pub enum ClassType {
     Webinar,
     P2P,

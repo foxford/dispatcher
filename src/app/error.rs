@@ -1,6 +1,9 @@
 use std::error::Error as StdError;
 use std::fmt;
 
+use axum::response::IntoResponse;
+use hyper::body::{Body, HttpBody};
+use hyper::Response;
 use slog::Logger;
 use svc_agent::mqtt::ResponseStatus;
 use svc_error::{extension::sentry, Error as SvcError};
@@ -165,14 +168,6 @@ impl Error {
             .build()
     }
 
-    pub fn to_tide_response(&self) -> tide::Response {
-        let properties: ErrorKindProperties = self.kind.into();
-        let body = serde_json::to_string(&self.to_svc_error()).expect("Infallible");
-        tide::Response::builder(properties.status.as_u16())
-            .body(body.as_str())
-            .build()
-    }
-
     pub fn notify_sentry(&self, logger: &Logger) {
         if !self.kind.is_notify_sentry() {
             return;
@@ -181,6 +176,21 @@ impl Error {
         sentry::send(self.to_svc_error()).unwrap_or_else(|err| {
             error!(logger, "Error sending error to Sentry: {}", err);
         });
+    }
+}
+
+impl IntoResponse for Error {
+    type Body = Body;
+    type BodyError = <Self::Body as HttpBody>::Error;
+
+    fn into_response(self) -> Response<Self::Body> {
+        let properties: ErrorKindProperties = self.kind.into();
+        let body = serde_json::to_string(&self.to_svc_error()).expect("Infallible");
+
+        Response::builder()
+            .status(properties.status.as_u16())
+            .body(Body::from(body))
+            .unwrap()
     }
 }
 

@@ -2,7 +2,6 @@ use std::ops::Bound;
 
 use chrono::{DateTime, Utc};
 use sqlx::postgres::{types::PgRange, PgConnection};
-use sqlx::Done;
 use svc_agent::AgentId;
 use uuid::Uuid;
 
@@ -568,7 +567,7 @@ pub mod tests {
     use crate::app::AppContext;
     use crate::test_helpers::prelude::*;
 
-    #[async_std::test]
+    #[tokio::test]
     async fn test_minigroup_adjust_not_using_deleted_recordings() {
         let agent = TestAgent::new("web", "user1", USR_AUDIENCE);
 

@@ -1,13 +1,17 @@
-use std::{collections::HashMap, convert::TryFrom};
+use std::collections::HashMap;
+use std::convert::{Infallible, TryFrom};
+use std::iter::FromIterator;
+use std::sync::Arc;
 
+use axum::routing::{Route, Router};
 use chrono::Duration;
+use hyper::{Method, StatusCode};
 use once_cell::sync::{Lazy, OnceCell};
 use prometheus::{
     register_histogram, register_histogram_vec, register_int_counter_vec, Histogram,
     HistogramTimer, HistogramVec, IntCounter, IntCounterVec,
 };
 use prometheus_static_metric::make_static_metric;
-use tide::{http::Method, Middleware, Next, Request, Route, StatusCode};
 
 use super::error::Error;
 
@@ -100,16 +104,6 @@ impl MqttMetrics {
     }
 }
 
-pub trait AddMetrics<'a, S> {
-    fn with_metrics(&mut self) -> &mut Self;
-}
-
-impl<'a, S: Clone + Send + Sync + 'static> AddMetrics<'a, S> for Route<'a, S> {
-    fn with_metrics(&mut self) -> &mut Self {
-        self.with(MetricsMiddleware::new(self.path()))
-    }
-}
-
 pub trait AuthorizeMetrics {
     fn measure(self) -> Self;
 }
@@ -167,35 +161,77 @@ impl Metrics {
     }
 }
 
-struct MetricsMiddleware {
-    durations: HashMap<Method, OnceCell<Histogram>>,
-    stats: HashMap<(Method, StatusCode), OnceCell<IntCounter>>,
-    path: String,
+#[derive(Clone)]
+struct MethodStatusCounters(Arc<HashMap<(Method, StatusCode), OnceCell<IntCounter>>>);
+
+impl FromIterator<((Method, StatusCode), OnceCell<IntCounter>)> for MethodStatusCounters {
+    fn from_iter<T: IntoIterator<Item = ((Method, StatusCode), OnceCell<IntCounter>)>>(
+        iter: T,
+    ) -> MethodStatusCounters {
+        let mut map: HashMap<(Method, StatusCode), OnceCell<IntCounter>> = HashMap::new();
+        map.extend(iter);
+        MethodStatusCounters(Arc::new(map))
+    }
 }
 
-impl MetricsMiddleware {
-    fn new(path: &str) -> Self {
+impl MethodStatusCounters {
+    fn inc_counter(&self, method: Method, status: StatusCode, path: &str) {
+        let counter = self.0.get(&(method.clone(), status)).and_then(|c| {
+            c.get_or_try_init(|| {
+                METRICS
+                    .status_vec
+                    .get_metric_with_label_values(&[path, method.as_ref(), &status.to_string()])
+                    .map_err(|err| {
+                        error!(crate::LOG, "Creating counter for metrics errored: {:?}", err;
+                            "path" => path,
+                            "method" => method.as_ref(),
+                            "status" => &status.to_string())
+                    })
+            })
+            .ok()
+        });
+        if let Some(counter) = counter {
+            counter.inc()
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct MetricsMiddleware<S> {
+    durations: HashMap<Method, OnceCell<Histogram>>,
+    stats: MethodStatusCounters,
+    path: String,
+    service: S,
+}
+
+impl<S> MetricsMiddleware<S> {
+    fn new(service: S, path: &str) -> Self {
         let path = path.trim_start_matches('/').replace('/', "_");
         let methods = [
-            Method::Put,
-            Method::Post,
-            Method::Options,
-            Method::Get,
-            Method::Patch,
-            Method::Head,
+            Method::PUT,
+            Method::POST,
+            Method::OPTIONS,
+            Method::GET,
+            Method::PATCH,
+            Method::HEAD,
         ];
         let status_codes = (100..600).filter_map(|x| StatusCode::try_from(x).ok());
         let durations = methods
             .iter()
-            .map(|method| (*method, OnceCell::new()))
+            .map(|method| (method.to_owned(), OnceCell::new()))
             .collect();
         let stats = status_codes
-            .flat_map(|s| methods.iter().map(move |m| ((*m, s), OnceCell::new())))
+            .flat_map(|s| {
+                methods
+                    .iter()
+                    .map(move |m| ((m.to_owned(), s), OnceCell::new()))
+            })
             .collect();
         Self {
             durations,
             stats,
             path,
+            service,
         }
     }
 
@@ -217,39 +253,87 @@ impl MetricsMiddleware {
             })
             .map(|x| x.start_timer())
     }
+}
 
-    fn inc_counter(&self, method: Method, status: StatusCode) {
-        let counter = self.stats.get(&(method, status)).and_then(|c| {
-            c.get_or_try_init(|| {
-                METRICS
-                    .status_vec
-                    .get_metric_with_label_values(&[
-                        &self.path,
-                        method.as_ref(),
-                        &status.to_string(),
-                    ])
-                    .map_err(|err| {
-                        error!(crate::LOG, "Creating counter for metrics errored: {:?}", err;
-                            "path" => &self.path,
-                            "method" => method.as_ref(),
-                            "status" => &status.to_string())
-                    })
-            })
-            .ok()
-        });
-        if let Some(counter) = counter {
-            counter.inc()
-        }
+use futures::future::BoxFuture;
+use hyper::Request;
+use hyper::Response;
+use std::task::{Context, Poll};
+use tower::{Layer, Service};
+
+impl<S, ReqBody, ResBody> Service<Request<ReqBody>> for MetricsMiddleware<S>
+where
+    S: Service<Request<ReqBody>, Response = Response<ResBody>> + Clone + Send + 'static,
+    S::Future: Send + 'static,
+    ReqBody: Send + 'static,
+    ResBody: Send + 'static,
+{
+    type Response = S::Response;
+    type Error = S::Error;
+    type Future = BoxFuture<'static, Result<Self::Response, Self::Error>>;
+
+    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        self.service.poll_ready(cx)
+    }
+
+    fn call(&mut self, req: Request<ReqBody>) -> Self::Future {
+        // best practice is to clone the inner service like this
+        // see https://github.com/tower-rs/tower/issues/547 for details
+        let clone = self.service.clone();
+        let mut inner = std::mem::replace(&mut self.service, clone);
+        let method = req.method().to_owned();
+        let timer = self.start_timer(method.clone());
+
+        let path = self.path.clone();
+        let counters = self.stats.clone();
+        Box::pin(async move {
+            let res: Response<ResBody> = inner.call(req).await?;
+            counters.inc_counter(method, res.status(), &path);
+            drop(timer);
+            Ok(res)
+        })
     }
 }
 
-#[async_trait::async_trait]
-impl<State: Clone + Send + Sync + 'static> Middleware<State> for MetricsMiddleware {
-    async fn handle(&self, req: Request<State>, next: Next<'_, State>) -> tide::Result {
-        let method = req.method();
-        let _timer = self.start_timer(method);
-        let response = next.run(req).await;
-        self.inc_counter(method, response.status());
-        Ok(response)
+#[derive(Debug, Clone)]
+pub struct MetricsMiddlewareLayer {
+    path: String,
+}
+
+impl MetricsMiddlewareLayer {
+    pub fn new(path: String) -> Self {
+        Self { path }
+    }
+}
+
+impl<S> Layer<S> for MetricsMiddlewareLayer {
+    type Service = MetricsMiddleware<S>;
+
+    fn layer(&self, service: S) -> Self::Service {
+        MetricsMiddleware::new(service, &self.path)
+    }
+}
+
+use axum::body::Body;
+
+pub trait MeteredRoute<H>
+where
+    H: Service<Request<Body>, Error = Infallible>,
+{
+    type Output;
+
+    fn metered_route(self, path: &str, svc: H) -> Self::Output;
+}
+
+impl<H, S> MeteredRoute<H> for Router<S>
+where
+    H: Service<Request<Body>, Error = Infallible>,
+    S: Service<Request<Body>, Error = Infallible>,
+{
+    type Output = Router<Route<MetricsMiddleware<H>, S>>;
+
+    fn metered_route(self, path: &str, svc: H) -> Self::Output {
+        let handler = MetricsMiddlewareLayer::new(path.to_owned()).layer(svc);
+        self.route(path, handler)
     }
 }

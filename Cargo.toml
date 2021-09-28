@@ -9,13 +9,13 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-tide = { version = "0.15.0", default_features = false, features = ["h1-server", "cookies", "sessions"] }
-async-std = { version = "1.8.0", features = ["attributes"] }
+tokio = { version = "1", features = ["full"] }
+axum = { version = "0.2", features = ["headers"] }
+tower = "0.4"
+hyper = { version = "0.14", features = ["server"] }
 async-trait = "0.1"
 chrono = { version = "0.4", features = ["serde"] }
-# we use sqlx 0.4 because sqlx 0.5 requires pulling tls impl into our svc-* crates
-# see https://github.com/launchbadge/sqlx/issues/996
-sqlx = { version = "0.4", features = [
+sqlx = { version = "0.5", features = [
     "offline",
     "postgres",
     "macros",
@@ -23,21 +23,21 @@ sqlx = { version = "0.4", features = [
     "chrono",
     "json",
     "bigdecimal",
-    "runtime-async-std-rustls",
+    "runtime-tokio-native-tls",
 ] }
 serde = "1.0"
 serde_derive = "1.0"
 serde_json = "1.0"
-svc-agent = { version = "0.17", features = ["sqlx"] }
-svc-authn = { version = "0.6", features = ["jose", "sqlx"] }
-svc-error = { version = "0.1", features = [
+svc-agent = { version = "0.19", features = ["sqlx"] }
+svc-authn = { version = "0.7", features = ["jose", "sqlx"] }
+svc-error = { version = "0.2", features = [
     "svc-agent",
     "svc-authn",
     "svc-authz",
     "sentry-extension",
     "sqlx",
 ] }
-svc-authz = "0.10"
+svc-authz = "0.11"
 sentry = "0.18.1"
 config = "0.10"
 lazy_static = "1.4"
@@ -56,12 +56,13 @@ isahc = "1.1.0"
 http = "0.2"
 url = { version = "2.2.1", features = ["serde"] }
 signal-hook = "0.3.6"
-signal-hook-async-std = "0.2.1"
+signal-hook-tokio = { version = "0.3", features = ["futures-v0_3"] }
 pin-utils = "0.1.0"
 prometheus = "0.12"
 once_cell = "1"
 prometheus-static-metric = "0.5"
 humantime-serde = "1"
+headers = "0.3"
 
 [dev-dependencies]
 mockall = "0.9.1"

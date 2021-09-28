@@ -41,7 +41,7 @@ impl MessageHandler {
     pub async fn handle_response(&self, data: IncomingResponse<String>) {
         match IncomingResponse::convert::<JsonValue>(data) {
             Ok(message) => {
-                if let Err(e) = self.dispatcher.response(message).await {
+                if let Err(e) = self.dispatcher.response(message) {
                     error!(crate::LOG, "Failed to commit response, reason = {:?}", e);
                 }
             }

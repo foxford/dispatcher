@@ -182,7 +182,7 @@ impl ConferenceClient for MqttConferenceClient {
 
         let request = self.dispatcher.request::<_, ConferenceRoomResponse>(msg);
         let payload_result = if let Some(dur) = self.timeout {
-            async_std::future::timeout(dur, request)
+            tokio::time::timeout(dur, request)
                 .await
                 .map_err(|_e| ClientError::Timeout)?
         } else {
@@ -227,7 +227,7 @@ impl ConferenceClient for MqttConferenceClient {
 
         let request = self.dispatcher.request::<_, JsonValue>(msg);
         let payload_result = if let Some(dur) = self.timeout {
-            async_std::future::timeout(dur, request)
+            tokio::time::timeout(dur, request)
                 .await
                 .map_err(|_e| ClientError::Timeout)?
         } else {
@@ -270,7 +270,7 @@ impl ConferenceClient for MqttConferenceClient {
 
         let request = self.dispatcher.request::<_, JsonValue>(msg);
         let payload_result = if let Some(dur) = self.timeout {
-            async_std::future::timeout(dur, request)
+            tokio::time::timeout(dur, request)
                 .await
                 .map_err(|_e| ClientError::Timeout)?
         } else {
@@ -305,7 +305,7 @@ impl ConferenceClient for MqttConferenceClient {
 
         let request = self.dispatcher.request::<_, Vec<ConfigSnapshot>>(msg);
         let payload_result = if let Some(dur) = self.timeout {
-            async_std::future::timeout(dur, request)
+            tokio::time::timeout(dur, request)
                 .await
                 .map_err(|_e| ClientError::Timeout)?
         } else {

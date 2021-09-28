@@ -330,13 +330,7 @@ impl EventClient for MqttEventClient {
         };
 
         let request = self.dispatcher.request::<_, EventRoomResponse>(msg);
-        let payload_result = if let Some(dur) = self.timeout {
-            async_std::future::timeout(dur, request)
-                .await
-                .map_err(|_e| ClientError::Timeout)?
-        } else {
-            request.await
-        };
+        let payload_result = request.await;
         let payload = payload_result.map_err(|e| ClientError::Payload(e.to_string()))?;
 
         Ok(payload.extract_payload())
@@ -369,7 +363,7 @@ impl EventClient for MqttEventClient {
 
         let request = self.dispatcher.request::<_, JsonValue>(msg);
         let payload_result = if let Some(dur) = self.timeout {
-            async_std::future::timeout(dur, request)
+            tokio::time::timeout(dur, request)
                 .await
                 .map_err(|_e| ClientError::Timeout)?
         } else {
@@ -407,7 +401,7 @@ impl EventClient for MqttEventClient {
 
         let request = self.dispatcher.request::<_, JsonValue>(msg);
         let payload_result = if let Some(dur) = self.timeout {
-            async_std::future::timeout(dur, request)
+            tokio::time::timeout(dur, request)
                 .await
                 .map_err(|_e| ClientError::Timeout)?
         } else {
@@ -447,7 +441,7 @@ impl EventClient for MqttEventClient {
 
         let request = self.dispatcher.request::<_, JsonValue>(msg);
         let payload_result = if let Some(dur) = self.timeout {
-            async_std::future::timeout(dur, request)
+            tokio::time::timeout(dur, request)
                 .await
                 .map_err(|_e| ClientError::Timeout)?
         } else {
@@ -478,7 +472,7 @@ impl EventClient for MqttEventClient {
 
         let request = self.dispatcher.request::<_, JsonValue>(msg);
         let payload_result = if let Some(dur) = self.timeout {
-            async_std::future::timeout(dur, request)
+            tokio::time::timeout(dur, request)
                 .await
                 .map_err(|_e| ClientError::Timeout)?
         } else {
@@ -525,7 +519,7 @@ impl EventClient for MqttEventClient {
             let request = self.dispatcher.request::<_, Vec<Event>>(msg);
 
             let response_result = if let Some(dur) = self.timeout {
-                async_std::future::timeout(dur, request)
+                tokio::time::timeout(dur, request)
                     .await
                     .map_err(|_e| ClientError::Timeout)?
             } else {
@@ -566,7 +560,7 @@ impl EventClient for MqttEventClient {
 
         let request = self.dispatcher.request::<_, JsonValue>(msg);
         let payload_result = if let Some(dur) = self.timeout {
-            async_std::future::timeout(dur, request)
+            tokio::time::timeout(dur, request)
                 .await
                 .map_err(|_| ClientError::Timeout)?
         } else {

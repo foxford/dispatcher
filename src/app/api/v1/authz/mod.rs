@@ -2,11 +2,12 @@ use std::sync::Arc;
 use std::{str::FromStr, time::Duration};
 
 use anyhow::Context;
-use futures::AsyncReadExt;
+use axum::extract::{Extension, Json, Path, TypedHeader};
+use headers::{authorization::Bearer, Authorization};
+use hyper::{Body, Response};
 use serde_derive::{Deserialize, Serialize};
 use serde_json::json;
 use svc_authn::{AccountId, Authenticable};
-use tide::{Request, Response};
 use uuid::Uuid;
 
 use crate::app::{error, AppContext};
@@ -15,10 +16,10 @@ use crate::{app::error::ErrorKind as AppErrorKind, utils::single_retry};
 
 use crate::db::authz::{AuthzClass, AuthzReadQuery};
 
-use super::{extract_param, validate_token, AppError, AppResult};
+use super::{validate_token, AppError, AppResult};
 
 #[derive(Deserialize, Debug, Serialize)]
-struct AuthzRequest {
+pub struct AuthzRequest {
     subject: Subject,
     object: Object,
     action: String,
@@ -43,30 +44,30 @@ struct Object {
     value: Vec<String>,
 }
 
-pub async fn proxy(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
-    let request_audience = extract_param(&req, "audience")
-        .error(AppErrorKind::InvalidPayload)?
-        .to_owned();
+pub async fn proxy(
+    Extension(ctx): Extension<Arc<dyn AppContext>>,
+    Path(request_audience): Path<String>,
+    TypedHeader(Authorization(token)): TypedHeader<Authorization<Bearer>>,
+    Json(mut authz_req): Json<AuthzRequest>,
+) -> AppResult {
+    let account_id =
+        validate_token(ctx.as_ref(), token.token()).error(AppErrorKind::Unauthorized)?;
 
-    let account_id = validate_token(&req).error(AppErrorKind::Unauthorized)?;
-
-    let q = validate_client(&account_id, req.state().as_ref())?;
-
-    let mut authz_req: AuthzRequest = req.body_json().await.error(AppErrorKind::InvalidPayload)?;
+    let q = validate_client(&account_id, ctx.as_ref())?;
 
     info!(crate::LOG, "Authz proxy: raw request {:?}", authz_req);
     let old_action = authz_req.action.clone();
 
     transform_authz_request(&mut authz_req, &account_id);
 
-    substitute_class(&mut authz_req, req.state().as_ref(), q).await?;
+    substitute_class(&mut authz_req, ctx.as_ref(), q).await?;
 
-    let http_proxy = req.state().authz().http_proxy(&request_audience);
+    let http_proxy = ctx.authz().http_proxy(&request_audience);
 
-    let retry_delay = req.state().config().retry_delay;
+    let retry_delay = ctx.config().retry_delay;
     let response = proxy_request(&authz_req, http_proxy, &old_action, retry_delay).await?;
 
-    let response = Response::builder(200).body(response).build();
+    let response = Response::builder().body(Body::from(response)).unwrap();
     Ok(response)
 }
 
@@ -142,17 +143,19 @@ async fn proxy_request(
             .context("Failed to serialize authz request")
             .error(AppErrorKind::SerializationFailed)?;
         let get_response = || async {
-            let mut resp = http_proxy
+            let resp = http_proxy
                 .send_async(payload.clone())
                 .await
                 .context("Authz proxied request failed")
                 .error(AppErrorKind::AuthorizationFailed)?;
 
-            let mut body = String::new();
-            resp.body_mut()
-                .read_to_string(&mut body)
-                .await
-                .context("Authz proxied request body fetch failed")
+            let body = String::from_utf8(resp.to_vec())
+                .map_err(|e| {
+                    anyhow!(
+                        "Authz proxied request body conversion to utf8 failed, err = {:?}",
+                        e
+                    )
+                })
                 .error(AppErrorKind::AuthorizationFailed)?;
             Ok::<_, error::Error>(body)
         };
