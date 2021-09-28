@@ -1,21 +1,28 @@
+use axum::extract::{Extension, Path, TypedHeader};
+use headers::{authorization::Bearer, Authorization};
+use hyper::{Body, Response};
+use uuid::Uuid;
+
 use super::*;
 
 use crate::db::class::Object as Class;
 use crate::db::recording::Object as Recording;
 use crate::{app::metrics::AuthorizeMetrics, config::StorageConfig};
 
-pub async fn download(req: Request<Arc<dyn AppContext>>) -> AppResult {
-    let account_id = validate_token(&req).error(AppErrorKind::Unauthorized)?;
-    let id = extract_id(&req).error(AppErrorKind::InvalidParameter)?;
-    let state = req.state();
+pub async fn download(
+    Extension(ctx): Extension<Arc<dyn AppContext>>,
+    Path(id): Path<Uuid>,
+    TypedHeader(Authorization(token)): TypedHeader<Authorization<Bearer>>,
+) -> AppResult {
+    let account_id =
+        validate_token(ctx.as_ref(), token.token()).error(AppErrorKind::Unauthorized)?;
 
-    let webinar = find::<WebinarType>(state.as_ref(), id)
+    let webinar = find::<WebinarType>(ctx.as_ref(), id)
         .await
         .error(AppErrorKind::WebinarNotFound)?;
 
     let object = AuthzObject::new(&["classrooms", &webinar.id().to_string()]).into();
-    state
-        .authz()
+    ctx.authz()
         .authorize(
             webinar.audience().to_owned(),
             account_id.clone(),
@@ -25,8 +32,7 @@ pub async fn download(req: Request<Arc<dyn AppContext>>) -> AppResult {
         .await
         .measure()?;
 
-    let mut conn = req
-        .state()
+    let mut conn = ctx
         .get_conn()
         .await
         .error(AppErrorKind::DbConnAcquisitionFailed)?;
@@ -42,11 +48,10 @@ pub async fn download(req: Request<Arc<dyn AppContext>>) -> AppResult {
         .ok_or_else(|| anyhow!("Failed to find recording"))
         .error(AppErrorKind::RecordingNotFound)?;
 
-    let body =
-        serde_json::json!({ "url": format_url(req.state().storage_config(), &webinar, recording) });
+    let body = serde_json::json!({ "url": format_url(ctx.storage_config(), &webinar, recording) });
 
     let body = serde_json::to_string(&body).expect("Never fails");
-    let response = Response::builder(200).body(body).build();
+    let response = Response::builder().body(Body::from(body)).unwrap();
     Ok(response)
 }
 

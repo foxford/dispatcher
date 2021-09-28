@@ -1,9 +1,11 @@
 use std::sync::Arc;
 
 use anyhow::Context;
+use axum::extract::{Extension, Path, TypedHeader};
 use chrono::Utc;
+use headers::{authorization::Bearer, Authorization};
+use hyper::{Body, Response};
 use svc_authn::AccountId;
-use tide::{Request, Response};
 use uuid::Uuid;
 
 use super::*;
@@ -13,12 +15,15 @@ use crate::app::AppContext;
 use crate::app::{authz::AuthzObject, metrics::AuthorizeMetrics};
 use crate::db::class::{AsClassType, Object as Class};
 
-pub async fn read<T: AsClassType>(req: Request<Arc<dyn AppContext>>) -> AppResult {
-    let account_id = validate_token(&req).error(AppErrorKind::Unauthorized)?;
-    let state = req.state();
-    let id = extract_id(&req).error(AppErrorKind::InvalidParameter)?;
+pub async fn read<T: AsClassType>(
+    ctx: Extension<Arc<dyn AppContext>>,
+    Path(id): Path<Uuid>,
+    TypedHeader(Authorization(token)): TypedHeader<Authorization<Bearer>>,
+) -> AppResult {
+    let account_id =
+        validate_token(ctx.0.as_ref(), token.token()).error(AppErrorKind::Unauthorized)?;
 
-    do_read::<T>(state.as_ref(), &account_id, id).await
+    do_read::<T>(ctx.0.as_ref(), &account_id, id).await
 }
 
 async fn do_read<T: AsClassType>(
@@ -33,13 +38,15 @@ async fn do_read<T: AsClassType>(
     do_read_inner::<T>(state, account_id, class).await
 }
 
-pub async fn read_by_scope<T: AsClassType>(req: Request<Arc<dyn AppContext>>) -> AppResult {
-    let account_id = validate_token(&req).error(AppErrorKind::Unauthorized)?;
-    let audience = extract_param(&req, "audience").error(AppErrorKind::InvalidParameter)?;
-    let scope = extract_param(&req, "scope").error(AppErrorKind::InvalidParameter)?;
-    let state = req.state();
+pub async fn read_by_scope<T: AsClassType>(
+    ctx: Extension<Arc<dyn AppContext>>,
+    Path((audience, scope)): Path<(String, String)>,
+    TypedHeader(token): TypedHeader<Authorization<Bearer>>,
+) -> AppResult {
+    let account_id =
+        validate_token(ctx.0.as_ref(), token.0.token()).error(AppErrorKind::Unauthorized)?;
 
-    do_read_by_scope::<T>(state.as_ref(), &account_id, audience, scope).await
+    do_read_by_scope::<T>(ctx.0.as_ref(), &account_id, &audience, &scope).await
 }
 
 async fn do_read_by_scope<T: AsClassType>(
@@ -52,7 +59,10 @@ async fn do_read_by_scope<T: AsClassType>(
         Ok(class) => class,
         Err(e) => {
             error!(crate::LOG, "Failed to find a minigroup, err = {:?}", e);
-            return Ok(tide::Response::builder(404).body("Not found").build());
+            return Ok(Response::builder()
+                .status(404)
+                .body(Body::from("Not found"))
+                .unwrap());
         }
     };
 
@@ -130,6 +140,6 @@ async fn do_read_inner<T: AsClassType>(
     let body = serde_json::to_string(&class_body)
         .context("Failed to serialize minigroup")
         .error(AppErrorKind::SerializationFailed)?;
-    let response = Response::builder(200).body(body).build();
+    let response = Response::builder().body(Body::from(body)).unwrap();
     Ok(response)
 }

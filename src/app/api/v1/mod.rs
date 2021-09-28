@@ -1,14 +1,14 @@
-use std::str::FromStr;
 use std::sync::Arc;
 
 use anyhow::Context;
-use async_trait::async_trait;
-use futures::Future;
+use axum::extract::{Extension, Json, Path, Query, TypedHeader};
+use headers::{authorization::Bearer, Authorization};
+use hyper::{Body, Request, Response};
 use percent_encoding::{percent_encode, NON_ALPHANUMERIC};
 use serde_derive::Deserialize;
 use serde_json::Value as JsonValue;
 use svc_agent::AccountId;
-use tide::{Endpoint, Request, Response};
+use url::Url;
 use uuid::Uuid;
 
 use super::FEATURE_POLICY;
@@ -19,53 +19,29 @@ use crate::app::AppContext;
 use crate::app::{authz::AuthzObject, metrics::AuthorizeMetrics};
 use crate::db::class::AsClassType;
 
-type AppError = crate::app::error::Error;
-type AppResult = Result<tide::Response, AppError>;
+pub type AppError = crate::app::error::Error;
+pub type AppResult = Result<Response<Body>, AppError>;
 
-pub struct AppEndpoint<E>(pub E);
-
-#[async_trait]
-impl<E, S, F> Endpoint<S> for AppEndpoint<E>
-where
-    E: Fn(tide::Request<S>) -> F + Send + Sync + 'static,
-    F: Future<Output = AppResult> + Send + 'static,
-    S: Clone + Send + Sync + 'static,
-{
-    async fn call(&self, req: tide::Request<S>) -> tide::Result {
-        let resp = (self.0)(req).await;
-        Ok(match resp {
-            Ok(resp) => resp,
-            Err(err) => {
-                let mut tide_resp = err.to_tide_response();
-                tide_resp.set_error(err);
-                tide_resp
-            }
-        })
-    }
+pub async fn healthz() -> &'static str {
+    "Ok"
 }
 
-pub async fn healthz(_req: Request<Arc<dyn AppContext>>) -> tide::Result {
-    Ok("Ok".into())
-}
+pub async fn create_event(
+    Extension(ctx): Extension<Arc<dyn AppContext>>,
+    Path(id): Path<Uuid>,
+    TypedHeader(Authorization(token)): TypedHeader<Authorization<Bearer>>,
+    Json(mut payload): Json<JsonValue>,
+) -> AppResult {
+    let account_id =
+        validate_token(ctx.as_ref(), token.token()).error(AppErrorKind::Unauthorized)?;
 
-pub async fn create_event(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
-    let mut body = req
-        .body_json::<JsonValue>()
-        .await
-        .error(AppErrorKind::InvalidPayload)?;
-    let id = extract_id(&req).error(AppErrorKind::InvalidParameter)?;
-
-    let account_id = validate_token(&req).error(AppErrorKind::Unauthorized)?;
-    let state = req.state();
-
-    let class = find_class(state.as_ref(), id)
+    let class = find_class(ctx.as_ref(), id)
         .await
         .error(AppErrorKind::WebinarNotFound)?;
 
     let object = AuthzObject::new(&["classrooms", &class.id().to_string()]).into();
 
-    state
-        .authz()
+    ctx.authz()
         .authorize(
             class.audience().to_owned(),
             account_id.clone(),
@@ -75,9 +51,9 @@ pub async fn create_event(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
         .await
         .measure()?;
 
-    body["room_id"] = serde_json::to_value(class.event_room_id()).unwrap();
+    payload["room_id"] = serde_json::to_value(class.event_room_id()).unwrap();
 
-    let result = state.event_client().create_event(body).await;
+    let result = ctx.event_client().create_event(payload).await;
     if let Err(e) = &result {
         error!(
             crate::LOG,
@@ -88,7 +64,10 @@ pub async fn create_event(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
         .map_err(|e| anyhow!("Failed to create event, reason = {:?}", e))
         .error(AppErrorKind::InvalidPayload)?;
 
-    let response = Response::builder(201).body("{}").build();
+    let response = Response::builder()
+        .status(201)
+        .body(Body::from("{}"))
+        .unwrap();
 
     Ok(response)
 }
@@ -108,29 +87,18 @@ pub async fn find_class(
 }
 
 #[derive(Deserialize)]
-struct RedirQuery {
+pub struct RedirQuery {
     pub scope: String,
     pub app: String,
     pub audience: String,
 }
 
-pub async fn redirect_to_frontend(req: Request<Arc<dyn AppContext>>) -> tide::Result {
-    let query = match req.query::<RedirQuery>() {
-        Ok(query) => query,
-        Err(e) => {
-            error!(
-                crate::LOG,
-                "Failed to parse query: {:?}, query = {:?}",
-                e,
-                req.url().query()
-            );
-            return Ok(Response::builder(tide::StatusCode::NotFound)
-                .body(format!("Failed to parse query: {:?}", e))
-                .build());
-        }
-    };
-
-    let conn = req.state().get_conn().await;
+pub async fn redirect_to_frontend(
+    ctx: Extension<Arc<dyn AppContext>>,
+    request: Request<Body>,
+    Query(query): Query<RedirQuery>,
+) -> AppResult {
+    let conn = ctx.get_conn().await;
     let base_url = match conn {
         Err(e) => {
             error!(crate::LOG, "Failed to acquire conn: {}", e);
@@ -149,7 +117,7 @@ pub async fn redirect_to_frontend(req: Request<Arc<dyn AppContext>>) -> tide::Re
                     None
                 }
                 Ok(Some(frontend)) => {
-                    let u = tide::http::url::Url::parse(&frontend.url);
+                    let u = Url::parse(&frontend.url);
                     u.ok()
                 }
                 Ok(None) => None,
@@ -158,23 +126,19 @@ pub async fn redirect_to_frontend(req: Request<Arc<dyn AppContext>>) -> tide::Re
     };
 
     let mut url = base_url.unwrap_or_else(|| {
-        super::build_default_url(
-            req.state().default_frontend_base(),
-            &query.audience,
-            &query.app,
-        )
+        super::build_default_url(ctx.default_frontend_base(), &query.audience, &query.app)
     });
 
-    url.set_query(req.url().query());
+    url.set_query(request.uri().query());
 
     // Add dispatcher base URL as `backurl` get parameter.
-    let mut back_url = req.url().to_owned();
+    let mut back_url = Url::parse(&request.uri().to_string())
+        .map_err(|e| anyhow!("Failed to parse request uri as url, e = {:?}", e))
+        .error(AppErrorKind::InvalidParameter)?;
     back_url.set_query(None);
 
     // Ingress terminates https so set it back.
-    back_url
-        .set_scheme("https")
-        .map_err(|()| anyhow!("Failed to set https scheme"))?;
+    back_url.set_scheme("https").unwrap();
 
     // Percent-encode it since it's being passed as a get parameter.
     let urlencoded_back_url =
@@ -185,41 +149,25 @@ pub async fn redirect_to_frontend(req: Request<Arc<dyn AppContext>>) -> tide::Re
 
     let url = url.to_string();
 
-    let response = Response::builder(307)
+    let response = Response::builder()
+        .status(307)
         .header("Location", &url)
         .header("Feature-Policy", FEATURE_POLICY)
-        .build();
+        .body(Body::empty())
+        .unwrap();
 
     Ok(response)
 }
 
 fn validate_token<T: std::ops::Deref<Target = dyn AppContext>>(
-    req: &Request<T>,
+    ctx: T,
+    token: &str,
 ) -> anyhow::Result<AccountId> {
-    let token = req
-        .header("Authorization")
-        .and_then(|h| h.get(0))
-        .map(|header| header.to_string());
-
-    let state = req.state();
-    let account_id = state
-        .validate_token(token.as_deref())
+    let account_id = ctx
+        .validate_token(token)
         .context("Token authentication failed")?;
 
     Ok(account_id)
-}
-
-fn extract_param<'a>(req: &'a Request<Arc<dyn AppContext>>, key: &str) -> anyhow::Result<&'a str> {
-    req.param(key)
-        .map_err(|e| anyhow!("Failed to get {}, reason = {:?}", key, e))
-}
-
-fn extract_id(req: &Request<Arc<dyn AppContext>>) -> anyhow::Result<Uuid> {
-    let id = extract_param(req, "id")?;
-    let id = Uuid::from_str(id)
-        .map_err(|e| anyhow!("Failed to convert id to uuid, reason = {:?}", e))?;
-
-    Ok(id)
 }
 
 async fn find<T: AsClassType>(

@@ -2,16 +2,17 @@ use std::ops::{Bound, Not};
 use std::sync::Arc;
 
 use anyhow::Context;
-use async_std::prelude::FutureExt;
+use axum::extract::{Extension, Json, Path, TypedHeader};
 use chrono::Utc;
+use headers::{authorization::Bearer, Authorization};
+use hyper::{Body, Response};
 use serde_derive::Deserialize;
 use svc_agent::AgentId;
 use svc_authn::AccountId;
-use tide::{Request, Response};
 use uuid::Uuid;
 
-use super::{extract_id, find, validate_token, AppResult, ClassResponseBody};
-use crate::app::{api::v1::extract_param, error::ErrorKind as AppErrorKind};
+use super::{find, validate_token, AppResult, ClassResponseBody};
+use crate::app::error::ErrorKind as AppErrorKind;
 use crate::app::{api::v1::find_by_scope, error::ErrorExt};
 use crate::app::{authz::AuthzObject, metrics::AuthorizeMetrics};
 use crate::app::{error, AppContext};
@@ -22,52 +23,55 @@ use crate::db::class;
 use crate::db::class::{AsClassType, BoundedDateTimeTuple};
 
 #[derive(Deserialize)]
-struct ClassUpdate {
+pub struct ClassUpdate {
     #[serde(default, with = "crate::serde::ts_seconds_option_bound_tuple")]
     time: Option<BoundedDateTimeTuple>,
     reserve: Option<i32>,
     host: Option<AgentId>,
 }
 
-pub async fn update<T: AsClassType>(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
-    let body: ClassUpdate = req.body_json().await.error(AppErrorKind::InvalidPayload)?;
-
-    let account_id = validate_token(&req).error(AppErrorKind::Unauthorized)?;
-    let state = req.state();
-    let id = extract_id(&req).error(AppErrorKind::InvalidParameter)?;
-    let class = find::<T>(state.as_ref(), id)
+pub async fn update<T: AsClassType>(
+    Extension(ctx): Extension<Arc<dyn AppContext>>,
+    Path(id): Path<Uuid>,
+    TypedHeader(Authorization(token)): TypedHeader<Authorization<Bearer>>,
+    Json(payload): Json<ClassUpdate>,
+) -> AppResult {
+    let account_id =
+        validate_token(ctx.as_ref(), token.token()).error(AppErrorKind::Unauthorized)?;
+    let class = find::<T>(ctx.as_ref(), id)
         .await
         .error(AppErrorKind::WebinarNotFound)?;
-    let updated_class = do_update::<T>(state.as_ref(), &account_id, class, body).await?;
-    Ok(Response::builder(200)
-        .body(
+    let updated_class = do_update::<T>(ctx.as_ref(), &account_id, class, payload).await?;
+    Ok(Response::builder()
+        .body(Body::from(
             serde_json::to_string(&updated_class)
                 .context("Failed to serialize minigroup")
                 .error(AppErrorKind::SerializationFailed)?,
-        )
-        .build())
+        ))
+        .unwrap())
 }
 
-pub async fn update_by_scope<T: AsClassType>(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
-    let body: ClassUpdate = req.body_json().await.error(AppErrorKind::InvalidPayload)?;
-
-    let account_id = validate_token(&req).error(AppErrorKind::Unauthorized)?;
-    let audience = extract_param(&req, "audience").error(AppErrorKind::InvalidParameter)?;
-    let scope = extract_param(&req, "scope").error(AppErrorKind::InvalidParameter)?;
-    let state = req.state();
-    let class = find_by_scope::<T>(state.as_ref(), audience, scope)
+pub async fn update_by_scope<T: AsClassType>(
+    Extension(ctx): Extension<Arc<dyn AppContext>>,
+    Path((audience, scope)): Path<(String, String)>,
+    TypedHeader(Authorization(token)): TypedHeader<Authorization<Bearer>>,
+    Json(payload): Json<ClassUpdate>,
+) -> AppResult {
+    let account_id =
+        validate_token(ctx.as_ref(), token.token()).error(AppErrorKind::Unauthorized)?;
+    let class = find_by_scope::<T>(ctx.as_ref(), &audience, &scope)
         .await
         .error(AppErrorKind::WebinarNotFound)?;
 
-    let updated_class = do_update::<T>(state.as_ref(), &account_id, class, body).await?;
+    let updated_class = do_update::<T>(ctx.as_ref(), &account_id, class, payload).await?;
     let response: ClassResponseBody = (&updated_class).into();
-    Ok(Response::builder(200)
-        .body(
+    Ok(Response::builder()
+        .body(Body::from(
             serde_json::to_string(&response)
                 .context("Failed to serialize minigroup")
                 .error(AppErrorKind::SerializationFailed)?,
-        )
-        .build())
+        ))
+        .unwrap())
 }
 
 async fn do_update<T: AsClassType>(
@@ -96,7 +100,7 @@ async fn do_update<T: AsClassType>(
         (None, None) => Ok(()),
         (None, Some(c)) => c.await,
         (Some(e), None) => e.await,
-        (Some(e), Some(c)) => e.try_join(c).await.map(|_| ()),
+        (Some(e), Some(c)) => tokio::try_join!(e, c).map(|_| ()),
     }
     .context("Services requests")
     .error(AppErrorKind::MqttRequestFailed)?;
@@ -181,7 +185,7 @@ mod tests {
         let _update: ClassUpdate = serde_json::from_str(update).unwrap();
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn update_webinar_unauthorized() {
         let agent = TestAgent::new("web", "user1", USR_AUDIENCE);
         let event_room_id = Uuid::new_v4();
@@ -216,7 +220,7 @@ mod tests {
             .expect_err("Unexpectedly succeeded");
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn update_webinar() {
         let agent = TestAgent::new("web", "user1", USR_AUDIENCE);
         let event_room_id = Uuid::new_v4();

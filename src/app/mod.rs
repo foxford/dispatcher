@@ -1,9 +1,8 @@
+use std::sync::Arc;
 use std::time::Duration;
-use std::{net::SocketAddr, sync::Arc};
 
 use anyhow::{Context, Result};
 use futures::StreamExt;
-use prometheus::{Encoder, TextEncoder};
 use signal_hook::consts::TERM_SIGNALS;
 use sqlx::postgres::PgPool;
 use svc_agent::{
@@ -46,12 +45,10 @@ pub async fn run(db: PgPool, authz_cache: Option<Box<dyn AuthzCache>>) -> Result
     let mut agent_config = config.mqtt.clone();
     agent_config.set_password(&token);
 
-    let (mut agent, rx) = AgentBuilder::new(agent_id.clone(), API_VERSION)
+    let (mut agent, mut rx) = AgentBuilder::new(agent_id.clone(), API_VERSION)
         .connection_mode(ConnectionMode::Service)
         .start(&agent_config)
         .context("Failed to create an agent")?;
-
-    let (mq_tx, mut mq_rx) = futures_channel::mpsc::unbounded::<AgentNotification>();
 
     let dispatcher = Arc::new(Dispatcher::new(&agent));
     let event_client = build_event_client(&config, dispatcher.clone());
@@ -72,22 +69,11 @@ pub async fn run(db: PgPool, authz_cache: Option<Box<dyn AuthzCache>>) -> Result
     let state = Arc::new(state) as Arc<dyn AppContext>;
     let state_ = state.clone();
 
-    std::thread::Builder::new()
-        .name("dispatcher-notifications-loop".to_owned())
-        .spawn(move || {
-            for message in rx {
-                if mq_tx.unbounded_send(message).is_err() {
-                    error!(crate::LOG, "Error sending message to the internal channel");
-                }
-            }
-        })
-        .expect("Failed to start dispatcher notifications loop");
-
     let message_handler = Arc::new(MessageHandler::new(state_, dispatcher));
-    async_std::task::spawn(async move {
-        while let Some(message) = mq_rx.next().await {
+    tokio::task::spawn(async move {
+        while let Some(message) = rx.recv().await {
             let message_handler_ = message_handler.clone();
-            async_std::task::spawn(async move {
+            tokio::task::spawn(async move {
                 match message {
                     AgentNotification::Message(Ok(IncomingMessage::Response(data)), _) => {
                         message_handler_.handle_response(data).await;
@@ -135,17 +121,14 @@ pub async fn run(db: PgPool, authz_cache: Option<Box<dyn AuthzCache>>) -> Result
     });
 
     subscribe(&mut agent, &agent_id, &config).expect("Failed to subscribe to required topics");
-    async_std::task::spawn(start_metrics_collector(
-        config.http.metrics_listener_address,
-    ));
+    // todo!("start metrics collector");
 
-    let mut app = tide::with_state(state);
-    app.with(request_logger::LogMiddleware::new());
-    routes::bind_routes(&mut app);
+    let router = routes::router(state);
 
-    let app_future = app.listen(config.http.listener_address);
+    let app_future = axum::Server::bind(&config.http.listener_address.parse().unwrap())
+        .serve(router.into_make_service());
     pin_utils::pin_mut!(app_future);
-    let mut signals_stream = signal_hook_async_std::Signals::new(TERM_SIGNALS)?.fuse();
+    let mut signals_stream = signal_hook_tokio::Signals::new(TERM_SIGNALS)?.fuse();
     let signals = signals_stream.next();
 
     futures::future::select(app_future, signals).await;
@@ -153,7 +136,7 @@ pub async fn run(db: PgPool, authz_cache: Option<Box<dyn AuthzCache>>) -> Result
     // sleep for 2 secs to finish requests
     // this is very primitive way of waiting for them but
     // neither tide nor svc-agent (rumqtt) support graceful shutdowns
-    async_std::task::sleep(Duration::from_secs(2)).await;
+    tokio::time::sleep(Duration::from_secs(2)).await;
     Ok(())
 }
 
@@ -256,35 +239,12 @@ fn build_tq_client(config: &Config, token: &str) -> Arc<dyn TqClient> {
     ))
 }
 
-async fn start_metrics_collector(bind_addr: SocketAddr) -> async_std::io::Result<()> {
-    let mut app = tide::with_state(());
-    app.at("/metrics")
-        .get(|_req: tide::Request<()>| async move {
-            let mut buffer = vec![];
-            let encoder = TextEncoder::new();
-            let metric_families = prometheus::gather();
-            match encoder.encode(&metric_families, &mut buffer) {
-                Ok(_) => {
-                    let mut response = tide::Response::new(200);
-                    response.set_body(buffer);
-                    Ok(response)
-                }
-                Err(err) => {
-                    warn!(crate::LOG, "Metrics not gathered: {:?}", err);
-                    Ok(tide::Response::new(500))
-                }
-            }
-        });
-    app.listen(bind_addr).await
-}
-
 mod api;
 mod authz;
 mod error;
 mod info;
 mod metrics;
 mod postprocessing_strategy;
-mod request_logger;
 mod routes;
 mod services;
 mod tide_state;

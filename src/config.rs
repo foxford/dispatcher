@@ -14,7 +14,7 @@ pub struct Config {
     pub agent_label: String,
     pub broker_id: AccountId,
     pub mqtt: AgentConfig,
-    pub default_frontend_base: tide::http::url::Url,
+    pub default_frontend_base: url::Url,
     pub sentry: Option<SentryConfig>,
     pub http: HttpConfig,
     pub conference_client: MqttServiceConfig,

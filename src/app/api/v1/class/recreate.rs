@@ -2,14 +2,15 @@ use std::ops::Bound;
 use std::sync::Arc;
 
 use anyhow::Context;
-use async_std::prelude::FutureExt;
+use axum::extract::{Extension, Json, Path, TypedHeader};
 use chrono::Utc;
+use headers::{authorization::Bearer, Authorization};
+use hyper::{Body, Response};
 use serde_derive::Deserialize;
 use sqlx::Acquire;
-use tide::{Request, Response};
 use uuid::Uuid;
 
-use super::{extract_id, find, validate_token, AppResult};
+use super::{find, validate_token, AppResult};
 use crate::app::error::ErrorExt;
 use crate::app::error::ErrorKind as AppErrorKind;
 use crate::app::AppContext;
@@ -25,14 +26,16 @@ pub struct WebinarRecreate {
     time: Option<BoundedDateTimeTuple>,
 }
 
-pub async fn recreate<T: AsClassType>(mut req: Request<Arc<dyn AppContext>>) -> AppResult {
-    let body: WebinarRecreate = req.body_json().await.error(AppErrorKind::InvalidPayload)?;
+pub async fn recreate<T: AsClassType>(
+    Extension(ctx): Extension<Arc<dyn AppContext>>,
+    Path(id): Path<Uuid>,
+    TypedHeader(Authorization(token)): TypedHeader<Authorization<Bearer>>,
+    Json(body): Json<WebinarRecreate>,
+) -> AppResult {
+    let account_id =
+        validate_token(ctx.as_ref(), token.token()).error(AppErrorKind::Unauthorized)?;
 
-    let account_id = validate_token(&req).error(AppErrorKind::Unauthorized)?;
-    let id = extract_id(&req).error(AppErrorKind::InvalidParameter)?;
-    let state = req.state();
-
-    let webinar = find::<T>(state.as_ref(), id)
+    let webinar = find::<T>(ctx.as_ref(), id)
         .await
         .error(AppErrorKind::WebinarNotFound)?;
 
@@ -40,8 +43,7 @@ pub async fn recreate<T: AsClassType>(mut req: Request<Arc<dyn AppContext>>) -> 
 
     let time = body.time.unwrap_or((Bound::Unbounded, Bound::Unbounded));
 
-    state
-        .authz()
+    ctx.authz()
         .authorize(
             webinar.audience().to_owned(),
             account_id.clone(),
@@ -52,7 +54,7 @@ pub async fn recreate<T: AsClassType>(mut req: Request<Arc<dyn AppContext>>) -> 
         .measure()?;
 
     let (event_room_id, conference_room_id) =
-        create_event_and_conference::<T>(req.state().as_ref(), &webinar, &time).await?;
+        create_event_and_conference::<T>(ctx.as_ref(), &webinar, &time).await?;
 
     let query = crate::db::class::RecreateQuery::new(
         webinar.id(),
@@ -62,11 +64,7 @@ pub async fn recreate<T: AsClassType>(mut req: Request<Arc<dyn AppContext>>) -> 
     );
 
     let webinar = {
-        let mut conn = req
-            .state()
-            .get_conn()
-            .await
-            .error(AppErrorKind::DbQueryFailed)?;
+        let mut conn = ctx.get_conn().await.error(AppErrorKind::DbQueryFailed)?;
         let mut txn = conn
             .begin()
             .await
@@ -97,7 +95,7 @@ pub async fn recreate<T: AsClassType>(mut req: Request<Arc<dyn AppContext>>) -> 
         .context("Failed to serialize webinar")
         .error(AppErrorKind::SerializationFailed)?;
 
-    let response = Response::builder(200).body(body).build();
+    let response = Response::builder().body(Body::from(body)).unwrap();
 
     Ok(response)
 }
@@ -136,9 +134,7 @@ async fn create_event_and_conference<T: AsClassType>(
         Some(webinar.id()),
     );
 
-    let (event_room_id, conference_room_id) = event_fut
-        .try_join(conference_fut)
-        .await
+    let (event_room_id, conference_room_id) = tokio::try_join!(event_fut, conference_fut)
         .context("Services requests")
         .error(AppErrorKind::MqttRequestFailed)?;
 

@@ -24,7 +24,7 @@ lazy_static! {
     };
 }
 
-#[async_std::main]
+#[tokio::main]
 async fn main() -> Result<()> {
     warn!(crate::LOG, "Launching {}, version: {}", APP, APP_VERSION);
 

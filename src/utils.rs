@@ -15,7 +15,7 @@ where
 {
     let f = create_f();
     let timeout = async {
-        async_std::task::sleep(retry_delay).await;
+        tokio::time::sleep(retry_delay).await;
         Ok::<(), ()>(())
     };
     pin_mut!(timeout);
@@ -45,7 +45,7 @@ mod tests {
 
     use super::single_retry;
 
-    #[async_std::test]
+    #[tokio::test]
     async fn should_retry_when_failed() {
         let call_count = Arc::new(Mutex::new(0));
         let create_fut = || {
@@ -68,7 +68,7 @@ mod tests {
         assert!(result.is_ok());
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn should_return_second_error_when_all_failed() {
         let call_count = Arc::new(Mutex::new(0));
         let create_fut = || {
@@ -91,7 +91,7 @@ mod tests {
         assert_eq!(result, Err(2));
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn should_retry_after_delay() {
         let call_count = Arc::new(Mutex::new(0));
         let create_fut = || {
@@ -103,7 +103,7 @@ mod tests {
                     *mutex_guard
                 };
                 if call_count == 1 {
-                    async_std::task::sleep(Duration::from_secs(10000000)).await;
+                    tokio::time::sleep(Duration::from_secs(10000000)).await;
                     Ok::<_, ()>(())
                 } else {
                     Ok(())
@@ -118,7 +118,7 @@ mod tests {
         assert!(result.is_ok());
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn should_not_retry_when_ok() {
         let call_count = Arc::new(Mutex::new(0));
         let create_fut = || {

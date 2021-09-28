@@ -14,7 +14,7 @@ mod handle_upload {
     use super::super::super::PostprocessingStrategy;
     use super::super::*;
 
-    #[async_std::test]
+    #[tokio::test]
     async fn handle_upload_stream() {
         let now = Utc::now();
         let mut state = TestState::new(TestAuthz::new()).await;
@@ -221,7 +221,7 @@ mod handle_upload {
         assert_eq!(&recording2.created_by, agent2.agent_id());
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn handle_upload_mjr() {
         let now = Utc::now();
         let mut state = TestState::new(TestAuthz::new()).await;
@@ -342,8 +342,8 @@ mod handle_adjust {
     use super::super::super::PostprocessingStrategy;
     use super::super::*;
 
-    #[async_std::test]
-    async fn handle_adjust_1() {
+    #[tokio::test]
+    async fn handle_adjust() {
         let now = Utc::now();
         let agent1 = TestAgent::new("web", "user1", USR_AUDIENCE);
         let agent2 = TestAgent::new("web", "user2", USR_AUDIENCE);
@@ -581,7 +581,7 @@ mod handle_adjust {
         }
     }
 
-    #[async_std::test]
+    #[tokio::test]
     async fn handle_adjust_with_pin_and_unpin() {
         let now = Utc::now();
         let agent1 = TestAgent::new("web", "user1", USR_AUDIENCE);
@@ -820,7 +820,7 @@ mod handle_transcoding_completion {
     use super::super::super::PostprocessingStrategy;
     use super::super::*;
 
-    #[async_std::test]
+    #[tokio::test]
     async fn handle_transcoding_completion() {
         let now = Utc::now();
         let agent1 = TestAgent::new("web", "user1", USR_AUDIENCE);
