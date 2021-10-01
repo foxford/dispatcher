@@ -121,7 +121,8 @@ pub async fn run(db: PgPool, authz_cache: Option<Box<dyn AuthzCache>>) -> Result
     });
 
     subscribe(&mut agent, &agent_id, &config).expect("Failed to subscribe to required topics");
-    // todo!("start metrics collector");
+    let metrics_server =
+        svc_utils::metrics::MetricsServer::new(config.http.metrics_listener_address);
 
     let router = routes::router(state);
 
@@ -132,6 +133,8 @@ pub async fn run(db: PgPool, authz_cache: Option<Box<dyn AuthzCache>>) -> Result
     let signals = signals_stream.next();
 
     futures::future::select(app_future, signals).await;
+
+    metrics_server.shutdown().await;
 
     // sleep for 2 secs to finish requests
     // this is very primitive way of waiting for them but
