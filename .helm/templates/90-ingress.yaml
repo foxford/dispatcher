@@ -8,6 +8,7 @@ metadata:
     nginx.ingress.kubernetes.io/force-ssl-redirect: "false"
     nginx.ingress.kubernetes.io/ssl-redirect: "false"
   name: {{ $hosts }}
+spec:
   rules:
   - host: {{ $hosts }}
     http:
