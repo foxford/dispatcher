@@ -1,0 +1,83 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Chart.Name }}-config
+data:
+  App.toml: |
+    id = {{ pluck .Values.werf.env .Values.app.id | first | default .Values.app.id._default | quote }}
+    broker_id = {{ pluck .Values.werf.env .Values.app.broker_id | first | default .Values.app.broker_id._default | quote }}
+    retry_delay = "2 seconds"
+    default_frontend_base = {{ pluck .Values.werf.env .Values.app.default_frontend_base | first | default .Values.app.default_frontend_base._default | quote }}
+
+    tenants = [{{ pluck .Values.werf.env .Values.app.authz.ident | first | default .Values.app.authz.ident._default | quote }}]
+
+    [id_token]
+    algorithm = {{ pluck .Values.werf.env .Values.app.id_token.algorithm | first | default .Values.app.id_token.algorithm._default | quote }}
+    key = "{{ printf "/app/%s" (pluck .Values.werf.env .Values.app.id_token.key | first | default .Values.app.id_token.key._default) }}"
+
+    [conference_client]
+    account_id = {{ pluck .Values.werf.env .Values.app.conference.id | first | default .Values.app.conference.id._default | quote }}
+    timeout = "5"
+    api_version = "v1"
+
+    [event_client]
+    account_id = {{ pluck .Values.werf.env .Values.app.event.id | first | default .Values.app.event.id._default | quote }}
+    timeout = "5"
+    api_version = "v1"
+
+    [tq_client]
+    base_url = {{ pluck .Values.werf.env .Values.app.tq.base_url | first | default .Values.app.tq.base_url._default | quote }}
+    account_id = {{ pluck .Values.werf.env .Values.app.tq.id | first | default .Values.app.tq.id._default | quote }}
+    timeout = "5"
+    api_version = "v1"
+
+    [mqtt]
+    uri = {{ pluck .Values.werf.env .Values.app.mqtt.uri | first | default .Values.app.mqtt.uri._default | quote }}
+    clean_session = {{ pluck .Values.werf.env .Values.app.mqtt.clean_session | first | default .Values.app.mqtt.clean_session._default | quote }}
+    reconnect_interval = 3
+    keep_alive = 15
+    incoming_message_queue_size = 10000000
+    outgoing_message_queue_size = 10000000
+    max_message_size = 10000000
+
+    [storage]
+    base_url = {{ pluck .Values.werf.env .Values.app.storage.base_url | first | default .Values.app.storage.base_url._default | quote }}
+
+    [http]
+    listener_address = "0.0.0.0:8080"
+    metrics_listener_address = "0.0.0.0:8081"
+
+{{- range $authn := .Values.app.authn }}
+    
+    [authn.{{ pluck $.Values.werf.env $authn.ident | first | default $authn.ident._default | quote }}]
+    audience = [
+    {{- range $k, $v := (pluck $.Values.werf.env $authn.audience | first | default $authn.audience._default) }}
+    {{- if $k }}, {{ end }}
+    {{- $v | quote -}}
+    {{- end -}}
+    ]
+    algorithm = {{ pluck $.Values.werf.env $authn.algorithm | first | default $authn.algorithm._default | quote }}
+    key = "{{ printf "/app/%s" (pluck $.Values.werf.env $authn.key | first | default $authn.key._default) }}"
+{{- end }}
+    
+    [authz.{{ pluck .Values.werf.env .Values.app.authz.ident | first | default .Values.app.authz.ident._default | quote }}]
+    type = {{ pluck .Values.werf.env .Values.app.authz.type | first | default .Values.app.authz.type._default | quote }}
+    [[authz."{{ pluck .Values.werf.env .Values.app.authz.ident | first | default .Values.app.authz.ident._default }}.records"]]
+    object = [{{ pluck .Values.werf.env .Values.app.authz.object | first | default .Values.app.authz.object._default | quote }}]
+    action = {{ pluck .Values.werf.env .Values.app.authz.action | first | default .Values.app.authz.action._default | quote }}
+{{- range $tenant := .Values.app.tenants }}
+{{- if (pluck $.Values.werf.env $tenant.authz.ident | first) }}
+    
+    ##
+    ## {{ $tenant.name }}
+    ##
+    [authz.{{ pluck $.Values.werf.env $tenant.authz.ident | first | default $tenant.authz.ident._default | quote }}]
+    type = {{ pluck $.Values.werf.env $tenant.authz.type | first | default $tenant.authz.type._default | quote }}
+    uri = {{ pluck $.Values.werf.env $tenant.authz.uri | first | default $tenant.authz.uri._default | quote }}
+    user_agent = {{ pluck $.Values.werf.env $tenant.authz.user_agent | first | default $tenant.authz.user_agent._default | quote }}
+    max_retries = 3
+    algorithm = {{ pluck $.Values.werf.env $tenant.authz.algorithm | first | default $tenant.authz.algorithm._default | quote }}
+    key = "{{ printf "/app/%s" (pluck $.Values.werf.env $tenant.authz.key | first | default $tenant.authz.key._default) }}"
+{{- end }}
+{{- end }}

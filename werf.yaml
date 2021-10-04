@@ -1,0 +1,9 @@
+---
+project: dispatcher
+configVersion: 1
+---
+image: app
+dockerfile: "docker/Dockerfile_app"
+---
+image: migrations
+dockerfile: "docker/Dockerfile_migrations"
