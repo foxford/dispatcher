@@ -132,13 +132,7 @@ pub async fn redirect_to_frontend(
     url.set_query(request.uri().query());
 
     // Add dispatcher base URL as `backurl` get parameter.
-    let mut back_url = Url::parse(&request.uri().to_string())
-        .map_err(|e| anyhow!("Failed to parse request uri as url, e = {:?}", e))
-        .error(AppErrorKind::InvalidParameter)?;
-    back_url.set_query(None);
-
-    // Ingress terminates https so set it back.
-    back_url.set_scheme("https").unwrap();
+    let back_url = crate::app::api::build_back_url(&request)?.to_string();
 
     // Percent-encode it since it's being passed as a get parameter.
     let urlencoded_back_url =

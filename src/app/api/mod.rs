@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use axum::extract::{Extension, Path, Query, TypedHeader};
 use headers::{authorization::Bearer, Authorization};
+use http::Uri;
 use hyper::{Body, Request, Response};
 use percent_encoding::{percent_encode, NON_ALPHANUMERIC};
 use serde_derive::Deserialize;
@@ -16,7 +17,7 @@ use url::Url;
 use crate::app::api::v1::AppResult;
 use crate::app::authz::AuthzObject;
 use crate::app::error::ErrorExt;
-use crate::app::error::ErrorKind as AppErrorKind;
+use crate::app::error::{Error as AppError, ErrorKind as AppErrorKind};
 use crate::app::AppContext;
 
 use super::metrics::AuthorizeMetrics;
@@ -67,13 +68,7 @@ pub async fn redirect_to_frontend(
     url.set_query(request.uri().query());
 
     // Add dispatcher base URL as `backurl` get parameter.
-    let mut back_url = Url::parse(&request.uri().to_string())
-        .map_err(|e| anyhow!("Failed to parse request uri as url, e = {:?}", e))
-        .error(AppErrorKind::InvalidParameter)?;
-    back_url.set_query(None);
-
-    // Ingress terminates https so set it back.
-    back_url.set_scheme("https").unwrap();
+    let back_url = build_back_url(&request)?.to_string();
 
     // Percent-encode it since it's being passed as a get parameter.
     let urlencoded_back_url =
@@ -183,6 +178,35 @@ fn build_default_url(mut url: Url, tenant: &str, app: &str) -> Url {
         error!(crate::LOG, "Default url set_host failed, reason = {:?}", e);
     }
     url
+}
+
+fn build_back_url<B>(request: &Request<B>) -> Result<Uri, AppError> {
+    let path = request
+        .uri()
+        .path_and_query()
+        // We dont need query, only path
+        .map(|v| v.path())
+        .ok_or_else(|| anyhow!("No path and query in uri"))
+        .error(AppErrorKind::InvalidParameter)?
+        .to_owned();
+
+    let host = request
+        .headers()
+        .get("Host")
+        .and_then(|host| host.to_str().ok())
+        .ok_or_else(|| anyhow!("Invalid host header"))
+        .error(AppErrorKind::InvalidParameter)?;
+
+    let absolute_uri = hyper::Uri::builder()
+        .authority(host)
+        .path_and_query(path)
+        // Ingress terminates https so set it back.
+        .scheme("https")
+        .build()
+        .map_err(|e| anyhow!("Failed to build back_url, e = {:?}", e))
+        .error(AppErrorKind::InvalidParameter)?;
+
+    Ok(absolute_uri)
 }
 
 pub mod v1;
