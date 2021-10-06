@@ -247,6 +247,7 @@ mod authz;
 mod error;
 mod info;
 mod metrics;
+mod middleware;
 mod postprocessing_strategy;
 mod routes;
 mod services;

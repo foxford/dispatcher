@@ -19,6 +19,8 @@ use super::api::{
 };
 use super::info::{list_frontends, list_scopes};
 
+use super::middleware::CorsMiddlewareLayer;
+
 use crate::app::metrics::MeteredRoute;
 use crate::app::AppContext;
 use crate::db::class::{ChatType, MinigroupType, P2PType, WebinarType};
@@ -59,6 +61,7 @@ fn webinars_router() -> Router<BoxRoute> {
             "/api/v1/audiences/:audience/webinars/:scope",
             options(read_options).get(read_by_scope::<WebinarType>),
         )
+        .layer(CorsMiddlewareLayer)
         .metered_route("/api/v1/webinars", post(create_webinar))
         .metered_route("/api/v1/webinars/:id", put(update::<WebinarType>))
         .metered_route("/api/v1/webinars/convert", post(convert_webinar))
@@ -81,6 +84,7 @@ fn p2p_router() -> Router<BoxRoute> {
             "/api/v1/audiences/:audience/p2p/:scope",
             options(read_options).get(read_by_scope::<P2PType>),
         )
+        .layer(CorsMiddlewareLayer)
         .metered_route("/api/v1/p2p", post(create_p2p))
         .metered_route("/api/v1/p2p/convert", post(convert_p2p))
         .metered_route("/api/v1/p2p/:id/events", post(create_event))
@@ -95,16 +99,19 @@ fn minigroups_router() -> Router<BoxRoute> {
         )
         .metered_route(
             "/api/v1/audiences/:audience/minigroups/:scope",
-            options(read_options)
-                .get(read_by_scope::<MinigroupType>)
-                .put(update_by_scope::<MinigroupType>),
+            options(read_options).get(read_by_scope::<MinigroupType>),
         )
+        .layer(CorsMiddlewareLayer)
         .metered_route(
             "/api/v1/minigroups/:id/recreate",
             post(recreate::<MinigroupType>),
         )
         .metered_route("/api/v1/minigroups", post(create_minigroup))
         .metered_route("/api/v1/minigroups/:id", put(update::<MinigroupType>))
+        .metered_route(
+            "/api/v1/audiences/:audience/minigroups/:scope",
+            put(update_by_scope::<MinigroupType>),
+        )
         .metered_route("/api/v1/minigroups/:id/events", post(create_event))
         .boxed()
 }
@@ -119,6 +126,7 @@ fn chat_router() -> Router<BoxRoute> {
             "/api/v1/audiences/:audience/chats/:scope",
             options(read_options).get(read_by_scope::<ChatType>),
         )
+        .layer(CorsMiddlewareLayer)
         .metered_route("/api/v1/chats", post(create_chat))
         .metered_route("/api/v1/chats/convert", post(convert_chat))
         .metered_route("/api/v1/chats/:id/events", post(create_event))
