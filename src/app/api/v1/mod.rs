@@ -95,8 +95,8 @@ pub struct RedirQuery {
 
 pub async fn redirect_to_frontend(
     ctx: Extension<Arc<dyn AppContext>>,
-    request: Request<Body>,
     Query(query): Query<RedirQuery>,
+    request: Request<Body>,
 ) -> AppResult {
     let conn = ctx.get_conn().await;
     let base_url = match conn {
