@@ -37,7 +37,8 @@ jobs:
       with:
         cache-on-failure: true
     - name: clippy
-      run: cargo clippy -- -D warnings
+      # occasionally fails, seems due to this https://github.com/rust-lang/rust/issues/79847
+      run: CARGO_INCREMENTAL=0 cargo clippy -- -D warnings
     - name: fmt
       run: cargo fmt -- --check
     - name: Install sqlx-cli

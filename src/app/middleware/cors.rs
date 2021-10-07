@@ -9,8 +9,11 @@ pub struct CorsMiddleware<S> {
     service: S,
 }
 
+#[allow(clippy::declare_interior_mutable_const)]
 const ALLOWED_METHODS: HeaderValue = HeaderValue::from_static("GET, OPTIONS, PUT");
+#[allow(clippy::declare_interior_mutable_const)]
 const ALLOWED_ORIGIN: HeaderValue = HeaderValue::from_static("*");
+#[allow(clippy::declare_interior_mutable_const)]
 const ALLOWED_HEADERS: HeaderValue = HeaderValue::from_static("*");
 
 impl<S, ReqBody, ResBody> Service<Request<ReqBody>> for CorsMiddleware<S>

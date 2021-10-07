@@ -99,7 +99,9 @@ fn minigroups_router() -> Router<BoxRoute> {
         )
         .metered_route(
             "/api/v1/audiences/:audience/minigroups/:scope",
-            options(read_options).get(read_by_scope::<MinigroupType>),
+            options(read_options)
+                .get(read_by_scope::<MinigroupType>)
+                .put(update_by_scope::<MinigroupType>),
         )
         .layer(CorsMiddlewareLayer)
         .metered_route(
@@ -108,10 +110,6 @@ fn minigroups_router() -> Router<BoxRoute> {
         )
         .metered_route("/api/v1/minigroups", post(create_minigroup))
         .metered_route("/api/v1/minigroups/:id", put(update::<MinigroupType>))
-        .metered_route(
-            "/api/v1/audiences/:audience/minigroups/:scope",
-            put(update_by_scope::<MinigroupType>),
-        )
         .metered_route("/api/v1/minigroups/:id/events", post(create_event))
         .boxed()
 }
