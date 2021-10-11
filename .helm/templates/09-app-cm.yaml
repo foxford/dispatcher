@@ -8,10 +8,15 @@ data:
     id = {{ pluck .Values.werf.env .Values.app.id | first | default .Values.app.id._default | quote }}
     broker_id = {{ pluck .Values.werf.env .Values.app.broker_id | first | default .Values.app.broker_id._default | quote }}
     retry_delay = "2 seconds"
+    
     default_frontend_base = {{ pluck .Values.werf.env .Values.app.default_frontend_base | first | default .Values.app.default_frontend_base._default | quote }}
-
-    tenants = [{{ pluck .Values.werf.env .Values.app.authz.ident | first | default .Values.app.authz.ident._default | quote }}]
-
+{{- range $tenant := .Values.app.tenants }}
+{{- if (pluck $.Values.werf.env $tenant.authz.ident | first) }}
+    
+    tenants = [{{ pluck $.Values.werf.env $tenant.authz.ident | first | default $tenant.authz.ident._default | quote }}]
+{{- end }}
+{{- end }}
+    
     [id_token]
     algorithm = {{ pluck .Values.werf.env .Values.app.id_token.algorithm | first | default .Values.app.id_token.algorithm._default | quote }}
     key = "{{ printf "/app/%s" (pluck .Values.werf.env .Values.app.id_token.key | first | default .Values.app.id_token.key._default) }}"
@@ -34,15 +39,12 @@ data:
 
     [mqtt]
     uri = {{ pluck .Values.werf.env .Values.app.mqtt.uri | first | default .Values.app.mqtt.uri._default | quote }}
-    clean_session = {{ pluck .Values.werf.env .Values.app.mqtt.clean_session | first | default .Values.app.mqtt.clean_session._default | quote }}
+    clean_session = {{ pluck .Values.werf.env .Values.app.mqtt.clean_session | first | default .Values.app.mqtt.clean_session._default }}
     reconnect_interval = 3
     keep_alive = 15
     incoming_message_queue_size = 10000000
     outgoing_message_queue_size = 10000000
     max_message_size = 10000000
-
-    [storage]
-    base_url = {{ pluck .Values.werf.env .Values.app.storage.base_url | first | default .Values.app.storage.base_url._default | quote }}
 
     [http]
     listener_address = "0.0.0.0:8080"
@@ -63,7 +65,8 @@ data:
     
     [authz.{{ pluck .Values.werf.env .Values.app.authz.ident | first | default .Values.app.authz.ident._default | quote }}]
     type = {{ pluck .Values.werf.env .Values.app.authz.type | first | default .Values.app.authz.type._default | quote }}
-    [[authz."{{ pluck .Values.werf.env .Values.app.authz.ident | first | default .Values.app.authz.ident._default }}.records"]]
+    [[authz."{{ pluck .Values.werf.env .Values.app.authz.ident | first | default .Values.app.authz.ident._default }}".records]]
+    subject_account_id = "devops.{{ pluck .Values.werf.env .Values.app.authz.ident | first | default .Values.app.authz.ident._default }}"
     object = [{{ pluck .Values.werf.env .Values.app.authz.object | first | default .Values.app.authz.object._default | quote }}]
     action = {{ pluck .Values.werf.env .Values.app.authz.action | first | default .Values.app.authz.action._default | quote }}
 {{- range $tenant := .Values.app.tenants }}
@@ -75,9 +78,12 @@ data:
     [authz.{{ pluck $.Values.werf.env $tenant.authz.ident | first | default $tenant.authz.ident._default | quote }}]
     type = {{ pluck $.Values.werf.env $tenant.authz.type | first | default $tenant.authz.type._default | quote }}
     uri = {{ pluck $.Values.werf.env $tenant.authz.uri | first | default $tenant.authz.uri._default | quote }}
-    user_agent = {{ pluck $.Values.werf.env $tenant.authz.user_agent | first | default $tenant.authz.user_agent._default | quote }}
-    max_retries = 3
     algorithm = {{ pluck $.Values.werf.env $tenant.authz.algorithm | first | default $tenant.authz.algorithm._default | quote }}
     key = "{{ printf "/app/%s" (pluck $.Values.werf.env $tenant.authz.key | first | default $tenant.authz.key._default) }}"
+    user_agent = {{ pluck $.Values.werf.env $tenant.authz.user_agent | first | default $tenant.authz.user_agent._default | quote }}
+    max_retries = 3
 {{- end }}
 {{- end }}
+    
+    [storage]
+    base_url = {{ pluck .Values.werf.env .Values.app.storage.base_url | first | default .Values.app.storage.base_url._default | quote }}
