@@ -11,7 +11,7 @@ Route                                           | Method | Short description
 /api/v1/webinars/:webinar_id                    | PUT    | [Updates](#update-webinar) webinar.
 /api/v1/webinars/convert                        | POST   | [Creates](#convert-webinar) webinar with already existing event and conference rooms.
 /api/v1/webinars/:webinar_id/download           | GET    | [Downloads](#download-webinar) webinar source file.
-/api/v1/webinars/:webinar_id/recreate           | POST   | [Recreates](#move-webinar) webinar rooms.
+/api/v1/webinars/:webinar_id/recreate           | POST   | [Recreates](#recreate-webinar) webinar rooms.
 /api/v1/webinars/:webinar_id/events             | POST   | [Creates](#create-webinar-event) event in the room.
 
 ### Create webinar
@@ -25,7 +25,7 @@ audience               | string      |          | Audience
 time                   | [int, int]  | +        | Start and end
 tags                   | json object | +        | Arbitrary tags.
 reserve                | i32         | +        | Slots to reserve on janus backend.
-locked_chat            | bool        | +        | Lock chat in created event room
+locked_chat            | bool        | +        | Lock chat in created event room (defaults to true)
 
 Response: status 201 and webinar object as payload.
 
@@ -117,6 +117,7 @@ Parameters:
 Attribute              | Type        | Optional | Description
 ---------------------- | ----------- | -------- | -------------------------------------------------
 time                   | [int, int]  | +        | New time
+locked_chat            | bool        | +        | Lock chat in created event room (defaults to true)
 
 Response: status 200 and webinar object as payload.
 
