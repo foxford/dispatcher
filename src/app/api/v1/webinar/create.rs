@@ -13,7 +13,7 @@ use crate::app::error::ErrorExt;
 use crate::app::error::ErrorKind as AppErrorKind;
 use crate::app::AppContext;
 use crate::app::{authz::AuthzObject, metrics::AuthorizeMetrics};
-use crate::db::class::BoundedDateTimeTuple;
+use crate::db::class::{self, BoundedDateTimeTuple};
 
 use super::{validate_token, AppResult};
 
@@ -25,7 +25,7 @@ pub struct WebinarCreatePayload {
     time: Option<BoundedDateTimeTuple>,
     tags: Option<serde_json::Value>,
     reserve: Option<i32>,
-    #[serde(default)]
+    #[serde(default = "class::default_locked_chat")]
     locked_chat: bool,
 }
 

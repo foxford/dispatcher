@@ -11,6 +11,7 @@ Route                                           | Method | Short description
 /api/v1/minigroups                              | POST   | [Creates](#create-minigroup) minigroup and required rooms in other services.
 /api/v1/minigroups/:minigroup_id                | PUT    | [Updates](#update-minigroup) minigroup.
 /api/v1/minigroups/:minigroup_id/events         | POST   | [Creates](#create-minigroup-event) event in the room.
+/api/v1/minigroups/:minigroup_id/recreate       | POST   | [Recreates](#recreate-minigroup) minigroup rooms.
 
 ### Create minigroup
 
@@ -24,7 +25,7 @@ time                   | [int, int]  | +        | Start and end
 tags                   | json object | +        | Arbitrary tags.
 host                   | string      |          | Host account id
 reserve                | i32         | +        | Slots to reserve on janus backend.
-locked_chat            | bool        | +        | Lock chat in created event room
+locked_chat            | bool        | +        | Lock chat in created event room (defaults to true)
 
 Response: status 201 and minigroup object as payload.
 
@@ -80,3 +81,14 @@ is_claim      | boolean |      false | Whether to notify the tenant.
 is_persistent | boolean |       true | Whether to persist the event.
 
 Response: status **201** and empty payload.
+
+### Recreate minigroup
+
+Parameters:
+
+Attribute              | Type        | Optional | Description
+---------------------- | ----------- | -------- | -------------------------------------------------
+time                   | [int, int]  | +        | New time
+locked_chat            | bool        | +        | Lock chat in created event room (defaults to true)
+
+Response: status 200 and minigroup object as payload.

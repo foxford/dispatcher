@@ -97,6 +97,10 @@ pub struct Object {
     timed_out: bool,
 }
 
+pub fn default_locked_chat() -> bool {
+    true
+}
+
 impl Object {
     pub fn id(&self) -> Uuid {
         self.id
