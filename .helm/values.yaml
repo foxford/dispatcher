@@ -21,16 +21,10 @@ app:
         classroom:
           _default: 0.5
           production: 2
-          staging01: 0.5
-          testing01: 0.5
-          testing02: 0.5
-          testing03: 0.5
     memory:
       ng:
         classroom:
           _default: 500Mi
           production: 1Gi
-          staging01: 500Mi
-          testing01: 500Mi
-          testing02: 500Mi
-          testing03: 500Mi
+  retry_delay:
+    _default: 2 seconds
