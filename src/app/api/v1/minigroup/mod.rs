@@ -313,3 +313,7 @@ mod tests {
         }
     }
 }
+
+mod download;
+
+pub use download::download;

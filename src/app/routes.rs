@@ -7,7 +7,7 @@ use axum::AddExtensionLayer;
 use super::api::v1::authz::proxy as proxy_authz;
 use super::api::v1::chat::{convert as convert_chat, create as create_chat};
 use super::api::v1::class::{read, read_by_scope, recreate, update, update_by_scope};
-use super::api::v1::minigroup::create as create_minigroup;
+use super::api::v1::minigroup::{create as create_minigroup, download as download_minigroup};
 use super::api::v1::p2p::{convert as convert_p2p, create as create_p2p};
 use super::api::v1::webinar::{
     convert as convert_webinar, create as create_webinar, download as download_webinar,
@@ -110,6 +110,7 @@ fn minigroups_router() -> Router<BoxRoute> {
         )
         .metered_route("/api/v1/minigroups", post(create_minigroup))
         .metered_route("/api/v1/minigroups/:id", put(update::<MinigroupType>))
+        .metered_route("/api/v1/minigroups/:id/download", get(download_minigroup))
         .metered_route("/api/v1/minigroups/:id/events", post(create_event))
         .boxed()
 }

@@ -8,7 +8,7 @@ Object                                                           | Action   | De
 ["classrooms", WEBINAR_ID]                                         | read     | User [reads](/webinars/api.md#read-webinar) the webinar state
 ["classrooms", WEBINAR_ID, "events", TYPE, "authors", ACCOUNT_ID]  | create   | User creates a new event [^2] in the webinar
 ["classrooms", WEBINAR_ID, "claims", TYPE, "authors", ACCOUNT_ID]  | create   | User creates a new claim [^2] in the webinar
-["classrooms", WEBINAR_ID, ATTRIBUTE, TYPE, "authors", ACCOUNT_ID] | create   | User alter an event [^2] somehow
+["classrooms", WEBINAR_ID, ATTRIBUTE, TYPE, "authors", ACCOUNT_ID] | create   | User alters an event [^2] somehow
 ["classrooms", WEBINAR_ID, "rtcs"]                                 | create   | User creates an RTC
 ["classrooms", WEBINAR_ID, "rtcs", RTC_ID]                         | update   | User streams in an RTC
 ["classrooms", WEBINAR_ID]                                         | upload   | User uploads original recording

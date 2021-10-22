@@ -97,7 +97,7 @@ Response: status 201 and webinar object as payload.
 
 ### Download webinar
 
-Parameters either
+Parameters
 
 Attribute              | Type        | Optional | Description
 ---------------------- | ----------- | -------- | --------------
