@@ -403,6 +403,7 @@ impl EditionCommitResult {
                 original_room_id: source_room_id,
                 modified_room_id: committed_room_id,
                 modified_segments,
+                cut_original_segments: vec![].into(),
             },
             EditionCommitResult::Error { error } => RoomAdjustResult::Error { error },
         }

@@ -128,6 +128,8 @@ pub enum RoomAdjustResult {
         modified_room_id: Uuid,
         #[serde(with = "crate::db::recording::serde::segments")]
         modified_segments: Segments,
+        #[serde(with = "crate::db::recording::serde::segments")]
+        cut_original_segments: Segments,
     },
     Error {
         error: JsonValue,

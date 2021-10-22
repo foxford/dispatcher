@@ -353,6 +353,22 @@ mod handle_adjust {
         let modified_event_room_id = Uuid::new_v4();
         let conference_room_id = Uuid::new_v4();
 
+        let original_host_segments: Segments = vec![
+            (Bound::Included(0), Bound::Excluded(1500000)),
+            (Bound::Included(1800000), Bound::Excluded(3000000)),
+        ]
+        .into();
+
+        // assume there was single cut-stop at the beginning
+        let modified_segments: Segments =
+            vec![(Bound::Included(0), Bound::Excluded(2_697_000))].into();
+
+        let cut_original_segments: Segments = vec![
+            (Bound::Included(3_000), Bound::Excluded(1_500_000)),
+            (Bound::Included(1_800_000), Bound::Excluded(3_000_000)),
+        ]
+        .into();
+
         // Insert a minigroup with recordings.
         let (minigroup, recording1, recording2) = {
             let mut conn = state.get_conn().await.expect("Failed to get conn");
@@ -374,19 +390,13 @@ mod handle_adjust {
             .insert(&mut conn)
             .await;
 
-            let segments1: Segments = vec![
-                (Bound::Included(0), Bound::Excluded(1500000)),
-                (Bound::Included(1800000), Bound::Excluded(3000000)),
-            ]
-            .into();
-
             let recording1 = factory::Recording::new(
                 minigroup.id(),
                 Uuid::new_v4(),
                 agent1.agent_id().to_owned(),
             )
             .stream_uri("s3://minigroup.origin.dev.example.com/rtc1.webm".to_string())
-            .segments(segments1)
+            .segments(original_host_segments.clone())
             .started_at(now - Duration::hours(1))
             .insert(&mut conn)
             .await;
@@ -488,13 +498,7 @@ mod handle_adjust {
             streams: vec![
                 TranscodeMinigroupToHlsStream::new(recording1.rtc_id(), uri1)
                     .offset(0)
-                    .segments(
-                        vec![
-                            (Bound::Included(500000), Bound::Excluded(1500000)),
-                            (Bound::Included(1800000), Bound::Excluded(3000000)),
-                        ]
-                        .into(),
-                    )
+                    .segments(cut_original_segments.clone())
                     .pin_segments(
                         vec![
                             (Bound::Included(0), Bound::Excluded(1200000)),
@@ -523,17 +527,12 @@ mod handle_adjust {
         // Handle event room adjustment.
         let state = Arc::new(state);
 
-        let modified_segments: Segments = vec![
-            (Bound::Included(500000), Bound::Excluded(1500000)),
-            (Bound::Included(1800000), Bound::Excluded(3000000)),
-        ]
-        .into();
-
         MinigroupPostprocessingStrategy::new(state.clone(), minigroup)
             .handle_adjust(RoomAdjustResult::Success {
                 original_room_id: original_event_room_id,
                 modified_room_id: modified_event_room_id,
-                modified_segments: modified_segments.clone(),
+                cut_original_segments: cut_original_segments.clone(),
+                modified_segments,
             })
             .await
             .expect("Failed to handle event room adjustment");
@@ -573,7 +572,7 @@ mod handle_adjust {
             assert_eq!(
                 updated_recording.modified_segments(),
                 if recording.id() == recording1.id() {
-                    Some(&modified_segments)
+                    Some(&cut_original_segments)
                 } else {
                     recording.segments()
                 }
@@ -591,6 +590,22 @@ mod handle_adjust {
         let original_event_room_id = Uuid::new_v4();
         let modified_event_room_id = Uuid::new_v4();
         let conference_room_id = Uuid::new_v4();
+
+        let original_host_segments: Segments = vec![
+            (Bound::Included(0), Bound::Excluded(1_500_000)),
+            (Bound::Included(1_800_000), Bound::Excluded(3_000_000)),
+        ]
+        .into();
+
+        // assume there was single cut-stop at the beginning
+        let modified_segments: Segments =
+            vec![(Bound::Included(0), Bound::Excluded(2_697_000))].into();
+
+        let cut_original_segments: Segments = vec![
+            (Bound::Included(3_000), Bound::Excluded(1_500_000)),
+            (Bound::Included(1_800_000), Bound::Excluded(3_000_000)),
+        ]
+        .into();
 
         // Insert a minigroup with recordings.
         let (minigroup, recording1, recording2) = {
@@ -613,18 +628,12 @@ mod handle_adjust {
             .insert(&mut conn)
             .await;
 
-            let segments1: Segments = vec![
-                (Bound::Included(0), Bound::Excluded(1500000)),
-                (Bound::Included(1800000), Bound::Excluded(3000000)),
-            ]
-            .into();
-
             let recording1 = factory::Recording::new(
                 minigroup.id(),
                 Uuid::new_v4(),
                 agent1.agent_id().to_owned(),
             )
-            .segments(segments1)
+            .segments(original_host_segments.clone())
             .started_at(now - Duration::hours(1))
             .stream_uri("s3://minigroup.origin.dev.example.com/rtc1.webm".to_string())
             .insert(&mut conn)
@@ -717,16 +726,10 @@ mod handle_adjust {
             streams: vec![
                 TranscodeMinigroupToHlsStream::new(recording1.rtc_id(), uri1)
                     .offset(0)
-                    .segments(
-                        vec![
-                            (Bound::Included(500000), Bound::Excluded(1500000)),
-                            (Bound::Included(1800000), Bound::Excluded(3000000)),
-                        ]
-                        .into(),
-                    )
-                    .pin_segments(vec![(Bound::Included(0), Bound::Excluded(1000000))].into()),
+                    .segments(cut_original_segments.clone())
+                    .pin_segments(vec![(Bound::Included(0), Bound::Excluded(1_000_000))].into()),
                 TranscodeMinigroupToHlsStream::new(recording2.rtc_id(), uri2)
-                    .offset(600000)
+                    .offset(600_000)
                     .segments(recording2.segments().unwrap().to_owned())
                     .pin_segments(vec![].into()),
             ],
@@ -746,17 +749,12 @@ mod handle_adjust {
         // Handle event room adjustment.
         let state = Arc::new(state);
 
-        let modified_segments: Segments = vec![
-            (Bound::Included(500000), Bound::Excluded(1500000)),
-            (Bound::Included(1800000), Bound::Excluded(3000000)),
-        ]
-        .into();
-
         MinigroupPostprocessingStrategy::new(state.clone(), minigroup)
             .handle_adjust(RoomAdjustResult::Success {
                 original_room_id: original_event_room_id,
                 modified_room_id: modified_event_room_id,
-                modified_segments: modified_segments.clone(),
+                cut_original_segments: cut_original_segments.clone(),
+                modified_segments,
             })
             .await
             .expect("Failed to handle event room adjustment");
@@ -796,7 +794,7 @@ mod handle_adjust {
             assert_eq!(
                 updated_recording.modified_segments(),
                 if recording.id() == recording1.id() {
-                    Some(&modified_segments)
+                    Some(&cut_original_segments)
                 } else {
                     recording.segments()
                 }
