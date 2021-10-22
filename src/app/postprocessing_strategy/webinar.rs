@@ -67,6 +67,7 @@ impl super::PostprocessingStrategy for WebinarPostprocessingStrategy {
                 original_room_id,
                 modified_room_id,
                 modified_segments,
+                ..
             } => {
                 let recording = {
                     let mut conn = self.ctx.get_conn().await?;

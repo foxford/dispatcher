@@ -105,7 +105,8 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
             RoomAdjustResult::Success {
                 original_room_id,
                 modified_room_id,
-                modified_segments,
+                cut_original_segments,
+                ..
             } => {
                 // Find host stream id.
                 let host = match self.find_host(modified_room_id).await? {
@@ -132,7 +133,7 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
 
                     let recordings = crate::db::recording::AdjustMinigroupUpdateQuery::new(
                         self.minigroup.id(),
-                        modified_segments,
+                        cut_original_segments,
                         host.clone(),
                     )
                     .execute(&mut txn)
@@ -483,6 +484,15 @@ fn build_stream(
 
     let v = TranscodeMinigroupToHlsStream::new(recording.rtc_id, recording.stream_uri.to_owned())
         .offset(recording_offset.num_milliseconds() as u64)
+        // We pass not modified but original segments here, this is done because:
+        // First of all remember that:
+        // - for non-hosts' streams modified segments == og segments
+        // - for host's stream modified segments DO differ
+        // All non-hosts' streams should be cutted out when there is a gap in host stream, for example:
+        //     host's str: begin------------pause----pauseend------------end (notice pause in the middle)
+        // non-host's str: begin-----------------------------------------end (no pause at all)
+        // For a non-host's stream we must apply the pause in the host's stream
+        // Tq does that but it needs pauses, and these pauses are only present in og segments, not in modified segments
         .segments(recording.modified_segments.to_owned())
         .pin_segments(pin_segments.into())
         .video_mute_segments(video_mute_segments.into())
