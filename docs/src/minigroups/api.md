@@ -10,6 +10,7 @@ Route                                           | Method | Short description
 /api/v1/audiences/:audience/minigroups/:scope   | PUT    | [Updates](#update-minigroup) minigroup.
 /api/v1/minigroups                              | POST   | [Creates](#create-minigroup) minigroup and required rooms in other services.
 /api/v1/minigroups/:minigroup_id                | PUT    | [Updates](#update-minigroup) minigroup.
+/api/v1/minigroups/:minigroup_id/download       | GET    | [Downloads](#download-minigroup) minigroup source file.
 /api/v1/minigroups/:minigroup_id/events         | POST   | [Creates](#create-minigroup-event) event in the room.
 /api/v1/minigroups/:minigroup_id/recreate       | POST   | [Recreates](#recreate-minigroup) minigroup rooms.
 
@@ -92,3 +93,17 @@ time                   | [int, int]  | +        | New time
 locked_chat            | bool        | +        | Lock chat in created event room (defaults to true)
 
 Response: status 200 and minigroup object as payload.
+
+### Download minigroup
+
+Parameters:
+
+Attribute              | Type        | Optional | Description
+---------------------- | ----------- | -------- | --------------
+minigroup_id           | uuid        |          | Minigroup id
+
+Response:
+
+Attribute              | Type        | Optional | Description
+---------------------- | ----------- | -------- | --------------
+url
