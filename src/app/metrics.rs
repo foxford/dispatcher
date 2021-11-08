@@ -3,7 +3,7 @@ use std::convert::{Infallible, TryFrom};
 use std::iter::FromIterator;
 use std::sync::Arc;
 
-use axum::routing::{Route, Router};
+use axum::routing::Router;
 use chrono::Duration;
 use hyper::{Method, StatusCode};
 use once_cell::sync::{Lazy, OnceCell};
@@ -318,19 +318,22 @@ use axum::body::Body;
 
 pub trait MeteredRoute<H>
 where
-    H: Service<Request<Body>, Error = Infallible>,
+    H: Service<Request<Body>, Error = Infallible> + Send,
 {
     type Output;
 
     fn metered_route(self, path: &str, svc: H) -> Self::Output;
 }
 
-impl<H, S> MeteredRoute<H> for Router<S>
+impl<H> MeteredRoute<H> for Router
 where
-    H: Service<Request<Body>, Error = Infallible>,
-    S: Service<Request<Body>, Error = Infallible>,
+    H: Service<Request<Body>, Response = Response<axum::body::BoxBody>, Error = Infallible>
+        + Clone
+        + Send
+        + 'static,
+    H::Future: Send + 'static,
 {
-    type Output = Router<Route<MetricsMiddleware<H>, S>>;
+    type Output = Router;
 
     fn metered_route(self, path: &str, svc: H) -> Self::Output {
         let handler = MetricsMiddlewareLayer::new(path.to_owned()).layer(svc);
