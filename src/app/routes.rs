@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use axum::handler::{get, options, post, put};
-use axum::routing::{BoxRoute, Router};
+use axum::routing::Router;
+use axum::routing::{get, options, post};
 use axum::AddExtensionLayer;
 
 use super::api::v1::authz::proxy as proxy_authz;
@@ -25,18 +25,18 @@ use crate::app::metrics::MeteredRoute;
 use crate::app::AppContext;
 use crate::db::class::{ChatType, MinigroupType, P2PType, WebinarType};
 
-pub fn router(ctx: Arc<dyn AppContext>) -> Router<BoxRoute> {
+pub fn router(ctx: Arc<dyn AppContext>) -> Router {
     let router = redirects_router();
-    let router = router.or(webinars_router());
-    let router = router.or(p2p_router());
-    let router = router.or(minigroups_router());
-    let router = router.or(chat_router());
-    let router = router.or(authz_router());
+    let router = router.merge(webinars_router());
+    let router = router.merge(p2p_router());
+    let router = router.merge(minigroups_router());
+    let router = router.merge(chat_router());
+    let router = router.merge(authz_router());
 
-    router.layer(AddExtensionLayer::new(ctx)).boxed()
+    router.layer(AddExtensionLayer::new(ctx))
 }
 
-fn redirects_router() -> Router<BoxRoute> {
+fn redirects_router() -> Router {
     Router::new()
         .metered_route("/info/scopes", get(list_scopes))
         .metered_route("/info/frontends", get(list_frontends))
@@ -48,14 +48,15 @@ fn redirects_router() -> Router<BoxRoute> {
         .metered_route("/api/v1/healthz", get(healthz))
         .metered_route("/api/v1/scopes/:scope/rollback", post(rollback))
         .metered_route("/api/v1/redirs", get(redirect_to_frontend2))
-        .boxed()
 }
 
-fn webinars_router() -> Router<BoxRoute> {
+fn webinars_router() -> Router {
     Router::new()
         .metered_route(
             "/api/v1/webinars/:id",
-            options(read_options).get(read::<WebinarType>),
+            options(read_options)
+                .get(read::<WebinarType>)
+                .put(update::<WebinarType>),
         )
         .metered_route(
             "/api/v1/audiences/:audience/webinars/:scope",
@@ -63,7 +64,6 @@ fn webinars_router() -> Router<BoxRoute> {
         )
         .layer(CorsMiddlewareLayer)
         .metered_route("/api/v1/webinars", post(create_webinar))
-        .metered_route("/api/v1/webinars/:id", put(update::<WebinarType>))
         .metered_route("/api/v1/webinars/convert", post(convert_webinar))
         .metered_route("/api/v1/webinars/:id/download", get(download_webinar))
         .metered_route(
@@ -71,10 +71,9 @@ fn webinars_router() -> Router<BoxRoute> {
             post(recreate::<WebinarType>),
         )
         .metered_route("/api/v1/webinars/:id/events", post(create_event))
-        .boxed()
 }
 
-fn p2p_router() -> Router<BoxRoute> {
+fn p2p_router() -> Router {
     Router::new()
         .metered_route(
             "/api/v1/p2p/:id",
@@ -88,14 +87,15 @@ fn p2p_router() -> Router<BoxRoute> {
         .metered_route("/api/v1/p2p", post(create_p2p))
         .metered_route("/api/v1/p2p/convert", post(convert_p2p))
         .metered_route("/api/v1/p2p/:id/events", post(create_event))
-        .boxed()
 }
 
-fn minigroups_router() -> Router<BoxRoute> {
+fn minigroups_router() -> Router {
     Router::new()
         .metered_route(
             "/api/v1/minigroups/:id",
-            options(read_options).get(read::<MinigroupType>),
+            options(read_options)
+                .get(read::<MinigroupType>)
+                .put(update::<MinigroupType>),
         )
         .metered_route(
             "/api/v1/audiences/:audience/minigroups/:scope",
@@ -109,13 +109,11 @@ fn minigroups_router() -> Router<BoxRoute> {
             post(recreate::<MinigroupType>),
         )
         .metered_route("/api/v1/minigroups", post(create_minigroup))
-        .metered_route("/api/v1/minigroups/:id", put(update::<MinigroupType>))
         .metered_route("/api/v1/minigroups/:id/download", get(download_minigroup))
         .metered_route("/api/v1/minigroups/:id/events", post(create_event))
-        .boxed()
 }
 
-fn chat_router() -> Router<BoxRoute> {
+fn chat_router() -> Router {
     Router::new()
         .metered_route(
             "/api/v1/chats/:id",
@@ -129,11 +127,8 @@ fn chat_router() -> Router<BoxRoute> {
         .metered_route("/api/v1/chats", post(create_chat))
         .metered_route("/api/v1/chats/convert", post(convert_chat))
         .metered_route("/api/v1/chats/:id/events", post(create_event))
-        .boxed()
 }
 
-fn authz_router() -> Router<BoxRoute> {
-    Router::new()
-        .metered_route("/api/v1/authz/:audience", post(proxy_authz))
-        .boxed()
+fn authz_router() -> Router {
+    Router::new().metered_route("/api/v1/authz/:audience", post(proxy_authz))
 }

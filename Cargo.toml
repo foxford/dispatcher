@@ -10,7 +10,7 @@ edition = "2018"
 
 [dependencies]
 tokio = { version = "1", features = ["full"] }
-axum = { version = "0.2", features = ["headers"] }
+axum = { version = "0.3", features = ["headers"] }
 tower = "0.4"
 hyper = { version = "0.14", features = ["server"] }
 async-trait = "0.1"
