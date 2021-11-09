@@ -177,6 +177,12 @@ pub trait EventClient: Sync + Send {
 
     async fn update_room(&self, id: Uuid, update: RoomUpdate) -> Result<(), ClientError>;
 
+    async fn update_locked_types(
+        &self,
+        id: Uuid,
+        locked_types: LockedTypes,
+    ) -> Result<(), ClientError>;
+
     async fn adjust_room(
         &self,
         event_room_id: Uuid,
@@ -199,7 +205,9 @@ pub trait EventClient: Sync + Send {
 
         let payload = serde_json::to_value(&payload).unwrap();
 
-        self.create_event(payload).await
+        let f1 = self.create_event(payload);
+        let f2 = self.update_locked_types(room_id, LockedTypes { message: true });
+        tokio::try_join!(f1, f2).map(|_| ())
     }
 }
 
@@ -317,6 +325,17 @@ pub struct EventRoomResponse {
     pub tags: Option<JsonValue>,
 }
 
+#[derive(Debug, Serialize)]
+pub struct LockedTypes {
+    pub message: bool,
+}
+
+#[derive(Debug, Serialize)]
+struct EventRoomLockedTypesPayload {
+    id: Uuid,
+    locked_types: LockedTypes,
+}
+
 #[async_trait]
 impl EventClient for MqttEventClient {
     async fn read_room(&self, id: Uuid) -> Result<EventRoomResponse, ClientError> {
@@ -414,6 +433,39 @@ impl EventClient for MqttEventClient {
             ResponseStatus::OK => Ok(()),
             _ => Err(ClientError::Payload(
                 "Event room update returned non 200 status".into(),
+            )),
+        }
+    }
+
+    async fn update_locked_types(
+        &self,
+        id: Uuid,
+        locked_types: LockedTypes,
+    ) -> Result<(), ClientError> {
+        let reqp = self.build_reqp("room.locked_types")?;
+        let payload = EventRoomLockedTypesPayload { id, locked_types };
+
+        let msg = if let OutgoingMessage::Request(msg) =
+            OutgoingRequest::multicast(payload, reqp, &self.event_account_id, &self.api_version)
+        {
+            msg
+        } else {
+            unreachable!()
+        };
+
+        let request = self.dispatcher.request::<_, JsonValue>(msg);
+        let payload_result = if let Some(dur) = self.timeout {
+            tokio::time::timeout(dur, request)
+                .await
+                .map_err(|_e| ClientError::Timeout)?
+        } else {
+            request.await
+        };
+        let payload = payload_result.map_err(|e| ClientError::Payload(e.to_string()))?;
+        match payload.properties().status() {
+            ResponseStatus::OK => Ok(()),
+            _ => Err(ClientError::Payload(
+                "Event update_locked_types returned non 200 status".into(),
             )),
         }
     }
