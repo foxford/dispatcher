@@ -80,3 +80,6 @@ impl P2PInsertQuery {
         .await
     }
 }
+
+#[cfg(test)]
+pub type P2PReadQuery = super::GenericReadQuery<super::P2PType>;

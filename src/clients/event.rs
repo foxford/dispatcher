@@ -196,11 +196,12 @@ pub trait EventClient: Sync + Send {
     async fn dump_room(&self, event_room_id: Uuid) -> Result<(), ClientError>;
 
     async fn lock_chat(&self, room_id: Uuid) -> Result<(), ClientError> {
-        let payload = ChatLockPayload {
+        let payload = EventPayload {
             room_id,
             kind: "chat_disabled",
             set: "chat_disabled",
             data: serde_json::json!({"value": true}),
+            label: None,
         };
 
         let payload = serde_json::to_value(&payload).unwrap();
@@ -208,6 +209,21 @@ pub trait EventClient: Sync + Send {
         let f1 = self.create_event(payload);
         let f2 = self.update_locked_types(room_id, LockedTypes { message: true });
         tokio::try_join!(f1, f2).map(|_| ())
+    }
+
+    async fn create_whiteboard(&self, room_id: Uuid) -> Result<(), ClientError> {
+        let payload = EventPayload {
+            room_id,
+            kind: "document",
+            set: "document",
+            data: serde_json::json!({"title":"whiteboard","page":1,"published":true,"url":"about:whiteboard"}),
+            label: Some(Uuid::new_v4()),
+        };
+
+        let payload = serde_json::to_value(&payload).unwrap();
+
+        self.create_event(payload).await?;
+        Ok(())
     }
 }
 
@@ -294,12 +310,14 @@ struct EventDumpEventsPayload {
 }
 
 #[derive(Debug, Serialize)]
-struct ChatLockPayload {
+struct EventPayload {
     room_id: Uuid,
     #[serde(rename(serialize = "type"))]
     kind: &'static str,
     set: &'static str,
     data: JsonValue,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    label: Option<Uuid>,
 }
 
 #[derive(Debug, Serialize)]
