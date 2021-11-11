@@ -1,18 +1,19 @@
 use std::collections::HashMap;
+use std::convert::TryInto;
 use std::time::Duration;
 
 use anyhow::Result;
 use async_trait::async_trait;
-use futures::AsyncReadExt;
-use isahc::config::Configurable;
 #[cfg(test)]
 use mockall::{automock, predicate::*};
+use reqwest::{header, Url};
 use serde_derive::{Deserialize, Serialize};
 use serde_json::{json, Value as JsonValue};
 use uuid::Uuid;
 
 use super::ClientError;
 use crate::config::TqAudienceSettings;
+use crate::db::class::Object as Class;
 use crate::db::recording::Segments;
 
 const PRIORITY: &str = "normal";
@@ -225,16 +226,12 @@ pub struct TranscodeMinigroupToHlsSuccess {
 #[cfg_attr(test, automock)]
 #[async_trait]
 pub trait TqClient: Sync + Send {
-    async fn create_task(
-        &self,
-        class: &crate::db::class::Object,
-        task: Task,
-    ) -> Result<(), ClientError>;
+    async fn create_task(&self, class: &Class, task: Task) -> Result<(), ClientError>;
 }
 
 pub struct HttpTqClient {
-    client: isahc::HttpClient,
-    base_url: url::Url,
+    client: reqwest::Client,
+    host: Url,
     audience_settings: HashMap<String, TqAudienceSettings>,
 }
 
@@ -245,54 +242,58 @@ impl HttpTqClient {
         timeout: u64,
         audience_settings: HashMap<String, TqAudienceSettings>,
     ) -> Self {
-        let base_url = url::Url::parse(&base_url).expect("Failed to convert HttpTqClient base url");
+        let host = base_url
+            .parse()
+            .expect("Failed to convert HttpTqClient base url");
+        let mut headers = header::HeaderMap::new();
+        headers.insert(
+            http::header::AUTHORIZATION,
+            format!("Bearer {}", token).try_into().unwrap(),
+        );
+        headers.insert(
+            http::header::CONTENT_TYPE,
+            "application/json".try_into().unwrap(),
+        );
+        headers.insert(
+            http::header::USER_AGENT,
+            format!("dispatcher-{}", crate::APP_VERSION)
+                .try_into()
+                .unwrap(),
+        );
 
-        let client = isahc::HttpClient::builder()
+        let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(timeout))
-            .default_header(
-                http::header::AUTHORIZATION.as_str(),
-                format!("Bearer {}", token),
-            )
-            .default_header(http::header::CONTENT_TYPE.as_str(), "application/json")
-            .default_header(
-                http::header::USER_AGENT.as_str(),
-                format!("dispatcher-{}", crate::APP_VERSION),
-            )
+            .default_headers(headers)
             .build()
             .expect("Failed to build HttpTqClient");
 
         Self {
             client,
-            base_url,
+            host,
             audience_settings,
         }
     }
-}
 
-#[derive(Serialize)]
-struct TaskPayload<'a> {
-    audience: &'a str,
-    tags: JsonValue,
-    priority: &'a str,
-    template: &'a str,
-    bindings: TaskWithOptions<'a>,
-}
+    fn build_url(&self, class: &Class, task: &Task) -> Result<Url, ClientError> {
+        let route = format!(
+            "/api/v1/audiences/{}/tasks/{}",
+            class.audience(),
+            Self::task_id(class, task)
+        );
 
-#[async_trait]
-impl TqClient for HttpTqClient {
-    async fn create_task(
-        &self,
-        class: &crate::db::class::Object,
-        task: Task,
-    ) -> Result<(), ClientError> {
+        let url = self.host.join(&route).map_err(|e| {
+            ClientError::Http(format!(
+                "Failed to join base_url with route, base_url = {}, route = {}, err = {}",
+                self.host, route, e
+            ))
+        })?;
+
+        Ok(url)
+    }
+
+    fn build_task<'a>(&self, class: &'a Class, task: Task) -> TaskPayload<'a, '_> {
         let template = task.template();
 
-        let mut task_id = format!("{}-{}", task.template(), class.scope());
-        if let Some(id) = task.stream_id() {
-            task_id = format!("{}-{}", task_id, id.to_string())
-        }
-
-        let route = format!("/api/v1/audiences/{}/tasks/{}", class.audience(), task_id,);
         let mut tags = class
             .tags()
             .map(ToOwned::to_owned)
@@ -312,44 +313,66 @@ impl TqClient for HttpTqClient {
             TaskWithOptions::new(task)
         };
 
-        let task = TaskPayload {
+        TaskPayload {
             audience: class.audience(),
             tags,
             priority: PRIORITY,
             bindings: task_with_options,
             template,
-        };
+        }
+    }
 
-        let url = self.base_url.join(&route).map_err(|e| {
-            ClientError::Http(format!(
-                "Failed to join base_url with route, base_url = {}, route = {}, err = {}",
-                self.base_url, route, e
-            ))
-        })?;
+    fn task_id(class: &Class, task: &Task) -> String {
+        let mut task_id = format!("{}-{}", task.template(), class.scope());
+        if let Some(id) = task.stream_id() {
+            task_id = format!("{}-{}", task_id, id.to_string())
+        }
+
+        task_id
+    }
+}
+
+#[derive(Serialize)]
+struct TaskPayload<'a, 'b> {
+    audience: &'a str,
+    tags: JsonValue,
+    priority: &'a str,
+    template: &'a str,
+    bindings: TaskWithOptions<'b>,
+}
+
+#[async_trait]
+impl TqClient for HttpTqClient {
+    async fn create_task(&self, class: &Class, task: Task) -> Result<(), ClientError> {
+        let url = self.build_url(class, &task)?;
+
+        let task = self.build_task(class, task);
 
         let json = serde_json::to_string(&task).map_err(|e| ClientError::Payload(e.to_string()))?;
-        let mut resp = self
+
+        let resp = self
             .client
-            .post_async(url.as_str(), json)
+            .post(url)
+            .body(json)
+            .send()
             .await
             .map_err(|e| ClientError::Http(e.to_string()))?;
-        if resp.status() == http::StatusCode::OK {
+
+        let status = resp.status();
+        if status == http::StatusCode::OK {
             Ok(())
         } else {
-            let mut body = String::new();
-            let e = if let Err(e) = resp.body_mut().read_to_string(&mut body).await {
-                format!(
-                    "Failed to create tq task and read response body, status = {:?}, response body read = {:?}, error = {:?}",
-                    resp.status(),
-                    body,
-                    e
-                )
-            } else {
-                format!(
-                    "Failed to create tq task, status = {:?}, response = {:?}",
-                    resp.status(),
-                    body
-                )
+            let e = match resp.text().await {
+                Err(e) => format!(
+                    "Failed to create tq task and read response body, status = {:?}, error = {:?}",
+                    status, e
+                ),
+                Ok(body) => {
+                    format!(
+                        "Failed to create tq task, status = {:?}, response = {:?}",
+                        status, body
+                    )
+                }
             };
             Err(ClientError::Payload(e))
         }
