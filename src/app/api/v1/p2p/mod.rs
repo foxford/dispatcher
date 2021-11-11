@@ -7,6 +7,7 @@ use chrono::Utc;
 use headers::{authorization::Bearer, Authorization};
 use hyper::{Body, Response};
 use serde_derive::Deserialize;
+use svc_agent::AccountId;
 use uuid::Uuid;
 
 use crate::app::authz::AuthzObject;
@@ -14,6 +15,7 @@ use crate::app::error::ErrorExt;
 use crate::app::error::ErrorKind as AppErrorKind;
 use crate::app::metrics::AuthorizeMetrics;
 use crate::app::AppContext;
+use crate::db::class;
 
 use super::{validate_token, AppResult};
 
@@ -22,13 +24,22 @@ pub struct P2P {
     scope: String,
     audience: String,
     tags: Option<serde_json::Value>,
+    #[serde(default = "class::default_whiteboard")]
+    whiteboard: bool,
 }
 
 pub async fn create(
     Extension(ctx): Extension<Arc<dyn AppContext>>,
     TypedHeader(Authorization(token)): TypedHeader<Authorization<Bearer>>,
-    Json(body): Json<P2P>,
+    Json(payload): Json<P2P>,
 ) -> AppResult {
+    let account_id =
+        validate_token(ctx.as_ref(), token.token()).error(AppErrorKind::Unauthorized)?;
+
+    do_create(ctx.as_ref(), &account_id, payload).await
+}
+
+async fn do_create(state: &dyn AppContext, account_id: &AccountId, body: P2P) -> AppResult {
     let log = crate::LOG.new(slog::o!(
         "audience" => body.audience.clone(),
         "scope" => body.scope.clone(),
@@ -38,12 +49,10 @@ pub async fn create(
         "Creating p2p, audience = {}, scope = {}", body.audience, body.scope
     );
 
-    let account_id =
-        validate_token(ctx.as_ref(), token.token()).error(AppErrorKind::Unauthorized)?;
-
     let object = AuthzObject::new(&["classrooms"]).into();
 
-    ctx.authz()
+    state
+        .authz()
         .authorize(
             body.audience.clone(),
             account_id.clone(),
@@ -55,7 +64,7 @@ pub async fn create(
 
     info!(log, "Authorized p2p create");
 
-    let conference_fut = ctx.conference_client().create_room(
+    let conference_fut = state.conference_client().create_room(
         (Bound::Included(Utc::now()), Bound::Unbounded),
         body.audience.clone(),
         None,
@@ -64,7 +73,7 @@ pub async fn create(
         None,
     );
 
-    let event_fut = ctx.event_client().create_room(
+    let event_fut = state.event_client().create_room(
         (Bound::Included(Utc::now()), Bound::Unbounded),
         body.audience.clone(),
         Some(false),
@@ -94,7 +103,7 @@ pub async fn create(
         query
     };
     let p2p = {
-        let mut conn = ctx
+        let mut conn = state
             .get_conn()
             .await
             .error(AppErrorKind::DbConnAcquisitionFailed)?;
@@ -106,8 +115,19 @@ pub async fn create(
     };
     info!(log, "Inserted p2p into db, id = {}", p2p.id());
 
+    if body.whiteboard {
+        if let Err(e) = state.event_client().create_whiteboard(event_room_id).await {
+            error!(
+                crate::LOG,
+                "Failed to create whiteboard in event room, id = {:?}, err = {:?}",
+                event_room_id,
+                e
+            );
+        }
+    }
+
     crate::app::services::update_classroom_id(
-        ctx.as_ref(),
+        state,
         p2p.id(),
         p2p.event_room_id(),
         p2p.conference_room_id(),
@@ -205,4 +225,107 @@ pub async fn convert(
         .unwrap();
 
     Ok(response)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{db::class::P2PReadQuery, test_helpers::prelude::*};
+    use mockall::predicate as pred;
+    use uuid::Uuid;
+
+    #[tokio::test]
+    async fn create_p2p() {
+        let agent = TestAgent::new("web", "user1", USR_AUDIENCE);
+
+        let mut authz = TestAuthz::new();
+        authz.allow(agent.account_id(), vec!["classrooms"], "create");
+
+        let mut state = TestState::new(authz).await;
+        let event_room_id = Uuid::new_v4();
+        let conference_room_id = Uuid::new_v4();
+
+        create_p2p_mocks(&mut state, event_room_id, conference_room_id);
+
+        let scope = random_string();
+
+        let state = Arc::new(state);
+        let body = P2P {
+            scope: scope.clone(),
+            audience: USR_AUDIENCE.to_string(),
+            tags: None,
+            whiteboard: true,
+        };
+
+        let r = do_create(state.as_ref(), agent.account_id(), body).await;
+        r.expect("Failed to create p2p");
+
+        // Assert DB changes.
+        let mut conn = state.get_conn().await.expect("Failed to get conn");
+
+        P2PReadQuery::by_scope(USR_AUDIENCE, &scope)
+            .execute(&mut conn)
+            .await
+            .expect("Failed to fetch p2p")
+            .expect("p2p not found");
+    }
+
+    #[tokio::test]
+    async fn create_p2p_unauthorized() {
+        let agent = TestAgent::new("web", "user1", USR_AUDIENCE);
+
+        let state = TestState::new(TestAuthz::new()).await;
+
+        let scope = random_string();
+
+        let state = Arc::new(state);
+        let body = P2P {
+            scope: scope.clone(),
+            audience: USR_AUDIENCE.to_string(),
+            tags: None,
+            whiteboard: true,
+        };
+
+        do_create(state.as_ref(), agent.account_id(), body)
+            .await
+            .expect_err("Unexpectedly succeeded");
+    }
+
+    fn create_p2p_mocks(state: &mut TestState, event_room_id: Uuid, conference_room_id: Uuid) {
+        state
+            .event_client_mock()
+            .expect_create_room()
+            .with(
+                pred::always(),
+                pred::always(),
+                pred::always(),
+                pred::always(),
+                pred::always(),
+            )
+            .returning(move |_, _, _, _, _| Ok(event_room_id));
+
+        state
+            .event_client_mock()
+            .expect_create_whiteboard()
+            .with(pred::eq(event_room_id))
+            .returning(move |_room_id| Ok(()));
+
+        state
+            .event_client_mock()
+            .expect_update_room()
+            .with(pred::eq(event_room_id), pred::always())
+            .returning(move |_room_id, _| Ok(()));
+
+        state
+            .conference_client_mock()
+            .expect_create_room()
+            .withf(move |_, _, _, _, _, _| true)
+            .returning(move |_, _, _, _, _, _| Ok(conference_room_id));
+
+        state
+            .conference_client_mock()
+            .expect_update_room()
+            .with(pred::eq(conference_room_id), pred::always())
+            .returning(move |_room_id, _| Ok(()));
+    }
 }
