@@ -5,16 +5,39 @@ authors = ["Andrei Nesterov <ae.nesterov@gmail.com>"]
 description = "Service managing classrooms"
 readme = "README.md"
 edition = "2018"
-
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-tokio = { version = "1", features = ["full"] }
-axum = { version = "0.3", features = ["headers"] }
-tower = "0.4"
-hyper = { version = "0.14", features = ["server"] }
+anyhow = "1.0"
 async-trait = "0.1"
+axum = { version = "0.3", features = ["headers"] }
 chrono = { version = "0.4", features = ["serde"] }
+config = "0.10"
+futures = "0.3"
+futures-channel = "0.3"
+headers = "0.3"
+http = "0.2"
+humantime-serde = "1"
+hyper = { version = "0.14", features = ["server"] }
+isahc = "1.1.0"
+lazy_static = "1.4"
+once_cell = "1"
+percent-encoding = "2.1"
+pin-utils = "0.1.0"
+prometheus = "0.13"
+prometheus-static-metric = "0.5"
+quaint = { version = "0.1", features = ["uuid-0_8", "chrono-0_4"] }
+rand = "0.7"
+sentry = "0.18.1"
+serde = "1.0"
+serde_derive = "1.0"
+serde_json = "1.0"
+signal-hook = "0.3.6"
+signal-hook-tokio = { version = "0.3", features = ["futures-v0_3"] }
+slog = "2.5"
+slog-async = "2.5"
+slog-envlogger = "2.2"
+slog-json = "2.3"
 sqlx = { version = "0.5", features = [
     "offline",
     "postgres",
@@ -25,11 +48,9 @@ sqlx = { version = "0.5", features = [
     "bigdecimal",
     "runtime-tokio-native-tls",
 ] }
-serde = "1.0"
-serde_derive = "1.0"
-serde_json = "1.0"
 svc-agent = { version = "0.19", features = ["sqlx"] }
 svc-authn = { version = "0.7", features = ["jose", "sqlx"] }
+svc-authz = "0.11"
 svc-error = { version = "0.2", features = [
     "svc-agent",
     "svc-authn",
@@ -37,33 +58,11 @@ svc-error = { version = "0.2", features = [
     "sentry-extension",
     "sqlx",
 ] }
-svc-authz = "0.11"
-sentry = "0.18.1"
-config = "0.10"
-lazy_static = "1.4"
-percent-encoding = "2.1"
-slog = "2.5"
-slog-async = "2.5"
-slog-json = "2.3"
-slog-envlogger = "2.2"
-anyhow = "1.0"
-futures = "0.3"
-futures-channel = "0.3"
-uuid = { version = "0.8", features = ["v4", "serde"] }
-rand = "0.7"
-quaint = { version = "0.1", features = ["uuid-0_8", "chrono-0_4"] }
-isahc = "1.1.0"
-http = "0.2"
-url = { version = "2.2.1", features = ["serde"] }
-signal-hook = "0.3.6"
-signal-hook-tokio = { version = "0.3", features = ["futures-v0_3"] }
-pin-utils = "0.1.0"
-prometheus = "0.13"
-once_cell = "1"
-prometheus-static-metric = "0.5"
-humantime-serde = "1"
-headers = "0.3"
 svc-utils = "0.1"
+tokio = { version = "1", features = ["full"] }
+tower = "0.4"
+url = { version = "2.2.1", features = ["serde"] }
+uuid = { version = "0.8", features = ["v4", "serde"] }
 
 [dev-dependencies]
 mockall = "0.9.1"
