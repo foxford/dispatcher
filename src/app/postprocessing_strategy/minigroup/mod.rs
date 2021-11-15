@@ -85,7 +85,14 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
 
         // Find host stream id.
         let host = match self.find_host(self.minigroup.event_room_id()).await? {
-            None => bail!("No host in room"),
+            None => {
+                error!(
+                    crate::LOG,
+                    "No host in room, class_id = {}",
+                    self.minigroup.id()
+                );
+                return Ok(());
+            }
             Some(agent_id) => agent_id,
         };
 
@@ -110,7 +117,14 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
             } => {
                 // Find host stream id.
                 let host = match self.find_host(modified_room_id).await? {
-                    None => bail!("No host in room"),
+                    None => {
+                        error!(
+                            crate::LOG,
+                            "No host in room, class_id = {}",
+                            self.minigroup.id()
+                        );
+                        return Ok(());
+                    }
                     Some(agent_id) => agent_id,
                 };
 
