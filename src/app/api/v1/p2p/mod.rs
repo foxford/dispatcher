@@ -8,6 +8,7 @@ use headers::{authorization::Bearer, Authorization};
 use hyper::{Body, Response};
 use serde_derive::Deserialize;
 use svc_agent::AccountId;
+use tracing::{error, info, instrument};
 use uuid::Uuid;
 
 use crate::app::authz::AuthzObject;
@@ -28,26 +29,26 @@ pub struct P2P {
     whiteboard: bool,
 }
 
+#[instrument(
+    skip_all,
+    fields(
+        audience = ?body.audience,
+        scope = ?body.scope
+    )
+)]
 pub async fn create(
     Extension(ctx): Extension<Arc<dyn AppContext>>,
     TypedHeader(Authorization(token)): TypedHeader<Authorization<Bearer>>,
-    Json(payload): Json<P2P>,
+    Json(body): Json<P2P>,
 ) -> AppResult {
     let account_id =
         validate_token(ctx.as_ref(), token.token()).error(AppErrorKind::Unauthorized)?;
 
-    do_create(ctx.as_ref(), &account_id, payload).await
+    do_create(ctx.as_ref(), &account_id, body).await
 }
 
 async fn do_create(state: &dyn AppContext, account_id: &AccountId, body: P2P) -> AppResult {
-    let log = crate::LOG.new(slog::o!(
-        "audience" => body.audience.clone(),
-        "scope" => body.scope.clone(),
-    ));
-    info!(
-        log,
-        "Creating p2p, audience = {}, scope = {}", body.audience, body.scope
-    );
+    info!("Creating p2p");
 
     let object = AuthzObject::new(&["classrooms"]).into();
 
@@ -62,7 +63,7 @@ async fn do_create(state: &dyn AppContext, account_id: &AccountId, body: P2P) ->
         .await
         .measure()?;
 
-    info!(log, "Authorized p2p create");
+    info!("Authorized p2p create");
 
     let conference_fut = state.conference_client().create_room(
         (Bound::Included(Utc::now()), Bound::Unbounded),
@@ -85,10 +86,7 @@ async fn do_create(state: &dyn AppContext, account_id: &AccountId, body: P2P) ->
         .context("Services requests")
         .error(AppErrorKind::MqttRequestFailed)?;
 
-    info!(
-        log,
-        "Created event room = {}, conference room = {}", event_room_id, conference_room_id
-    );
+    info!(?event_room_id, ?conference_room_id, "Created rooms",);
 
     let query = crate::db::class::P2PInsertQuery::new(
         body.scope,
@@ -113,15 +111,16 @@ async fn do_create(state: &dyn AppContext, account_id: &AccountId, body: P2P) ->
             .context("Failed to insert p2p")
             .error(AppErrorKind::DbQueryFailed)?
     };
-    info!(log, "Inserted p2p into db, id = {}", p2p.id());
+    info!(
+        class_id = ?p2p.id(),
+        "Inserted p2p into db",
+    );
 
     if body.whiteboard {
         if let Err(e) = state.event_client().create_whiteboard(event_room_id).await {
             error!(
-                crate::LOG,
-                "Failed to create whiteboard in event room, id = {:?}, err = {:?}",
-                event_room_id,
-                e
+                ?event_room_id,
+                "Failed to create whiteboard in event room, err = {:?}", e
             );
         }
     }
@@ -135,7 +134,7 @@ async fn do_create(state: &dyn AppContext, account_id: &AccountId, body: P2P) ->
     .await
     .error(AppErrorKind::MqttRequestFailed)?;
 
-    info!(log, "Successfully updated classroom room id");
+    info!("Successfully updated classroom room id");
 
     let body = serde_json::to_string_pretty(&p2p)
         .context("Failed to serialize p2p")

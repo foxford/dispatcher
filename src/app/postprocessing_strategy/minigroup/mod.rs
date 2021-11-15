@@ -13,6 +13,7 @@ use svc_agent::{
     },
     AgentId,
 };
+use tracing::{error, warn};
 use uuid::Uuid;
 
 use crate::clients::event::{Event, EventData, RoomAdjustResult};
@@ -60,7 +61,7 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
             }
             Err(err) => {
                 warn!(
-                    crate::LOG,
+                    stream_id = ?stream.id,
                     "Failed to transcode recording with stream_id: {}, err: {:?}", stream.id, err
                 );
                 let mut conn = self.ctx.get_conn().await?;
@@ -87,9 +88,8 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
         let host = match self.find_host(self.minigroup.event_room_id()).await? {
             None => {
                 error!(
-                    crate::LOG,
-                    "No host in room, class_id = {}",
-                    self.minigroup.id()
+                    class_id = ?self.minigroup.id(),
+                    "No host in room",
                 );
                 return Ok(());
             }
@@ -119,9 +119,8 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
                 let host = match self.find_host(modified_room_id).await? {
                     None => {
                         error!(
-                            crate::LOG,
-                            "No host in room, class_id = {}",
-                            self.minigroup.id()
+                            class_id = ?self.minigroup.id(),
+                            "No host in room",
                         );
                         return Ok(());
                     }

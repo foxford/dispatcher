@@ -8,6 +8,7 @@ use svc_agent::mqtt::{
     OutgoingEventProperties, ShortTermTimingProperties,
 };
 use svc_agent::request::Dispatcher;
+use tracing::{debug, error, field::display, info, instrument, warn, Span};
 use uuid::Uuid;
 
 use super::AppContext;
@@ -42,27 +43,22 @@ impl MessageHandler {
         match IncomingResponse::convert::<JsonValue>(data) {
             Ok(message) => {
                 if let Err(e) = self.dispatcher.response(message) {
-                    error!(crate::LOG, "Failed to commit response, reason = {:?}", e);
+                    error!("Failed to commit response, reason = {:?}", e);
                 }
             }
-            Err(e) => error!(crate::LOG, "Failed to parse response, reason = {:?}", e),
+            Err(e) => error!("Failed to parse response, reason = {:?}", e),
         }
     }
 
+    #[instrument(
+        skip(self, data),
+        fields(
+            payload = %data.payload(),
+            label = %data.properties().label().map(|s| format!("Some({})", s)).unwrap_or_else(|| "None".into())
+        )
+    )]
     pub async fn handle_event(&self, data: IncomingEvent<String>, topic: String) {
-        let label = data
-            .properties()
-            .label()
-            .map(|s| format!("Some({})", s))
-            .unwrap_or_else(|| "None".into());
-        slog::warn!(
-            crate::LOG,
-            "Incoming event, label = {}, payload = {}, topic = {}",
-            &label,
-            data.payload(),
-            topic;
-            "label" => &label,
-        );
+        warn!("Incoming event",);
 
         let audience: Option<&str> = topic
             .split("/audiences/")
@@ -73,7 +69,6 @@ impl MessageHandler {
             .and_then(|s| s.split("/events").next());
         let audience = audience.map(|s| s.to_owned()).unwrap();
         let topic = topic.split('/').collect::<Vec<&str>>();
-        let data_ = data.clone();
 
         let label = data.properties().label().map(|x| x.to_owned());
         let result = match label.as_deref() {
@@ -101,41 +96,28 @@ impl MessageHandler {
                 .handle_edition_commit(data)
                 .await
                 .error(AppErrorKind::EditionFailed),
-            val => {
-                debug!(
-                    crate::LOG,
-                    "Unexpected incoming event label = {:?}, payload = {:?}", val, data
-                );
+            _label => {
+                debug!("Unexpected incoming event",);
                 Ok(())
             }
         };
         MqttMetrics::observe_event_result(&result, label.as_deref());
 
         if let Err(e) = result {
-            slog::error!(
-                crate::LOG,
-                "Event handler failed, label = {:?}, payload = {:?}, reason = {:?}",
-                data_.properties().label(),
-                data_.payload(),
-                e
-            );
-
-            e.notify_sentry(&crate::LOG);
+            error!("Event handler failed, err = {:?}", e);
+            e.notify_sentry();
         } else {
-            slog::info!(
-                crate::LOG,
-                "Event handler done, label = {:?}, payload = {:?}",
-                data_.properties().label(),
-                data_.payload()
-            )
+            info!("Event handler done")
         }
     }
 
+    #[instrument(skip(self, data, topic), fields(payload_id, class_id))]
     async fn handle_close(&self, data: IncomingEvent<String>, topic: Vec<&str>) -> Result<()> {
         let payload = serde_json::from_str::<RoomClose>(&data.extract_payload())?;
+        Span::current().record("payload_id", &display(payload.id));
         let mut conn = self.ctx.get_conn().await?;
 
-        warn!(crate::LOG, "Close event, payload id = {:?}", payload.id);
+        warn!("Close event handler started");
 
         let query = match topic.get(1) {
             Some(app) if app.starts_with("event.") => {
@@ -152,12 +134,8 @@ impl MessageHandler {
             .await?
             .ok_or_else(|| anyhow!("Class not found by id from payload = {:?}", payload,))?;
 
-        warn!(
-            crate::LOG,
-            "Close event, found class, payload id = {:?}, class id = {:?}",
-            payload.id,
-            class.id()
-        );
+        Span::current().record("class_id", &display(class.id()));
+        warn!("Close event found class",);
 
         let label = match class.kind() {
             ClassType::P2P => "p2p.stop",
@@ -170,12 +148,7 @@ impl MessageHandler {
             .execute(&mut conn)
             .await?;
 
-        warn!(
-            crate::LOG,
-            "Close event, room close query done, payload id = {:?}, class id = {:?}",
-            payload.id,
-            class.id()
-        );
+        warn!("Close event, room close query done");
 
         let timing = ShortTermTimingProperties::new(chrono::Utc::now());
         let props = OutgoingEventProperties::new(label, timing);
@@ -187,13 +160,7 @@ impl MessageHandler {
             id: class.id(),
         };
 
-        warn!(
-            crate::LOG,
-            "Close event, sending notification, payload id = {:?}, class id = {:?}, payload = {:?}",
-            payload.id,
-            class.id(),
-            payload
-        );
+        warn!("Close event, sending notification, payload = {:?}", payload);
 
         let event = OutgoingEvent::broadcast(payload, props, &path);
         let boxed_event = Box::new(event) as Box<dyn IntoPublishableMessage + Send>;

@@ -4,6 +4,7 @@ use futures::{
     future::{select_ok, try_select, Either},
     pin_mut, Future,
 };
+use tracing::warn;
 
 pub async fn single_retry<F, T, E>(
     mut create_f: impl FnMut() -> F,
@@ -30,7 +31,7 @@ where
         Ok(Either::Right((x, _))) => Ok(x),
         Err(Either::Left((_, _))) => unreachable!(),
         Err(Either::Right((err, _))) => {
-            warn!(crate::LOG, "Request errored: {:?}", err);
+            warn!("Request errored: {:?}", err);
             Ok(create_f().await?)
         }
     }

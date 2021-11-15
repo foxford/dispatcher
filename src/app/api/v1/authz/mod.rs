@@ -8,6 +8,7 @@ use hyper::{Body, Response};
 use serde_derive::{Deserialize, Serialize};
 use serde_json::json;
 use svc_authn::{AccountId, Authenticable};
+use tracing::info;
 use uuid::Uuid;
 
 use crate::app::{error, AppContext};
@@ -55,7 +56,7 @@ pub async fn proxy(
 
     let q = validate_client(&account_id, ctx.as_ref())?;
 
-    info!(crate::LOG, "Authz proxy: raw request {:?}", authz_req);
+    info!("Authz proxy: raw request {:?}", authz_req);
     let old_action = authz_req.action.clone();
 
     transform_authz_request(&mut authz_req, &account_id);
@@ -162,8 +163,8 @@ async fn proxy_request(
         let body = single_retry(get_response, retry_delay).await?;
 
         info!(
-            crate::LOG,
-            "Authz proxy: adjusted request {:?}, response = {}", authz_req, body
+            "Authz proxy: adjusted request {:?}, response = {}",
+            authz_req, body
         );
 
         let json_body = match serde_json::from_str::<Vec<String>>(&body) {

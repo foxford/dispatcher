@@ -14,6 +14,7 @@ use svc_authn::token::jws_compact;
 use svc_authz::cache::AuthzCache;
 use svc_authz::ClientMap as Authz;
 use svc_error::{extension::sentry, Error as SvcError};
+use tracing::{error, info};
 
 use crate::clients::event::{EventClient, MqttEventClient};
 use crate::clients::tq::{HttpTqClient, TqClient};
@@ -30,10 +31,10 @@ pub const API_VERSION: &str = "v1";
 
 pub async fn run(db: PgPool, authz_cache: Option<Box<dyn AuthzCache>>) -> Result<()> {
     let config = config::load().context("Failed to load config")?;
-    info!(crate::LOG, "App config: {:?}", config);
+    info!("App config: {:?}", config);
 
     let agent_id = AgentId::new(&config.agent_label, config.id.clone());
-    info!(crate::LOG, "Agent id: {:?}", &agent_id);
+    info!("Agent id: {:?}", &agent_id);
 
     let token = jws_compact::TokenBuilder::new()
         .issuer(&agent_id.as_account_id().audience().to_string())
@@ -85,10 +86,10 @@ pub async fn run(db: PgPool, authz_cache: Option<Box<dyn AuthzCache>>) -> Result
                     AgentNotification::Message(_, _) => (),
                     AgentNotification::ConnectionError => {
                         MqttMetrics::observe_connection_error();
-                        error!(crate::LOG, "Connection to broker errored")
+                        error!("Connection to broker errored")
                     }
                     AgentNotification::Reconnection => {
-                        error!(crate::LOG, "Reconnected to broker");
+                        error!("Reconnected to broker");
                         MqttMetrics::observe_reconnect();
                         resubscribe(
                             &mut message_handler_
@@ -194,7 +195,7 @@ fn subscribe(agent: &mut Agent, agent_id: &AgentId, config: &Config) -> Result<(
 fn resubscribe(agent: &mut Agent, agent_id: &AgentId, config: &Config) {
     if let Err(err) = subscribe(agent, agent_id, config) {
         let err = format!("Failed to resubscribe after reconnection: {:?}", err);
-        error!(crate::LOG, "{:?}", err);
+        error!("{:?}", err);
 
         let svc_error = SvcError::builder()
             .kind("resubscription_error", "Resubscription error")
@@ -202,7 +203,7 @@ fn resubscribe(agent: &mut Agent, agent_id: &AgentId, config: &Config) {
             .build();
 
         sentry::send(svc_error)
-            .unwrap_or_else(|err| error!(crate::LOG, "Error sending error to Sentry: {:?}", err));
+            .unwrap_or_else(|err| error!("Error sending error to Sentry: {:?}", err));
     }
 }
 

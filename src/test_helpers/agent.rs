@@ -8,7 +8,7 @@ use crate::app::API_VERSION;
 const TOKEN_EXPIRATION: i64 = 600;
 const KEY_PATH: &str = "data/keys/svc.private_key.p8.der.sample";
 
-lazy_static! {
+lazy_static::lazy_static! {
     static ref PRIVATE_KEY: Vec<u8> =
         std::fs::read(KEY_PATH).expect("Failed to read private key file");
 }

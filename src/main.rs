@@ -1,32 +1,33 @@
 #[macro_use]
 extern crate anyhow;
-#[macro_use]
-extern crate lazy_static;
-#[macro_use]
-extern crate slog;
 
 use std::env::var;
 
 use anyhow::Result;
-use slog::Drain;
 use sqlx::postgres::PgPool;
 use svc_authz::cache::{create_pool, AuthzCache, RedisCache};
+use tracing::warn;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::EnvFilter;
 
 const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
 const APP: &str = env!("CARGO_PKG_NAME");
 
-lazy_static! {
-    static ref LOG: slog::Logger = {
-        let drain = slog_json::Json::default(std::io::stdout()).fuse();
-        let drain = slog_envlogger::new(drain).fuse();
-        let drain = slog_async::Async::new(drain).build().fuse();
-        slog::Logger::root(drain, o!("version" => APP_VERSION))
-    };
-}
-
 #[tokio::main]
 async fn main() -> Result<()> {
-    warn!(crate::LOG, "Launching {}, version: {}", APP, APP_VERSION);
+    tracing_log::LogTracer::init()?;
+
+    let (non_blocking, _guard) = tracing_appender::non_blocking(std::io::stdout());
+    let subscriber = tracing_subscriber::fmt::layer()
+        .with_writer(non_blocking)
+        .json()
+        .flatten_event(true);
+    let subscriber = tracing_subscriber::registry()
+        .with(EnvFilter::from_default_env())
+        .with(subscriber);
+
+    tracing::subscriber::set_global_default(subscriber)?;
+    warn!("Launching {}, version: {}", APP, APP_VERSION);
 
     let db = create_db().await;
     let authz_cache = create_redis();
