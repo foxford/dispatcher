@@ -9,6 +9,7 @@ use hyper::{Body, Response};
 use serde_derive::Deserialize;
 use sqlx::Acquire;
 use svc_authn::AccountId;
+use tracing::error;
 use uuid::Uuid;
 
 use super::{find, validate_token, AppResult};
@@ -108,8 +109,8 @@ async fn do_recreate<T: AsClassType>(
     if body.locked_chat {
         if let Err(e) = state.event_client().lock_chat(event_room_id).await {
             error!(
-                crate::LOG,
-                "Failed to lock chat in event room, id = {:?}, err = {:?}", event_room_id, e
+                %event_room_id,
+                "Failed to lock chat in event room, err = {:?}", e
             );
         }
     }

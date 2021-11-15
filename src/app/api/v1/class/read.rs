@@ -6,6 +6,7 @@ use chrono::Utc;
 use headers::{authorization::Bearer, Authorization};
 use hyper::{Body, Response};
 use svc_authn::AccountId;
+use tracing::error;
 use uuid::Uuid;
 
 use super::*;
@@ -58,7 +59,7 @@ async fn do_read_by_scope<T: AsClassType>(
     let class = match find_by_scope::<T>(state, audience, scope).await {
         Ok(class) => class,
         Err(e) => {
-            error!(crate::LOG, "Failed to find a minigroup, err = {:?}", e);
+            error!("Failed to find a {}, err = {:?}", T::as_str(), e);
             return Ok(Response::builder()
                 .status(404)
                 .body(Body::from("Not found"))

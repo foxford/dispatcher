@@ -8,6 +8,7 @@ use percent_encoding::{percent_encode, NON_ALPHANUMERIC};
 use serde_derive::Deserialize;
 use serde_json::Value as JsonValue;
 use svc_agent::AccountId;
+use tracing::error;
 use url::Url;
 use uuid::Uuid;
 
@@ -56,8 +57,8 @@ pub async fn create_event(
     let result = ctx.event_client().create_event(payload).await;
     if let Err(e) = &result {
         error!(
-            crate::LOG,
-            "Failed to create event in event room, clasroom id = {:?}, err = {:?}", id, e
+            classroom_id = ?id,
+            "Failed to create event in event room, err = {:?}", e
         );
     }
     result
@@ -101,7 +102,7 @@ pub async fn redirect_to_frontend(
     let conn = ctx.get_conn().await;
     let base_url = match conn {
         Err(e) => {
-            error!(crate::LOG, "Failed to acquire conn: {}", e);
+            error!("Failed to acquire conn: {:?}", e);
             None
         }
         Ok(mut conn) => {
@@ -113,7 +114,7 @@ pub async fn redirect_to_frontend(
             .await;
             match fe {
                 Err(e) => {
-                    error!(crate::LOG, "Failed to find frontend: {}", e);
+                    error!("Failed to find frontend: {:?}", e);
                     None
                 }
                 Ok(Some(frontend)) => {

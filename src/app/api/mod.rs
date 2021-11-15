@@ -12,6 +12,7 @@ use svc_agent::{
     },
     Authenticable,
 };
+use tracing::error;
 use url::Url;
 
 use crate::app::api::v1::AppResult;
@@ -39,7 +40,7 @@ pub async fn redirect_to_frontend(
         let conn = ctx.get_conn().await;
         match conn {
             Err(e) => {
-                error!(crate::LOG, "Failed to acquire conn: {}", e);
+                error!("Failed to acquire conn: {}", e);
                 None
             }
             Ok(mut conn) => {
@@ -49,7 +50,7 @@ pub async fn redirect_to_frontend(
                         .await;
                 match fe {
                     Err(e) => {
-                        error!(crate::LOG, "Failed to find frontend: {}", e);
+                        error!("Failed to find frontend: {}", e);
                         None
                     }
                     Ok(Some(frontend)) => {
@@ -109,7 +110,7 @@ pub async fn rollback(
                 .await
                 .measure()
             {
-                error!(crate::LOG, "Failed to authorize action, reason = {:?}", err);
+                error!("Failed to authorize action, reason = {:?}", err);
                 return Response::builder()
                     .status(403)
                     .body(Body::from("Access denied"))
@@ -118,7 +119,7 @@ pub async fn rollback(
 
             match ctx.get_conn().await {
                 Err(err) => {
-                    error!(crate::LOG, "Failed to get db conn, reason = {:?}", err);
+                    error!("Failed to get db conn, reason = {:?}", err);
 
                     return Response::builder()
                         .status(500)
@@ -131,10 +132,7 @@ pub async fn rollback(
                         .await;
 
                     if let Err(err) = r {
-                        error!(
-                            crate::LOG,
-                            "Failed to delete scope from db, reason = {:?}", err
-                        );
+                        error!("Failed to delete scope from db, reason = {:?}", err);
 
                         return Response::builder()
                             .status(500)
@@ -150,8 +148,8 @@ pub async fn rollback(
 
                     if let Err(err) = ctx.publisher().publish(e) {
                         error!(
-                            crate::LOG,
-                            "Failed to publish scope.frontend.rollback event, reason = {:?}", err
+                            "Failed to publish scope.frontend.rollback event, reason = {:?}",
+                            err
                         );
                     }
                 }
@@ -159,8 +157,8 @@ pub async fn rollback(
         }
         Err(e) => {
             error!(
-                crate::LOG,
-                "Failed to process Authorization header, header = {:?}, err = {:?}", token, e
+                header = ?token,
+                "Failed to process Authorization header, err = {:?}", e
             );
             return Response::builder()
                 .status(403)
@@ -175,7 +173,7 @@ pub async fn rollback(
 fn build_default_url(mut url: Url, tenant: &str, app: &str) -> Url {
     let host = url.host_str().map(|h| format!("{}.{}.{}", tenant, app, h));
     if let Err(e) = url.set_host(host.as_deref()) {
-        error!(crate::LOG, "Default url set_host failed, reason = {:?}", e);
+        error!("Default url set_host failed, reason = {:?}", e);
     }
     url
 }

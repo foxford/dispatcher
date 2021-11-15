@@ -12,6 +12,7 @@ use prometheus::{
     HistogramTimer, HistogramVec, IntCounter, IntCounterVec,
 };
 use prometheus_static_metric::make_static_metric;
+use tracing::error;
 
 use super::error::Error;
 
@@ -182,10 +183,12 @@ impl MethodStatusCounters {
                     .status_vec
                     .get_metric_with_label_values(&[path, method.as_ref(), &status.to_string()])
                     .map_err(|err| {
-                        error!(crate::LOG, "Creating counter for metrics errored: {:?}", err;
-                            "path" => path,
-                            "method" => method.as_ref(),
-                            "status" => &status.to_string())
+                        error!(
+                            path,
+                            %method,
+                            ?status,
+                            "Creating counter for metrics errored: {:?}", err
+                        );
                     })
             })
             .ok()
@@ -244,9 +247,11 @@ impl<S> MetricsMiddleware<S> {
                         .duration_vec
                         .get_metric_with_label_values(&[&self.path, method.as_ref()])
                         .map_err(|err| {
-                            error!(crate::LOG, "Crating timer for metrics errored: {:?}", err;
-                            "path" => &self.path,
-                            "method" => method.as_ref())
+                            error!(
+                                path = %self.path,
+                                %method,
+                                "Creating timer for metrics errored: {:?}", err
+                            )
                         })
                 })
                 .ok()

@@ -4,9 +4,9 @@ use std::fmt;
 use axum::response::IntoResponse;
 use hyper::body::{Body, HttpBody};
 use hyper::Response;
-use slog::Logger;
 use svc_agent::mqtt::ResponseStatus;
 use svc_error::{extension::sentry, Error as SvcError};
+use tracing::error;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -168,13 +168,13 @@ impl Error {
             .build()
     }
 
-    pub fn notify_sentry(&self, logger: &Logger) {
+    pub fn notify_sentry(&self) {
         if !self.kind.is_notify_sentry() {
             return;
         }
 
         sentry::send(self.to_svc_error()).unwrap_or_else(|err| {
-            error!(logger, "Error sending error to Sentry: {}", err);
+            error!("Error sending error to Sentry: {}", err);
         });
     }
 }

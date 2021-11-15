@@ -8,6 +8,7 @@ use headers::{authorization::Bearer, Authorization};
 use hyper::{Body, Response};
 use serde_derive::Deserialize;
 use svc_agent::AccountId;
+use tracing::error;
 
 use crate::app::authz::AuthzObject;
 use crate::app::error::ErrorExt;
@@ -121,8 +122,9 @@ async fn do_create(
     if body.locked_chat {
         if let Err(e) = state.event_client().lock_chat(event_room_id).await {
             error!(
-                crate::LOG,
-                "Failed to lock chat in event room, id = {:?}, err = {:?}", event_room_id, e
+                %event_room_id,
+                "Failed to lock chat in event room, err = {:?}",
+                e
             );
         }
     }

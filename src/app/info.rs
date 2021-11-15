@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use axum::extract;
 use hyper::{Body, Response};
+use tracing::error;
 
 use super::AppContext;
 
@@ -27,10 +28,7 @@ pub async fn list_scopes(ctx: extract::Extension<Arc<dyn AppContext>>) -> Respon
                             "{}\t{}\t{}\t{}",
                             scope.id, scope.scope, scope.frontend_id, scope.created_at
                         ) {
-                            error!(
-                                crate::LOG,
-                                "Failed to write response to buf string, reason = {:?}", e
-                            );
+                            error!("Failed to write response to buf string, reason = {:?}", e);
                         }
                     }
                     Response::builder().body(Body::from(s)).unwrap()
@@ -61,10 +59,7 @@ pub async fn list_frontends(ctx: extract::Extension<Arc<dyn AppContext>>) -> Res
                     for fe in frontends {
                         if let Err(e) = writeln!(&mut s, "{}\t{}\t{}", fe.id, fe.url, fe.created_at)
                         {
-                            error!(
-                                crate::LOG,
-                                "Failed to write response to buf string, reason = {:?}", e
-                            );
+                            error!("Failed to write response to buf string, reason = {:?}", e);
                         }
                     }
                     Response::builder().body(Body::from(s)).unwrap()
