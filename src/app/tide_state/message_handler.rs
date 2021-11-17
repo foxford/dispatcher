@@ -265,7 +265,7 @@ impl MessageHandler {
             }
             TaskCompleteResult::Failure { error } => {
                 error!(?error, "Tq task error");
-                return Ok(());
+                Ok(())
             }
         }
     }
