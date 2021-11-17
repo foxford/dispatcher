@@ -178,12 +178,19 @@ impl MessageHandler {
         let class = {
             let mut conn = self.ctx.get_conn().await?;
 
-            crate::db::class::ReadQuery::by_conference_room(room_upload.id)
+            match crate::db::class::ReadQuery::by_conference_room(room_upload.id)
                 .execute(&mut conn)
                 .await?
-                .ok_or_else(|| {
-                    anyhow!("Class not found by conference room id = {}", room_upload.id)
-                })?
+            {
+                Some(class) => class,
+                None => {
+                    warn!(
+                        conference_room_id = %room_upload.id,
+                        "Class not found by conference room id, probably recreated class",
+                    );
+                    return Ok(());
+                }
+            }
         };
 
         postprocessing_strategy::get(self.ctx.clone(), class)?
@@ -229,6 +236,10 @@ impl MessageHandler {
                 let class = self
                     .get_class_from_tags_by_conference_id(task.tags.as_ref())
                     .await?;
+                let class = match class {
+                    Some(class) => class,
+                    None => return Ok(()),
+                };
                 match success {
                     TaskCompleteSuccess::TranscodeStreamToHls(result) => {
                         postprocessing_strategy::get(self.ctx.clone(), class)?
@@ -253,7 +264,8 @@ impl MessageHandler {
                 }
             }
             TaskCompleteResult::Failure { error } => {
-                bail!("Tq task error: {:?}", error)
+                error!(?error, "Tq task error");
+                return Ok(());
             }
         }
     }
@@ -296,7 +308,7 @@ impl MessageHandler {
     async fn get_class_from_tags_by_conference_id(
         &self,
         tags: Option<&JsonValue>,
-    ) -> Result<Class> {
+    ) -> Result<Option<Class>> {
         let conference_room_id = tags
             .and_then(|tags| tags.get("conference_room_id"))
             .and_then(|s| s.as_str())
@@ -308,15 +320,19 @@ impl MessageHandler {
 
         let mut conn = self.ctx.get_conn().await?;
 
-        crate::db::class::ReadQuery::by_conference_room(conference_room_id)
+        match crate::db::class::ReadQuery::by_conference_room(conference_room_id)
             .execute(&mut conn)
             .await?
-            .ok_or_else(|| {
-                anyhow!(
-                    "Class not found by conference_room_id = {}",
-                    conference_room_id
-                )
-            })
+        {
+            Some(class) => Ok(Some(class)),
+            None => {
+                warn!(
+                    %conference_room_id,
+                    "Class not found by conference room id, probably recreated class",
+                );
+                Ok(None)
+            }
+        }
     }
 
     async fn get_class_by_room_id(&self, room_id: Uuid) -> Result<Class> {

@@ -84,23 +84,40 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
             return Ok(());
         }
 
-        // Find host stream id.
-        let host = match self.find_host(self.minigroup.event_room_id()).await? {
-            None => {
-                error!(
-                    class_id = ?self.minigroup.id(),
-                    "No host in room",
-                );
-                return Ok(());
+        let host_recording = {
+            // Find host stream id.
+            let host = match self.find_host(self.minigroup.event_room_id()).await? {
+                None => {
+                    error!(
+                        class_id = ?self.minigroup.id(),
+                        event_room_id = ?self.minigroup.event_room_id(),
+                        "No host in room",
+                    );
+                    return Ok(());
+                }
+                Some(agent_id) => agent_id,
+            };
+
+            let maybe_recording = ready_recordings
+                .into_iter()
+                .find(|recording| recording.created_by == host);
+
+            match maybe_recording {
+                None => {
+                    error!(
+                        class_id = ?self.minigroup.id(),
+                        "No host recording in room",
+                    );
+                    return Ok(());
+                }
+                Some(recording) => recording,
             }
-            Some(agent_id) => agent_id,
         };
 
         call_adjust(
             self.ctx.clone(),
             self.minigroup.event_room_id(),
-            ready_recordings,
-            host,
+            host_recording,
             self.ctx.get_preroll_offset(self.minigroup.audience()),
         )
         .await?;
@@ -380,15 +397,9 @@ async fn insert_recordings(
 async fn call_adjust(
     ctx: Arc<dyn AppContext>,
     room_id: Uuid,
-    recordings: Vec<ReadyRecording>,
-    host: AgentId,
+    host_recording: ReadyRecording,
     offset: i64,
 ) -> Result<()> {
-    let host_recording = recordings
-        .into_iter()
-        .find(|recording| recording.created_by == host)
-        .ok_or_else(|| anyhow!("No host recording"))?;
-
     ctx.event_client()
         .adjust_room(
             room_id,
