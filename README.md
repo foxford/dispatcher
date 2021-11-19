@@ -1,7 +1,6 @@
 # Dispatcher
 
-[travis]:https://travis-ci.com/netology-group/dispatcher?branch=master
-[travis-img]:https://travis-ci.com/netology-group/dispatcher.png?branch=master
+[![dependency status](https://deps.rs/repo/github/foxford/dispatcher/status.svg)](https://deps.rs/repo/github/foxford/dispatcher)
 
 Сервис, который:
 * обслуживает единый http роут, редиректя на разные версии фронтов
