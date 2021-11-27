@@ -17,13 +17,11 @@ pub enum ClassType {
     Webinar,
     P2P,
     Minigroup,
-    Chat,
 }
 
 pub struct WebinarType;
 pub struct P2PType;
 pub struct MinigroupType;
-pub struct ChatType;
 
 pub trait AsClassType {
     fn as_class_type() -> ClassType;
@@ -57,16 +55,6 @@ impl AsClassType for MinigroupType {
 
     fn as_str() -> &'static str {
         "minigroup"
-    }
-}
-
-impl AsClassType for ChatType {
-    fn as_class_type() -> ClassType {
-        ClassType::Chat
-    }
-
-    fn as_str() -> &'static str {
-        "chat"
     }
 }
 
@@ -670,12 +658,10 @@ pub(crate) mod serde {
     }
 }
 
-mod chat;
 mod minigroup;
 mod p2p;
 mod webinar;
 
-pub use chat::*;
 pub use minigroup::*;
 pub use p2p::*;
 pub use webinar::*;

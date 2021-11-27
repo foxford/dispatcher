@@ -232,44 +232,6 @@ impl Webinar {
 ////////////////////////////////////////////////////////////////////////////////
 
 #[derive(Debug)]
-pub struct Chat {
-    scope: String,
-    audience: String,
-    event_room_id: Uuid,
-    tags: Option<JsonValue>,
-}
-
-impl Chat {
-    pub fn new(scope: String, audience: String, event_room_id: Uuid) -> Self {
-        Self {
-            scope,
-            audience,
-            event_room_id,
-            tags: None,
-        }
-    }
-
-    pub fn tags(self, tags: JsonValue) -> Self {
-        Self {
-            tags: Some(tags),
-            ..self
-        }
-    }
-
-    pub async fn insert(self, conn: &mut PgConnection) -> db::class::Object {
-        let mut q = db::class::ChatInsertQuery::new(self.scope, self.audience, self.event_room_id);
-
-        if let Some(tags) = self.tags {
-            q = q.tags(tags);
-        }
-
-        q.execute(conn).await.expect("Failed to insert chat")
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-#[derive(Debug)]
 pub struct Recording {
     class_id: Uuid,
     rtc_id: Uuid,

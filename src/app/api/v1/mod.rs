@@ -195,7 +195,6 @@ async fn find_by_scope<T: AsClassType>(
 }
 
 pub mod authz;
-pub mod chat;
 pub mod class;
 pub mod minigroup;
 pub mod p2p;

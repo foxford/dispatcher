@@ -8,7 +8,6 @@ use tower_http::trace::TraceLayer;
 use tracing::{error, field::Empty, info, Span};
 
 use super::api::v1::authz::proxy as proxy_authz;
-use super::api::v1::chat::{convert as convert_chat, create as create_chat};
 use super::api::v1::class::{read, read_by_scope, recreate, update, update_by_scope};
 use super::api::v1::minigroup::{create as create_minigroup, download as download_minigroup};
 use super::api::v1::p2p::{convert as convert_p2p, create as create_p2p};
@@ -26,14 +25,13 @@ use super::middleware::CorsMiddlewareLayer;
 
 use crate::app::metrics::MeteredRoute;
 use crate::app::AppContext;
-use crate::db::class::{ChatType, MinigroupType, P2PType, WebinarType};
+use crate::db::class::{MinigroupType, P2PType, WebinarType};
 
 pub fn router(ctx: Arc<dyn AppContext>) -> Router {
     let router = redirects_router();
     let router = router.merge(webinars_router());
     let router = router.merge(p2p_router());
     let router = router.merge(minigroups_router());
-    let router = router.merge(chat_router());
     let router = router.merge(authz_router());
 
     router.layer(AddExtensionLayer::new(ctx)).layer(
@@ -133,22 +131,6 @@ fn minigroups_router() -> Router {
         .metered_route("/api/v1/minigroups", post(create_minigroup))
         .metered_route("/api/v1/minigroups/:id/download", get(download_minigroup))
         .metered_route("/api/v1/minigroups/:id/events", post(create_event))
-}
-
-fn chat_router() -> Router {
-    Router::new()
-        .metered_route(
-            "/api/v1/chats/:id",
-            options(read_options).get(read::<ChatType>),
-        )
-        .metered_route(
-            "/api/v1/audiences/:audience/chats/:scope",
-            options(read_options).get(read_by_scope::<ChatType>),
-        )
-        .layer(CorsMiddlewareLayer)
-        .metered_route("/api/v1/chats", post(create_chat))
-        .metered_route("/api/v1/chats/convert", post(convert_chat))
-        .metered_route("/api/v1/chats/:id/events", post(create_event))
 }
 
 fn authz_router() -> Router {
