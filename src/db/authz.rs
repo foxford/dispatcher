@@ -53,11 +53,6 @@ impl AuthzReadQuery {
                         WHERE event_room_id = $1
                             OR original_event_room_id = $1
                             OR modified_event_room_id = $1
-                        UNION ALL
-                        SELECT
-                            id::text AS "id!: String"
-                        FROM chat
-                        WHERE event_room_id = $1
                     "#,
                     id,
                 )

@@ -28,7 +28,6 @@ pub(crate) fn get(
 ) -> Result<Box<dyn PostprocessingStrategy + Send + Sync>> {
     match class.kind() {
         ClassType::P2P => bail!("Postprocessing for a p2p is not available"),
-        ClassType::Chat => bail!("Postprocessing for a chat is not available"),
         ClassType::Minigroup => Ok(Box::new(MinigroupPostprocessingStrategy::new(ctx, class))),
         ClassType::Webinar => Ok(Box::new(WebinarPostprocessingStrategy::new(ctx, class))),
     }

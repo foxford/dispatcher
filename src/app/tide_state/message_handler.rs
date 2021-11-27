@@ -142,7 +142,6 @@ impl MessageHandler {
             ClassType::P2P => "p2p.stop",
             ClassType::Minigroup => "minigroup.stop",
             ClassType::Webinar => "webinar.stop",
-            ClassType::Chat => "chat.stop",
         };
 
         crate::db::class::RoomCloseQuery::new(class.id(), payload.timed_out.unwrap_or(false))

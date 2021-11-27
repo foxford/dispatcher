@@ -138,7 +138,6 @@ async fn create_event_and_conference<T: AsClassType>(
         ClassType::Webinar => Some("shared".to_string()),
         ClassType::Minigroup => Some("owned".to_string()),
         ClassType::P2P => None,
-        ClassType::Chat => None,
     };
     let conference_fut = state.conference_client().create_room(
         conference_time,
