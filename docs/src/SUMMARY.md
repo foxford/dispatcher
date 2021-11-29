@@ -5,7 +5,6 @@
     - [Authz](authz/overview.md)
         - [Webinars](authz/webinars.md)
         - [P2P](authz/p2p.md)
-        - [Chats](authz/chats.md)
         - [Event types](authz/events.md)
         - [Proxy](authz/proxy.md)
     - [Webinars integration](webinars/overview.md)
@@ -15,5 +14,3 @@
         - [API](p2p/api.md)
     - [Minigroups](minigroups/overview.md)
         - [API](minigroups/api.md)
-    - [Chats](chats/overview.md)
-        - [API](chats/api.md)

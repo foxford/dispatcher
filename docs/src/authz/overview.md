@@ -23,7 +23,6 @@ Subject's namespace and account label are retrieved from `audience` and `account
 URI of authorization endpoint, object and anonymous namespaces are configured through the application configuration file.
 
 Possible values for `OBJECT` and `ACTION` are listed under each class type:
-* [chats](./chats.md)
 * [classrooms](./classrooms.md)
 * [webinars](./webinars.md)
 
