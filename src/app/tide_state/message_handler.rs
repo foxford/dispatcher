@@ -51,6 +51,7 @@ impl MessageHandler {
     }
 
     #[instrument(
+        level = "warn",
         skip(self, data),
         fields(
             payload = %data.payload(),
