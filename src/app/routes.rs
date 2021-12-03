@@ -1,11 +1,8 @@
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
 
 use axum::routing::Router;
 use axum::routing::{get, options, post};
 use axum::AddExtensionLayer;
-use hyper::{body::HttpBody, Body, Request, Response};
-use tower_http::trace::TraceLayer;
-use tracing::{error, field::Empty, info, Span};
 
 use super::api::v1::authz::proxy as proxy_authz;
 use super::api::v1::class::{read, read_by_scope, recreate, update, update_by_scope};
@@ -34,26 +31,9 @@ pub fn router(ctx: Arc<dyn AppContext>) -> Router {
     let router = router.merge(minigroups_router());
     let router = router.merge(authz_router());
 
-    router.layer(AddExtensionLayer::new(ctx)).layer(
-        TraceLayer::new_for_http()
-            .make_span_with(|request: &Request<Body>| {
-                tracing::error_span!(
-                    "http-api-request",
-                    status_code = Empty,
-                    path = request.uri().path(),
-                    query = request.uri().query(),
-                    body_size = ?request.body().size_hint().upper()
-                )
-            })
-            .on_response(|response: &Response<_>, latency: Duration, span: &Span| {
-                span.record("status_code", &tracing::field::debug(response.status()));
-                if response.status().is_success() {
-                    info!("response generated in {:?}", latency)
-                } else {
-                    error!("response generated in {:?}", latency)
-                }
-            }),
-    )
+    router
+        .layer(AddExtensionLayer::new(ctx))
+        .layer(svc_utils::middleware::LogLayer::new())
 }
 
 fn redirects_router() -> Router {
