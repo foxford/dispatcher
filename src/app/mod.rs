@@ -16,7 +16,7 @@ use svc_authz::ClientMap as Authz;
 use svc_error::{extension::sentry, Error as SvcError};
 use tracing::{error, info};
 
-use crate::clients::event::{EventClient, MqttEventClient};
+use crate::clients::event::{EventClient, TowerClient};
 use crate::clients::tq::{HttpTqClient, TqClient};
 use crate::config::{self, Config};
 use crate::{
@@ -210,7 +210,7 @@ fn resubscribe(agent: &mut Agent, agent_id: &AgentId, config: &Config) {
 fn build_event_client(config: &Config, dispatcher: Arc<Dispatcher>) -> Arc<dyn EventClient> {
     let agent_id = AgentId::new(&config.agent_label, config.id.clone());
 
-    Arc::new(MqttEventClient::new(
+    Arc::new(TowerClient::new(
         agent_id,
         config.event_client.account_id.clone(),
         dispatcher,

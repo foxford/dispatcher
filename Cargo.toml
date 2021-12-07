@@ -55,7 +55,7 @@ svc-error = { version = "0.2", features = [
 ] }
 svc-utils = { version = "0.1", features = ["log-middleware"] }
 tokio = { version = "1", features = ["full"] }
-tower = "0.4"
+tower = { version = "0.4", features = [ "timeout" ] }
 tower-http = { version = "0.1", features = ["trace"] }
 tracing = "0.1"
 tracing-appender = "0.1"

@@ -5,9 +5,6 @@ use std::time::Duration;
 use anyhow::Result;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-#[cfg(test)]
-use mockall::{automock, predicate::*};
-use serde_derive::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use svc_agent::{
     error::Error as AgentError,
@@ -18,214 +15,14 @@ use svc_agent::{
     request::Dispatcher,
     AccountId, AgentId, Subscription,
 };
+
 use uuid::Uuid;
 
-use super::{generate_correlation_data, ClientError};
+use super::types::*;
+use super::{generate_correlation_data, ClientError, EventClient};
+use super::{EVENT_LIST_LIMIT, MAX_EVENT_LIST_PAGES};
 use crate::db::class::BoundedDateTimeTuple;
 use crate::db::recording::Segments;
-
-const MAX_EVENT_LIST_PAGES: u64 = 10;
-const EVENT_LIST_LIMIT: u64 = 100;
-
-////////////////////////////////////////////////////////////////////////////////
-
-#[derive(Clone, Debug, Deserialize)]
-pub struct Event {
-    id: Uuid,
-    room_id: Uuid,
-    set: String,
-    label: Option<String>,
-    attribute: Option<String>,
-    #[serde(flatten)]
-    data: EventData,
-    occurred_at: u64,
-    original_occurred_at: u64,
-    created_by: AgentId,
-    #[serde(with = "chrono::serde::ts_milliseconds")]
-    created_at: DateTime<Utc>,
-}
-
-impl Event {
-    pub fn data(&self) -> &EventData {
-        &self.data
-    }
-
-    pub fn occurred_at(&self) -> u64 {
-        self.occurred_at
-    }
-}
-
-#[derive(Clone, Debug, Deserialize)]
-#[serde(tag = "type", content = "data")]
-#[serde(rename_all = "lowercase")]
-pub enum EventData {
-    Pin(PinEventData),
-    Host(HostEventData),
-}
-
-#[derive(Clone, Debug, Deserialize)]
-pub struct PinEventData {
-    agent_id: Option<AgentId>,
-}
-
-impl PinEventData {
-    #[cfg(test)]
-    pub fn new(agent_id: AgentId) -> Self {
-        Self {
-            agent_id: Some(agent_id),
-        }
-    }
-
-    #[cfg(test)]
-    pub fn null() -> Self {
-        Self { agent_id: None }
-    }
-
-    pub fn agent_id(&self) -> Option<&AgentId> {
-        self.agent_id.as_ref()
-    }
-}
-
-#[derive(Clone, Debug, Deserialize)]
-pub struct HostEventData {
-    agent_id: AgentId,
-}
-
-impl HostEventData {
-    #[cfg(test)]
-    pub fn new(agent_id: AgentId) -> Self {
-        Self { agent_id }
-    }
-
-    pub fn agent_id(&self) -> &AgentId {
-        &self.agent_id
-    }
-}
-
-#[derive(Deserialize)]
-pub struct RoomAdjust {
-    room_id: Option<Uuid>,
-    tags: Option<JsonValue>,
-    #[serde(flatten)]
-    result: RoomAdjustResult,
-}
-
-impl RoomAdjust {
-    pub fn tags(&self) -> Option<&JsonValue> {
-        self.tags.as_ref()
-    }
-
-    pub fn room_id(&self) -> Option<Uuid> {
-        self.room_id
-    }
-}
-
-#[derive(Deserialize)]
-#[serde(untagged)]
-pub enum RoomAdjustResult {
-    Success {
-        original_room_id: Uuid,
-        modified_room_id: Uuid,
-        #[serde(with = "crate::db::recording::serde::segments")]
-        modified_segments: Segments,
-        #[serde(with = "crate::db::recording::serde::segments")]
-        cut_original_segments: Segments,
-    },
-    Error {
-        error: JsonValue,
-    },
-}
-
-impl From<RoomAdjust> for RoomAdjustResult {
-    fn from(room_adjust: RoomAdjust) -> Self {
-        room_adjust.result
-    }
-}
-
-pub struct RoomUpdate {
-    pub time: Option<BoundedDateTimeTuple>,
-    pub classroom_id: Option<Uuid>,
-}
-
-impl RoomUpdate {
-    pub fn is_empty_update(&self) -> bool {
-        matches!(
-            self,
-            RoomUpdate {
-                classroom_id: None,
-                time: None
-            }
-        )
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-#[cfg_attr(test, automock)]
-#[async_trait]
-pub trait EventClient: Sync + Send {
-    async fn read_room(&self, id: Uuid) -> Result<EventRoomResponse, ClientError>;
-
-    async fn create_room(
-        &self,
-        time: BoundedDateTimeTuple,
-        audience: String,
-        preserve_history: Option<bool>,
-        tags: Option<JsonValue>,
-        classroom_id: Option<Uuid>,
-    ) -> Result<Uuid, ClientError>;
-
-    async fn update_room(&self, id: Uuid, update: RoomUpdate) -> Result<(), ClientError>;
-
-    async fn update_locked_types(
-        &self,
-        id: Uuid,
-        locked_types: LockedTypes,
-    ) -> Result<(), ClientError>;
-
-    async fn adjust_room(
-        &self,
-        event_room_id: Uuid,
-        started_at: DateTime<Utc>,
-        segments: Segments,
-        offset: i64,
-    ) -> Result<(), ClientError>;
-
-    async fn create_event(&self, payload: JsonValue) -> Result<(), ClientError>;
-    async fn list_events(&self, room_id: Uuid, kind: &str) -> Result<Vec<Event>, ClientError>;
-    async fn dump_room(&self, event_room_id: Uuid) -> Result<(), ClientError>;
-
-    async fn lock_chat(&self, room_id: Uuid) -> Result<(), ClientError> {
-        let payload = EventPayload {
-            room_id,
-            kind: "chat_disabled",
-            set: "chat_disabled",
-            data: serde_json::json!({"value": true}),
-            label: None,
-        };
-
-        let payload = serde_json::to_value(&payload).unwrap();
-
-        let f1 = self.create_event(payload);
-        let f2 = self.update_locked_types(room_id, LockedTypes { message: true });
-        tokio::try_join!(f1, f2).map(|_| ())
-    }
-
-    async fn create_whiteboard(&self, room_id: Uuid) -> Result<(), ClientError> {
-        let payload = EventPayload {
-            room_id,
-            kind: "document",
-            set: "document",
-            data: serde_json::json!({"title":"whiteboard","page":1,"published":true,"url":"about:whiteboard"}),
-            label: Some(Uuid::new_v4()),
-        };
-
-        let payload = serde_json::to_value(&payload).unwrap();
-
-        self.create_event(payload).await?;
-        Ok(())
-    }
-}
 
 pub struct MqttEventClient {
     me: AgentId,
@@ -272,88 +69,6 @@ impl MqttEventClient {
     }
 }
 
-#[derive(Debug, Serialize)]
-struct EventRoomPayload {
-    audience: String,
-    #[serde(with = "crate::serde::ts_seconds_bound_tuple")]
-    time: BoundedDateTimeTuple,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    preserve_history: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    tags: Option<JsonValue>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    classroom_id: Option<Uuid>,
-}
-
-#[derive(Debug, Serialize)]
-struct EventRoomUpdatePayload {
-    id: Uuid,
-    #[serde(with = "crate::serde::ts_seconds_option_bound_tuple")]
-    time: Option<BoundedDateTimeTuple>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    classroom_id: Option<Uuid>,
-}
-
-#[derive(Serialize)]
-struct EventAdjustPayload {
-    id: Uuid,
-    #[serde(with = "chrono::serde::ts_milliseconds")]
-    started_at: DateTime<Utc>,
-    #[serde(with = "crate::db::recording::serde::segments")]
-    segments: Segments,
-    offset: i64,
-}
-
-#[derive(Serialize)]
-struct EventDumpEventsPayload {
-    id: Uuid,
-}
-
-#[derive(Debug, Serialize)]
-struct EventPayload {
-    room_id: Uuid,
-    #[serde(rename(serialize = "type"))]
-    kind: &'static str,
-    set: &'static str,
-    data: JsonValue,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    label: Option<Uuid>,
-}
-
-#[derive(Debug, Serialize)]
-struct EventRoomReadPayload {
-    id: Uuid,
-}
-
-#[derive(Debug, Serialize)]
-struct EventListPayload {
-    room_id: Uuid,
-    #[serde(rename = "type")]
-    kind: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    last_occurred_at: Option<u64>,
-    limit: u64,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct EventRoomResponse {
-    pub id: Uuid,
-    #[serde(with = "crate::serde::ts_seconds_bound_tuple")]
-    pub time: BoundedDateTimeTuple,
-    pub tags: Option<JsonValue>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct LockedTypes {
-    pub message: bool,
-}
-
-#[derive(Debug, Serialize)]
-struct EventRoomLockedTypesPayload {
-    id: Uuid,
-    locked_types: LockedTypes,
-}
-
 #[async_trait]
 impl EventClient for MqttEventClient {
     async fn read_room(&self, id: Uuid) -> Result<EventRoomResponse, ClientError> {
@@ -385,7 +100,7 @@ impl EventClient for MqttEventClient {
     ) -> Result<Uuid, ClientError> {
         let reqp = self.build_reqp("room.create")?;
 
-        let payload = EventRoomPayload {
+        let payload = EventRoomCreatePayload {
             audience,
             time,
             preserve_history,
@@ -648,76 +363,5 @@ impl EventClient for MqttEventClient {
                 Err(ClientError::Payload(e))
             }
         }
-    }
-}
-
-#[cfg(test)]
-pub mod test_helpers {
-    use super::*;
-    use crate::test_helpers::prelude::*;
-
-    #[derive(Debug, Default)]
-    pub struct EventBuilder {
-        room_id: Option<Uuid>,
-        set: Option<String>,
-        data: Option<EventData>,
-        occurred_at: Option<u64>,
-    }
-
-    impl EventBuilder {
-        pub fn new() -> Self {
-            Default::default()
-        }
-
-        pub fn room_id(self, room_id: Uuid) -> Self {
-            Self {
-                room_id: Some(room_id),
-                ..self
-            }
-        }
-
-        pub fn set(self, set: String) -> Self {
-            Self {
-                set: Some(set),
-                ..self
-            }
-        }
-
-        pub fn data(self, data: EventData) -> Self {
-            Self {
-                data: Some(data),
-                ..self
-            }
-        }
-
-        pub fn occurred_at(self, occurred_at: u64) -> Self {
-            Self {
-                occurred_at: Some(occurred_at),
-                ..self
-            }
-        }
-
-        pub fn build(self) -> Event {
-            let created_by = TestAgent::new("web", "admin", USR_AUDIENCE);
-
-            Event {
-                id: Uuid::new_v4(),
-                room_id: self.room_id.unwrap(),
-                set: self.set.unwrap(),
-                label: None,
-                attribute: None,
-                data: self.data.unwrap(),
-                occurred_at: self.occurred_at.unwrap(),
-                original_occurred_at: self.occurred_at.unwrap(),
-                created_by: created_by.agent_id().to_owned(),
-                created_at: Utc::now(),
-            }
-        }
-    }
-
-    #[test]
-    fn parse_pin_data() {
-        serde_json::from_str::<PinEventData>(r#"{"agent_id": null}"#)
-            .expect("Failed to parse pin data");
     }
 }
