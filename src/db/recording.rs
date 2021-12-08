@@ -9,6 +9,7 @@ use serde_derive::{Deserialize, Serialize};
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#[allow(dead_code)]
 #[derive(Clone, Debug)]
 pub struct Object {
     id: Uuid,

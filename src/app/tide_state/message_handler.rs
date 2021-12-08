@@ -354,6 +354,7 @@ impl MessageHandler {
     }
 }
 
+#[allow(dead_code)]
 #[derive(Deserialize, Debug)]
 pub struct EditionCommit {
     tags: Option<JsonValue>,
@@ -393,6 +394,7 @@ impl EditionCommitResult {
     }
 }
 
+#[allow(dead_code)]
 #[derive(Deserialize, Debug)]
 struct RoomClose {
     id: Uuid,
@@ -424,6 +426,7 @@ enum DumpEventsResult {
     Error { error: JsonValue },
 }
 
+#[allow(dead_code)]
 #[derive(Deserialize, Debug)]
 struct DumpEvents {
     tags: Option<JsonValue>,

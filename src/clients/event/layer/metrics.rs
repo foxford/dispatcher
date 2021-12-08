@@ -78,21 +78,17 @@ impl<S> Layer<S> for MetricsLayer {
 
     fn layer(&self, service: S) -> Self::Service {
         let metrics = self.init_metrics();
-        MetricsMiddleware {
-            metrics,
-            service,
-            service_prefix: self.service_prefix,
-        }
+        MetricsMiddleware { metrics, service }
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct MetricsMiddleware<S> {
-    service_prefix: &'static str,
     service: S,
     metrics: Metrics,
 }
 
+#[allow(clippy::type_complexity)]
 impl<S, Req> Service<Req> for MetricsMiddleware<S>
 where
     Req: MqttRequest,

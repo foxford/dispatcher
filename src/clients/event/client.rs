@@ -33,6 +33,7 @@ pub struct MqttEventClient {
 }
 
 impl MqttEventClient {
+    #[allow(dead_code)]
     pub fn new(
         me: AgentId,
         event_account_id: AccountId,

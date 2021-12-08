@@ -28,6 +28,7 @@ pub struct ToJsonMiddleware<S> {
     service: S,
 }
 
+#[allow(clippy::type_complexity)]
 impl<S, Request> Service<Request> for ToJsonMiddleware<S>
 where
     Request: MqttRequest,

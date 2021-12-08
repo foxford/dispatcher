@@ -1,3 +1,4 @@
+#![allow(clippy::type_complexity)]
 use std::marker::PhantomData;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -142,7 +143,7 @@ impl tower::Service<JsonMqttRequest> for MqttBaseClient {
 
     fn call(&mut self, req: JsonMqttRequest) -> Self::Future {
         match self.build_message(req) {
-            Err(e) => return Box::pin(async move { Err(e) }),
+            Err(e) => Box::pin(async move { Err(e) }),
             Ok(msg) => {
                 let dispatcher = self.dispatcher.clone();
                 Box::pin(async move {
