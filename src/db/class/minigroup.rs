@@ -12,6 +12,7 @@ use super::{ClassType, Object, Time, WrongKind};
 pub struct Minigroup {
     id: Uuid,
     #[serde(skip)]
+    #[allow(dead_code)]
     kind: ClassType,
     scope: String,
     #[serde(with = "super::serde::time")]

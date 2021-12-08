@@ -7,6 +7,7 @@ use uuid::Uuid;
 use crate::db::class::BoundedDateTimeTuple;
 use crate::db::recording::Segments;
 
+#[allow(dead_code)]
 #[derive(Clone, Debug, Deserialize)]
 pub struct Event {
     id: Uuid,

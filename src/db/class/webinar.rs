@@ -13,6 +13,7 @@ use super::{GenericReadQuery, WebinarType};
 pub struct Webinar {
     id: Uuid,
     #[serde(skip)]
+    #[allow(dead_code)]
     kind: ClassType,
     scope: String,
     #[serde(with = "super::serde::time")]

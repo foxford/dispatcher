@@ -39,6 +39,7 @@ pub struct LogMiddleware<S> {
     service: S,
 }
 
+#[allow(clippy::type_complexity)]
 impl<S, Req> Service<Req> for LogMiddleware<S>
 where
     Req: MqttRequest,

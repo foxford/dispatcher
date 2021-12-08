@@ -78,7 +78,7 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
 
         let ready_recordings = recordings
             .iter()
-            .filter_map(|recording| ReadyRecording::from_db_object(recording))
+            .filter_map(ReadyRecording::from_db_object)
             .collect::<Vec<_>>();
         if recordings.len() != ready_recordings.len() {
             return Ok(());
