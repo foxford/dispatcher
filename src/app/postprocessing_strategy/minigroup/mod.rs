@@ -28,7 +28,7 @@ use super::{
     shared_helpers, MjrDumpsUploadReadyData, MjrDumpsUploadResult, TranscodeSuccess, UploadedStream,
 };
 
-const NS_IN_MS: i64 = 1000000;
+const NS_IN_MS: i64 = 1_000_000;
 const PIN_EVENT_TYPE: &str = "pin";
 const HOST_EVENT_TYPE: &str = "host";
 
@@ -420,10 +420,6 @@ fn build_stream(
     recording_offset: Duration,
     configs_changes: &[ConfigSnapshot],
 ) -> anyhow::Result<TranscodeMinigroupToHlsStream> {
-    let event_room_offset = event_room_offset.num_milliseconds();
-    let mut pin_segments = vec![];
-    let mut pin_start = None;
-
     let recording_end = match recording
         .segments
         .last()
@@ -434,32 +430,12 @@ fn build_stream(
         Bound::Unbounded => bail!("Unbounded recording end"),
     };
 
-    for event in pin_events {
-        if let EventData::Pin(data) = event.data() {
-            // Shift from the event room's dimension to the recording's dimension.
-            let occurred_at = event.occurred_at() as i64 / NS_IN_MS - event_room_offset;
-
-            if data
-                .agent_id()
-                .map(|aid| *aid == recording.created_by)
-                .unwrap_or(false)
-                && pin_start.is_none()
-            {
-                // Stream has got pinned.
-                pin_start = Some(occurred_at);
-            } else if let Some(pinned_at) = pin_start {
-                // Stream has got unpinned.
-                pin_segments.push((Bound::Included(pinned_at), Bound::Excluded(occurred_at)));
-                pin_start = None;
-            }
-        }
-    }
-
-    // If the stream hasn't got unpinned since some moment then add a pin segment to the end
-    // of the recording to keep it pinned.
-    if let Some(start) = pin_start {
-        pin_segments.push((Bound::Included(start), Bound::Excluded(recording_end)));
-    }
+    let pin_segments = collect_pin_segments(
+        pin_events,
+        event_room_offset,
+        &recording.created_by,
+        recording_end,
+    );
 
     // We need only changes for the recording that fall into recording span
     let changes = configs_changes.iter().filter(|snapshot| {
@@ -523,6 +499,53 @@ fn build_stream(
         .audio_mute_segments(audio_mute_segments.into());
 
     Ok(v)
+}
+
+fn collect_pin_segments(
+    pin_events: &[Event],
+    event_room_offset: Duration,
+    recording_created_by: &AgentId,
+    recording_end: i64,
+) -> Vec<(Bound<i64>, Bound<i64>)> {
+    let mut pin_segments = vec![];
+    let mut pin_start = None;
+
+    for event in pin_events {
+        if let EventData::Pin(data) = event.data() {
+            // Shift from the event room's dimension to the recording's dimension.
+            let occurred_at =
+                event.occurred_at() as i64 / NS_IN_MS - event_room_offset.num_milliseconds();
+
+            if data
+                .agent_id()
+                .map(|aid| *aid == *recording_created_by)
+                .unwrap_or(false)
+            {
+                // Stream was pinned.
+                // Its possible that teacher pins someone twice in a row
+                // Do nothing in that case
+                if pin_start.is_none() {
+                    pin_start = Some(occurred_at);
+                }
+            } else if let Some(pinned_at) = pin_start {
+                // stream was unpinned
+                // its possible that pinned_at equals unpin's occurred_at after adjust
+                // we skip segments like that
+                if occurred_at > pinned_at {
+                    pin_segments.push((Bound::Included(pinned_at), Bound::Excluded(occurred_at)));
+                }
+                pin_start = None;
+            }
+        }
+    }
+
+    // If the stream hasn't got unpinned since some moment then add a pin segment to the end
+    // of the recording to keep it pinned.
+    if let Some(start) = pin_start {
+        pin_segments.push((Bound::Included(start), Bound::Excluded(recording_end)));
+    }
+
+    pin_segments
 }
 
 #[derive(Debug)]
