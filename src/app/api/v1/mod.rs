@@ -87,6 +87,21 @@ pub async fn find_class(
     Ok(webinar)
 }
 
+async fn find_class_by_scope(
+    state: &dyn AppContext,
+    audience: &str,
+    scope: &str,
+) -> anyhow::Result<crate::db::class::Object> {
+    let webinar = {
+        let mut conn = state.get_conn().await?;
+        crate::db::class::ReadQuery::by_scope(audience, scope)
+            .execute(&mut conn)
+            .await?
+            .ok_or_else(|| anyhow!("Failed to find class by scope"))?
+    };
+    Ok(webinar)
+}
+
 #[derive(Deserialize)]
 pub struct RedirQuery {
     pub scope: String,

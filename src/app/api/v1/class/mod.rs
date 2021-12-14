@@ -1,7 +1,8 @@
 use crate::db::class;
 
-use super::{find, find_by_scope, validate_token, AppResult};
+use super::{find, find_by_scope, find_class_by_scope, validate_token, AppResult};
 
+pub use commit_edition::commit_edition;
 pub use read::{read, read_by_scope};
 pub use recreate::recreate;
 use serde::Serialize;
@@ -9,6 +10,7 @@ use serde_json::Value;
 pub use update::{update, update_by_scope};
 use uuid::Uuid;
 
+mod commit_edition;
 mod read;
 mod recreate;
 mod update;
