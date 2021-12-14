@@ -211,6 +211,20 @@ impl MqttRequest for EventAdjustPayload {
 }
 
 #[derive(Clone, Debug, Serialize)]
+pub struct EventCommitPayload {
+    pub id: Uuid,
+    pub offset: i64,
+}
+
+impl MqttRequest for EventCommitPayload {
+    type Response = EmptyResponse;
+
+    fn method(&self) -> &'static str {
+        "edition.commit"
+    }
+}
+
+#[derive(Clone, Debug, Serialize)]
 pub struct EventDumpEventsPayload {
     pub id: Uuid,
 }

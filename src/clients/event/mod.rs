@@ -46,6 +46,8 @@ pub trait EventClient: Sync + Send {
         offset: i64,
     ) -> Result<(), ClientError>;
 
+    async fn commit_edition(&self, edition_id: Uuid, offset: i64) -> Result<(), ClientError>;
+
     async fn create_event(&self, payload: JsonValue) -> Result<(), ClientError>;
     async fn list_events(&self, room_id: Uuid, kind: &str) -> Result<Vec<Event>, ClientError>;
     async fn dump_room(&self, event_room_id: Uuid) -> Result<(), ClientError>;

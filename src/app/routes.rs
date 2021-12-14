@@ -5,7 +5,9 @@ use axum::routing::{get, options, post};
 use axum::AddExtensionLayer;
 
 use super::api::v1::authz::proxy as proxy_authz;
-use super::api::v1::class::{read, read_by_scope, recreate, update, update_by_scope};
+use super::api::v1::class::{
+    commit_edition, read, read_by_scope, recreate, update, update_by_scope,
+};
 use super::api::v1::minigroup::{create as create_minigroup, download as download_minigroup};
 use super::api::v1::p2p::{convert as convert_p2p, create as create_p2p};
 use super::api::v1::webinar::{
@@ -25,11 +27,12 @@ use crate::app::AppContext;
 use crate::db::class::{MinigroupType, P2PType, WebinarType};
 
 pub fn router(ctx: Arc<dyn AppContext>) -> Router {
-    let router = redirects_router();
-    let router = router.merge(webinars_router());
-    let router = router.merge(p2p_router());
-    let router = router.merge(minigroups_router());
-    let router = router.merge(authz_router());
+    let router = redirects_router()
+        .merge(webinars_router())
+        .merge(p2p_router())
+        .merge(minigroups_router())
+        .merge(authz_router())
+        .merge(utils_router());
 
     router
         .layer(AddExtensionLayer::new(ctx))
@@ -115,4 +118,11 @@ fn minigroups_router() -> Router {
 
 fn authz_router() -> Router {
     Router::new().metered_route("/api/v1/authz/:audience", post(proxy_authz))
+}
+
+fn utils_router() -> Router {
+    Router::new().metered_route(
+        "/api/v1/audiences/:audience/classes/:scope/editions/:id",
+        post(commit_edition),
+    )
 }

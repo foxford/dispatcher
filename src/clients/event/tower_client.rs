@@ -21,6 +21,7 @@ struct TowerClientInner {
     update_room: MqttClient<EventRoomUpdatePayload>,
     update_locked_types: MqttClient<EventRoomLockedTypesPayload>,
     adjust_room: MqttClient<EventAdjustPayload>,
+    commit_edition: MqttClient<EventCommitPayload>,
     create_event: MqttClient<EventCreateEventPayload>,
     list_events: MqttClient<EventListPayload>,
     dump_events: MqttClient<EventDumpEventsPayload>,
@@ -34,6 +35,7 @@ impl TowerClientInner {
             update_room: MqttClient::new(timeout, svc.clone()),
             update_locked_types: MqttClient::new(timeout, svc.clone()),
             adjust_room: MqttClient::new(timeout, svc.clone()),
+            commit_edition: MqttClient::new(timeout, svc.clone()),
             create_event: MqttClient::new(timeout, svc.clone()),
             list_events: MqttClient::new(timeout, svc.clone()),
             dump_events: MqttClient::new(timeout, svc),
@@ -68,6 +70,10 @@ impl TowerClientInner {
 
     async fn adjust_room(&self, payload: EventAdjustPayload) -> Result<(), ClientError> {
         self.adjust_room.clone().call(payload).await.map(|_v| ())
+    }
+
+    async fn commit_edition(&self, payload: EventCommitPayload) -> Result<(), ClientError> {
+        self.commit_edition.clone().call(payload).await.map(|_v| ())
     }
 
     async fn create_event(&self, payload: EventCreateEventPayload) -> Result<(), ClientError> {
@@ -163,6 +169,15 @@ impl EventClient for TowerClient {
                 id: event_room_id,
                 started_at,
                 segments,
+                offset,
+            })
+            .await
+    }
+
+    async fn commit_edition(&self, edition_id: Uuid, offset: i64) -> Result<(), ClientError> {
+        self.inner
+            .commit_edition(EventCommitPayload {
+                id: edition_id,
                 offset,
             })
             .await
