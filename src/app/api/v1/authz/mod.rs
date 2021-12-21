@@ -45,6 +45,8 @@ struct Object {
     value: Vec<String>,
 }
 
+type Finder = Box<dyn FnOnce(&str) -> Result<AuthzReadQuery, anyhow::Error> + Send>;
+
 pub async fn proxy(
     Extension(ctx): Extension<Arc<dyn AppContext>>,
     Path(request_audience): Path<String>,
@@ -54,7 +56,9 @@ pub async fn proxy(
     let account_id =
         validate_token(ctx.as_ref(), token.token()).error(AppErrorKind::Unauthorized)?;
 
-    let q = validate_client(&account_id, ctx.as_ref())?;
+    validate_client(&account_id, ctx.as_ref())?;
+
+    let q = make_finder(&account_id, request_audience.clone())?;
 
     info!("Authz proxy: raw request {:?}", authz_req);
     let old_action = authz_req.action.clone();
@@ -74,23 +78,28 @@ pub async fn proxy(
 
 const BUCKETS: [&str; 4] = ["hls.", "origin.", "ms.", "meta."];
 
-fn validate_client(
-    account_id: &AccountId,
-    state: &dyn AppContext,
-) -> Result<impl Fn(&str) -> Result<AuthzReadQuery, anyhow::Error>, AppError> {
+fn validate_client(account_id: &AccountId, state: &dyn AppContext) -> Result<(), AppError> {
     let audience = state.agent_id().as_account_id().audience().to_owned();
-
     let account_audience = account_id.audience().split(':').next().unwrap();
+
+    if account_audience != audience {
+        Err(anyhow!("Not allowed")).error(AppErrorKind::Unauthorized)?;
+    }
+
+    Ok(())
+}
+
+fn make_finder(account_id: &AccountId, request_audience: String) -> Result<Finder, AppError> {
     let q = match account_id.label() {
-        "event" if account_audience == audience => |id: &str| {
+        "event" => Box::new(|id: &str| {
             let id = Uuid::from_str(id)?;
             Ok(AuthzReadQuery::by_event(id))
-        },
-        "conference" if account_audience == audience => |id: &str| {
+        }) as Finder,
+        "conference" => Box::new(|id: &str| {
             let id = Uuid::from_str(id)?;
             Ok(AuthzReadQuery::by_conference(id))
-        },
-        "storage" if account_audience == audience => |id: &str| {
+        }) as Finder,
+        "storage" => Box::new(|id: &str| {
             if id.starts_with("content.") {
                 match extract_audience_and_scope(id) {
                     Some(AudienceScope { audience, scope }) => {
@@ -125,8 +134,12 @@ fn validate_client(
             } else {
                 Err(anyhow!("Access to bucket {:?} isnt proxied", id))
             }
-        },
-        _ => Err(anyhow!("Not allowed")).error(AppErrorKind::Unauthorized)?,
+        }) as Finder,
+        "nats-gatekeeper" => {
+            Box::new(|id: &str| Ok(AuthzReadQuery::by_scope(request_audience, id.to_string())))
+                as Finder
+        }
+        _ => Err(anyhow!("No finder")).error(AppErrorKind::Unauthorized)?,
     };
 
     Ok(q)
@@ -189,6 +202,7 @@ fn transform_authz_request(authz_req: &mut AuthzRequest, account_id: &AccountId)
         "event" => transform_event_authz_request(authz_req),
         "conference" => transform_conference_authz_request(authz_req),
         "storage" => transform_storage_authz_request(authz_req),
+        "nats-gatekeeper" => transform_nats_gatekeeper_authz_request(authz_req),
         _ => {}
     }
 }
@@ -300,10 +314,29 @@ fn transform_storage_authz_request(authz_req: &mut AuthzRequest) {
     }
 }
 
+fn transform_nats_gatekeeper_authz_request(authz_req: &mut AuthzRequest) {
+    let act = &mut authz_req.action;
+
+    // only transform scopes/* objects
+    if authz_req.object.value.get(0).map(|s| s.as_ref()) != Some("scopes") {
+        return;
+    }
+
+    // ["scopes", SCOPE, "nats"]::connect       => ["scopes", SCOPE]::read
+    match authz_req.object.value.get_mut(0..) {
+        None => {}
+        Some([_scopes, _scope, v]) if act == "connect" && v == "nats" => {
+            *act = "read".into();
+            authz_req.object.value.truncate(2);
+        }
+        Some(_) => {}
+    }
+}
+
 async fn substitute_class(
     authz_req: &mut AuthzRequest,
     state: &dyn AppContext,
-    q: impl Fn(&str) -> Result<AuthzReadQuery, anyhow::Error>,
+    q: impl FnOnce(&str) -> Result<AuthzReadQuery, anyhow::Error>,
 ) -> Result<(), AppError> {
     match authz_req.object.value.get_mut(0..2) {
         Some([ref mut obj, ref mut set_id]) if obj == "sets" => {
@@ -367,6 +400,35 @@ async fn substitute_class(
         Some([obj, ..]) if obj == "classrooms" => {
             authz_req.object.namespace = state.agent_id().as_account_id().to_string();
             Ok(())
+        }
+        Some([ref mut obj, ref mut scope]) if obj == "scopes" => {
+            let query = match q(scope) {
+                Ok(query) => query,
+                Err(_e) => {
+                    return Ok(());
+                }
+            };
+
+            let mut conn = state
+                .get_conn()
+                .await
+                .error(AppErrorKind::DbConnAcquisitionFailed)?;
+
+            match query
+                .execute(&mut conn)
+                .await
+                .context("Failed to find classroom")
+                .error(AppErrorKind::DbQueryFailed)?
+            {
+                None => Ok(()),
+                Some(AuthzClass { id }) => {
+                    *obj = "classrooms".into();
+                    *scope = id;
+                    authz_req.object.namespace = state.agent_id().as_account_id().to_string();
+
+                    Ok(())
+                }
+            }
         }
         _ => Ok(()),
     }
