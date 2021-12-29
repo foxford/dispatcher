@@ -17,6 +17,7 @@ mod update;
 
 #[derive(Serialize)]
 struct ClassResponseBody {
+    class_id: Uuid,
     id: String,
     real_time: RealTimeObject,
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -43,6 +44,7 @@ impl ClassResponseBody {
 impl From<&class::Object> for ClassResponseBody {
     fn from(obj: &class::Object) -> Self {
         Self {
+            class_id: obj.id(),
             id: obj.scope().to_owned(),
             real_time: RealTimeObject {
                 conference_room_id: obj.conference_room_id(),

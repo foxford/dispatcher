@@ -49,6 +49,7 @@ Response:
 
 Attribute              | Type        | Optional | Description
 ---------------------- | ----------- | -------- | ---------------------------------------------------------
+class_id               | uuid        |          | Webinar id
 id                     | string      |          | Minigroup scope
 real_time              | json object | +        | `event_room_id`, `conference_room_id` and `host` fields
 
