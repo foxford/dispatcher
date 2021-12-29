@@ -2,17 +2,18 @@ use std::ops::Bound;
 use std::sync::Arc;
 
 use anyhow::Context;
-use axum::extract::{Extension, Json, Path, TypedHeader};
+use axum::extract::{Extension, Json, Path};
 use chrono::Utc;
-use headers::{authorization::Bearer, Authorization};
 use hyper::{Body, Response};
 use serde_derive::Deserialize;
 use sqlx::Acquire;
+use svc_agent::Authenticable;
 use svc_authn::AccountId;
+use svc_utils::extractors::AuthnExtractor;
 use tracing::error;
 use uuid::Uuid;
 
-use super::{find, validate_token, AppResult};
+use super::{find, AppResult};
 use crate::app::error::ErrorExt;
 use crate::app::error::ErrorKind as AppErrorKind;
 use crate::app::AppContext;
@@ -34,13 +35,10 @@ pub struct ClassRecreatePayload {
 pub async fn recreate<T: AsClassType>(
     Extension(ctx): Extension<Arc<dyn AppContext>>,
     Path(id): Path<Uuid>,
-    TypedHeader(Authorization(token)): TypedHeader<Authorization<Bearer>>,
+    AuthnExtractor(agent_id): AuthnExtractor,
     Json(body): Json<ClassRecreatePayload>,
 ) -> AppResult {
-    let account_id =
-        validate_token(ctx.as_ref(), token.token()).error(AppErrorKind::Unauthorized)?;
-
-    do_recreate::<T>(ctx.as_ref(), &account_id, id, body).await
+    do_recreate::<T>(ctx.as_ref(), agent_id.as_account_id(), id, body).await
 }
 
 async fn do_recreate<T: AsClassType>(

@@ -2,13 +2,14 @@ use std::ops::Bound;
 use std::sync::Arc;
 
 use anyhow::Context;
-use axum::extract::{Extension, Json, TypedHeader};
+use axum::extract::{Extension, Json};
 use chrono::{DateTime, Utc};
-use headers::{authorization::Bearer, Authorization};
 use hyper::{Body, Response};
 use serde_derive::Deserialize;
 use sqlx::Acquire;
 use svc_agent::AccountId;
+use svc_agent::Authenticable;
+use svc_utils::extractors::AuthnExtractor;
 use uuid::Uuid;
 
 use crate::app::error::ErrorExt;
@@ -19,7 +20,7 @@ use crate::clients::{conference::ConferenceRoomResponse, event::EventRoomRespons
 use crate::db::class::BoundedDateTimeTuple;
 use crate::db::recording::Segments;
 
-use super::{validate_token, AppResult};
+use super::AppResult;
 
 #[derive(Deserialize)]
 pub struct WebinarConvertObject {
@@ -47,12 +48,10 @@ struct RecordingConvertObject {
 
 pub async fn convert(
     Extension(ctx): Extension<Arc<dyn AppContext>>,
-    TypedHeader(Authorization(token)): TypedHeader<Authorization<Bearer>>,
+    AuthnExtractor(agent_id): AuthnExtractor,
     Json(payload): Json<WebinarConvertObject>,
 ) -> AppResult {
-    let account_id =
-        validate_token(ctx.as_ref(), token.token()).error(AppErrorKind::Unauthorized)?;
-    do_convert(ctx.as_ref(), &account_id, payload).await
+    do_convert(ctx.as_ref(), agent_id.as_account_id(), payload).await
 }
 async fn do_convert(
     state: &dyn AppContext,

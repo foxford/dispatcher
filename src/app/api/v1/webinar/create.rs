@@ -2,12 +2,13 @@ use std::ops::Bound;
 use std::sync::Arc;
 
 use anyhow::Context;
-use axum::extract::{Extension, Json, TypedHeader};
+use axum::extract::{Extension, Json};
 use chrono::Utc;
-use headers::{authorization::Bearer, Authorization};
 use hyper::{Body, Response};
 use serde_derive::Deserialize;
 use svc_agent::AccountId;
+use svc_agent::Authenticable;
+use svc_utils::extractors::AuthnExtractor;
 use tracing::error;
 
 use crate::app::error::ErrorExt;
@@ -16,7 +17,7 @@ use crate::app::AppContext;
 use crate::app::{authz::AuthzObject, metrics::AuthorizeMetrics};
 use crate::db::class::{self, BoundedDateTimeTuple};
 
-use super::{validate_token, AppResult};
+use super::AppResult;
 
 #[derive(Deserialize)]
 pub struct WebinarCreatePayload {
@@ -32,13 +33,10 @@ pub struct WebinarCreatePayload {
 
 pub async fn create(
     ctx: Extension<Arc<dyn AppContext>>,
-    TypedHeader(Authorization(token)): TypedHeader<Authorization<Bearer>>,
+    AuthnExtractor(agent_id): AuthnExtractor,
     Json(payload): Json<WebinarCreatePayload>,
 ) -> AppResult {
-    let account_id =
-        validate_token(ctx.0.as_ref(), token.token()).error(AppErrorKind::Unauthorized)?;
-
-    do_create(ctx.as_ref(), &account_id, payload).await
+    do_create(ctx.as_ref(), agent_id.as_account_id(), payload).await
 }
 
 async fn do_create(

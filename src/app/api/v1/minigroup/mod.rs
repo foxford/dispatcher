@@ -2,12 +2,13 @@ use std::ops::Bound;
 use std::sync::Arc;
 
 use anyhow::Context;
-use axum::extract::{Extension, Json, TypedHeader};
+use axum::extract::{Extension, Json};
 use chrono::Utc;
-use headers::{authorization::Bearer, Authorization};
 use hyper::{Body, Response};
 use serde_derive::Deserialize;
 use svc_agent::AccountId;
+use svc_agent::Authenticable;
+use svc_utils::extractors::AuthnExtractor;
 use tracing::error;
 
 use crate::app::authz::AuthzObject;
@@ -17,7 +18,7 @@ use crate::app::metrics::AuthorizeMetrics;
 use crate::app::AppContext;
 use crate::db::class::{self, BoundedDateTimeTuple};
 
-use super::{validate_token, AppResult};
+use super::AppResult;
 
 #[derive(Deserialize)]
 pub struct MinigroupCreatePayload {
@@ -33,12 +34,10 @@ pub struct MinigroupCreatePayload {
 
 pub async fn create(
     Extension(ctx): Extension<Arc<dyn AppContext>>,
-    TypedHeader(Authorization(token)): TypedHeader<Authorization<Bearer>>,
+    AuthnExtractor(agent_id): AuthnExtractor,
     Json(body): Json<MinigroupCreatePayload>,
 ) -> AppResult {
-    let account_id =
-        validate_token(ctx.as_ref(), token.token()).error(AppErrorKind::Unauthorized)?;
-    do_create(ctx.as_ref(), &account_id, body).await
+    do_create(ctx.as_ref(), agent_id.as_account_id(), body).await
 }
 
 async fn do_create(

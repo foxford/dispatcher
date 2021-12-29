@@ -1,13 +1,12 @@
 use std::sync::Arc;
 
-use anyhow::Context;
-use axum::extract::{Extension, Json, Path, Query, TypedHeader};
-use headers::{authorization::Bearer, Authorization};
+use axum::extract::{Extension, Json, Path, Query};
 use hyper::{Body, Request, Response};
 use percent_encoding::{percent_encode, NON_ALPHANUMERIC};
 use serde_derive::Deserialize;
 use serde_json::Value as JsonValue;
-use svc_agent::AccountId;
+use svc_agent::Authenticable;
+use svc_utils::extractors::AuthnExtractor;
 use tracing::error;
 use url::Url;
 use uuid::Uuid;
@@ -30,11 +29,10 @@ pub async fn healthz() -> &'static str {
 pub async fn create_event(
     Extension(ctx): Extension<Arc<dyn AppContext>>,
     Path(id): Path<Uuid>,
-    TypedHeader(Authorization(token)): TypedHeader<Authorization<Bearer>>,
+    AuthnExtractor(agent_id): AuthnExtractor,
     Json(mut payload): Json<JsonValue>,
 ) -> AppResult {
-    let account_id =
-        validate_token(ctx.as_ref(), token.token()).error(AppErrorKind::Unauthorized)?;
+    let account_id = agent_id.as_account_id();
 
     let class = find_class(ctx.as_ref(), id)
         .await
@@ -167,17 +165,6 @@ pub async fn redirect_to_frontend(
         .unwrap();
 
     Ok(response)
-}
-
-fn validate_token<T: std::ops::Deref<Target = dyn AppContext>>(
-    ctx: T,
-    token: &str,
-) -> anyhow::Result<AccountId> {
-    let account_id = ctx
-        .validate_token(token)
-        .context("Token authentication failed")?;
-
-    Ok(account_id)
 }
 
 async fn find<T: AsClassType>(

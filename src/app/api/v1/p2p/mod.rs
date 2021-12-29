@@ -2,12 +2,13 @@ use std::ops::Bound;
 use std::sync::Arc;
 
 use anyhow::Context;
-use axum::extract::{Extension, Json, TypedHeader};
+use axum::extract::{Extension, Json};
 use chrono::Utc;
-use headers::{authorization::Bearer, Authorization};
 use hyper::{Body, Response};
 use serde_derive::Deserialize;
 use svc_agent::AccountId;
+use svc_agent::Authenticable;
+use svc_utils::extractors::AuthnExtractor;
 use tracing::{error, info, instrument};
 use uuid::Uuid;
 
@@ -18,7 +19,7 @@ use crate::app::metrics::AuthorizeMetrics;
 use crate::app::AppContext;
 use crate::db::class;
 
-use super::{validate_token, AppResult};
+use super::AppResult;
 
 #[derive(Deserialize)]
 pub struct P2P {
@@ -38,13 +39,10 @@ pub struct P2P {
 )]
 pub async fn create(
     Extension(ctx): Extension<Arc<dyn AppContext>>,
-    TypedHeader(Authorization(token)): TypedHeader<Authorization<Bearer>>,
+    AuthnExtractor(agent_id): AuthnExtractor,
     Json(body): Json<P2P>,
 ) -> AppResult {
-    let account_id =
-        validate_token(ctx.as_ref(), token.token()).error(AppErrorKind::Unauthorized)?;
-
-    do_create(ctx.as_ref(), &account_id, body).await
+    do_create(ctx.as_ref(), agent_id.as_account_id(), body).await
 }
 
 async fn do_create(state: &dyn AppContext, account_id: &AccountId, body: P2P) -> AppResult {
@@ -159,11 +157,10 @@ pub struct P2PConvertObject {
 
 pub async fn convert(
     Extension(ctx): Extension<Arc<dyn AppContext>>,
-    TypedHeader(Authorization(token)): TypedHeader<Authorization<Bearer>>,
+    AuthnExtractor(agent_id): AuthnExtractor,
     Json(body): Json<P2PConvertObject>,
 ) -> AppResult {
-    let account_id =
-        validate_token(ctx.as_ref(), token.token()).error(AppErrorKind::Unauthorized)?;
+    let account_id = agent_id.as_account_id();
 
     let object = AuthzObject::new(&["classrooms"]).into();
 

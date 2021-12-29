@@ -7,8 +7,6 @@ use sqlx::postgres::{PgPool, Postgres};
 use svc_agent::error::Error as AgentError;
 use svc_agent::mqtt::{Agent, IntoPublishableMessage};
 use svc_agent::AgentId;
-use svc_authn::token::jws_compact::extract::decode_jws_compact_with_config;
-use svc_authn::{AccountId, Error};
 use svc_authz::ClientMap as Authz;
 use url::Url;
 
@@ -22,7 +20,6 @@ use crate::config::StorageConfig;
 pub trait AppContext: Sync + Send {
     async fn get_conn(&self) -> Result<PoolConnection<Postgres>>;
     fn default_frontend_base(&self) -> Url;
-    fn validate_token(&self, token: &str) -> Result<AccountId, Error>;
     fn agent_id(&self) -> &AgentId;
     fn publisher(&self) -> &dyn Publisher;
     fn conference_client(&self) -> &dyn ConferenceClient;
@@ -32,10 +29,8 @@ pub trait AppContext: Sync + Send {
     fn storage_config(&self) -> &StorageConfig;
     fn config(&self) -> &Config;
     fn agent(&self) -> Option<&Agent>;
-}
 
-impl dyn AppContext {
-    pub fn get_preroll_offset(&self, audience: &str) -> i64 {
+    fn get_preroll_offset(&self, audience: &str) -> i64 {
         self.config()
             .tq_client
             .audience_settings
@@ -99,15 +94,6 @@ impl AppContext for TideState {
 
     fn default_frontend_base(&self) -> Url {
         self.config.default_frontend_base.clone()
-    }
-
-    fn validate_token(&self, token: &str) -> Result<AccountId, Error> {
-        let token = token.replace("Bearer ", "");
-
-        let claims = decode_jws_compact_with_config::<String>(&token, &self.config.authn)?.claims;
-        let account = AccountId::new(claims.subject(), claims.audience());
-
-        Ok(account)
     }
 
     fn agent_id(&self) -> &AgentId {

@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::result::Result as StdResult;
 use std::sync::{Arc, Mutex};
 
 use anyhow::Result;
@@ -10,9 +9,8 @@ use sqlx::postgres::Postgres;
 use svc_agent::error::Error as AgentError;
 use svc_agent::{
     mqtt::{Address, IntoPublishableMessage},
-    AccountId, AgentId,
+    AgentId,
 };
-use svc_authn::{token::jws_compact::extract::parse_jws_compact, Error as AuthnError};
 use svc_authz::ClientMap as Authz;
 use url::Url;
 
@@ -177,14 +175,6 @@ impl AppContext for TestState {
 
     fn default_frontend_base(&self) -> Url {
         self.config.default_frontend_base.clone()
-    }
-
-    fn validate_token(&self, token: &str) -> StdResult<AccountId, AuthnError> {
-        let token = token.replace("Bearer ", "");
-
-        // Parse but skip key verification.
-        let claims = parse_jws_compact::<String>(&token)?.claims;
-        Ok(AccountId::new(claims.subject(), claims.audience()))
     }
 
     fn agent_id(&self) -> &AgentId {

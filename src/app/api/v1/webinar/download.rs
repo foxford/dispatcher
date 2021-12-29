@@ -1,6 +1,7 @@
-use axum::extract::{Extension, Path, TypedHeader};
-use headers::{authorization::Bearer, Authorization};
+use axum::extract::{Extension, Path};
 use hyper::{Body, Response};
+use svc_agent::Authenticable;
+use svc_utils::extractors::AuthnExtractor;
 use uuid::Uuid;
 
 use super::*;
@@ -12,10 +13,9 @@ use crate::{app::metrics::AuthorizeMetrics, config::StorageConfig};
 pub async fn download(
     Extension(ctx): Extension<Arc<dyn AppContext>>,
     Path(id): Path<Uuid>,
-    TypedHeader(Authorization(token)): TypedHeader<Authorization<Bearer>>,
+    AuthnExtractor(agent_id): AuthnExtractor,
 ) -> AppResult {
-    let account_id =
-        validate_token(ctx.as_ref(), token.token()).error(AppErrorKind::Unauthorized)?;
+    let account_id = agent_id.as_account_id();
 
     let webinar = find::<WebinarType>(ctx.as_ref(), id)
         .await

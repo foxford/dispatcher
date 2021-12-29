@@ -1,6 +1,6 @@
 use crate::db::class;
 
-use super::{find, find_by_scope, find_class_by_scope, validate_token, AppResult};
+use super::{find, find_by_scope, find_class_by_scope, AppResult};
 
 pub use commit_edition::commit_edition;
 pub use read::{read, read_by_scope};
