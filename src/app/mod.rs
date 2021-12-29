@@ -125,7 +125,7 @@ pub async fn run(db: PgPool, authz_cache: Option<Box<dyn AuthzCache>>) -> Result
     let metrics_server =
         svc_utils::metrics::MetricsServer::new(config.http.metrics_listener_address);
 
-    let router = routes::router(state);
+    let router = http::router(state, config.authn.clone());
 
     let app_future = axum::Server::bind(&config.http.listener_address.parse().unwrap())
         .serve(router.into_make_service());
@@ -246,10 +246,9 @@ fn build_tq_client(config: &Config, token: &str) -> Arc<dyn TqClient> {
 mod api;
 mod authz;
 mod error;
+mod http;
 mod info;
 mod metrics;
-mod middleware;
 mod postprocessing_strategy;
-mod routes;
 mod services;
 mod tide_state;

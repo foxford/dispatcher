@@ -2,12 +2,12 @@ use std::sync::Arc;
 use std::{str::FromStr, time::Duration};
 
 use anyhow::Context;
-use axum::extract::{Extension, Json, Path, TypedHeader};
-use headers::{authorization::Bearer, Authorization};
+use axum::extract::{Extension, Json, Path};
 use hyper::{Body, Response};
 use serde_derive::{Deserialize, Serialize};
 use serde_json::json;
 use svc_authn::{AccountId, Authenticable};
+use svc_utils::extractors::AuthnExtractor;
 use tracing::info;
 use uuid::Uuid;
 
@@ -17,7 +17,7 @@ use crate::{app::error::ErrorKind as AppErrorKind, utils::single_retry};
 
 use crate::db::authz::{AuthzClass, AuthzReadQuery};
 
-use super::{validate_token, AppError, AppResult};
+use super::{AppError, AppResult};
 
 #[derive(Deserialize, Debug, Serialize)]
 pub struct AuthzRequest {
@@ -50,20 +50,19 @@ type Finder = Box<dyn FnOnce(&str) -> Result<AuthzReadQuery, anyhow::Error> + Se
 pub async fn proxy(
     Extension(ctx): Extension<Arc<dyn AppContext>>,
     Path(request_audience): Path<String>,
-    TypedHeader(Authorization(token)): TypedHeader<Authorization<Bearer>>,
+    AuthnExtractor(agent_id): AuthnExtractor,
     Json(mut authz_req): Json<AuthzRequest>,
 ) -> AppResult {
-    let account_id =
-        validate_token(ctx.as_ref(), token.token()).error(AppErrorKind::Unauthorized)?;
+    let account_id = agent_id.as_account_id();
 
-    validate_client(&account_id, ctx.as_ref())?;
+    validate_client(account_id, ctx.as_ref())?;
 
-    let q = make_finder(&account_id, request_audience.clone())?;
+    let q = make_finder(account_id, request_audience.clone())?;
 
     info!("Authz proxy: raw request {:?}", authz_req);
     let old_action = authz_req.action.clone();
 
-    transform_authz_request(&mut authz_req, &account_id);
+    transform_authz_request(&mut authz_req, account_id);
 
     substitute_class(&mut authz_req, ctx.as_ref(), q).await?;
 

@@ -1,11 +1,12 @@
 use std::sync::Arc;
 
 use anyhow::Context;
-use axum::extract::{Extension, Path, TypedHeader};
+use axum::extract::{Extension, Path};
 use chrono::Utc;
-use headers::{authorization::Bearer, Authorization};
 use hyper::{Body, Response};
+use svc_agent::Authenticable;
 use svc_authn::AccountId;
+use svc_utils::extractors::AuthnExtractor;
 use tracing::error;
 use uuid::Uuid;
 
@@ -19,12 +20,9 @@ use crate::db::class::{AsClassType, Object as Class};
 pub async fn read<T: AsClassType>(
     ctx: Extension<Arc<dyn AppContext>>,
     Path(id): Path<Uuid>,
-    TypedHeader(Authorization(token)): TypedHeader<Authorization<Bearer>>,
+    AuthnExtractor(agent_id): AuthnExtractor,
 ) -> AppResult {
-    let account_id =
-        validate_token(ctx.0.as_ref(), token.token()).error(AppErrorKind::Unauthorized)?;
-
-    do_read::<T>(ctx.0.as_ref(), &account_id, id).await
+    do_read::<T>(ctx.0.as_ref(), agent_id.as_account_id(), id).await
 }
 
 async fn do_read<T: AsClassType>(
@@ -42,12 +40,9 @@ async fn do_read<T: AsClassType>(
 pub async fn read_by_scope<T: AsClassType>(
     ctx: Extension<Arc<dyn AppContext>>,
     Path((audience, scope)): Path<(String, String)>,
-    TypedHeader(token): TypedHeader<Authorization<Bearer>>,
+    AuthnExtractor(agent_id): AuthnExtractor,
 ) -> AppResult {
-    let account_id =
-        validate_token(ctx.0.as_ref(), token.0.token()).error(AppErrorKind::Unauthorized)?;
-
-    do_read_by_scope::<T>(ctx.0.as_ref(), &account_id, &audience, &scope).await
+    do_read_by_scope::<T>(ctx.0.as_ref(), agent_id.as_account_id(), &audience, &scope).await
 }
 
 async fn do_read_by_scope<T: AsClassType>(

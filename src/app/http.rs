@@ -3,6 +3,7 @@ use std::sync::Arc;
 use axum::routing::Router;
 use axum::routing::{get, options, post};
 use axum::AddExtensionLayer;
+use svc_utils::middleware::{CorsLayer, LogLayer, MeteredRoute};
 
 use super::api::v1::authz::proxy as proxy_authz;
 use super::api::v1::class::{
@@ -20,13 +21,10 @@ use super::api::{
 };
 use super::info::{list_frontends, list_scopes};
 
-use super::middleware::CorsMiddlewareLayer;
-
-use crate::app::metrics::MeteredRoute;
 use crate::app::AppContext;
 use crate::db::class::{MinigroupType, P2PType, WebinarType};
 
-pub fn router(ctx: Arc<dyn AppContext>) -> Router {
+pub fn router(ctx: Arc<dyn AppContext>, authn: svc_authn::jose::ConfigMap) -> Router {
     let router = redirects_router()
         .merge(webinars_router())
         .merge(p2p_router())
@@ -35,8 +33,9 @@ pub fn router(ctx: Arc<dyn AppContext>) -> Router {
         .merge(utils_router());
 
     router
+        .layer(AddExtensionLayer::new(Arc::new(authn)))
         .layer(AddExtensionLayer::new(ctx))
-        .layer(svc_utils::middleware::LogLayer::new())
+        .layer(LogLayer::new())
 }
 
 fn redirects_router() -> Router {
@@ -65,7 +64,7 @@ fn webinars_router() -> Router {
             "/api/v1/audiences/:audience/webinars/:scope",
             options(read_options).get(read_by_scope::<WebinarType>),
         )
-        .layer(CorsMiddlewareLayer)
+        .layer(CorsLayer)
         .metered_route("/api/v1/webinars", post(create_webinar))
         .metered_route("/api/v1/webinars/convert", post(convert_webinar))
         .metered_route("/api/v1/webinars/:id/download", get(download_webinar))
@@ -86,7 +85,7 @@ fn p2p_router() -> Router {
             "/api/v1/audiences/:audience/p2p/:scope",
             options(read_options).get(read_by_scope::<P2PType>),
         )
-        .layer(CorsMiddlewareLayer)
+        .layer(CorsLayer)
         .metered_route("/api/v1/p2p", post(create_p2p))
         .metered_route("/api/v1/p2p/convert", post(convert_p2p))
         .metered_route("/api/v1/p2p/:id/events", post(create_event))
@@ -106,7 +105,7 @@ fn minigroups_router() -> Router {
                 .get(read_by_scope::<MinigroupType>)
                 .put(update_by_scope::<MinigroupType>),
         )
-        .layer(CorsMiddlewareLayer)
+        .layer(CorsLayer)
         .metered_route(
             "/api/v1/minigroups/:id/recreate",
             post(recreate::<MinigroupType>),

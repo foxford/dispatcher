@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
-use axum::extract::{Extension, Path, Query, TypedHeader};
-use headers::{authorization::Bearer, Authorization};
+use axum::extract::{Extension, Path, Query};
 use http::Uri;
 use hyper::{Body, Request, Response};
 use percent_encoding::{percent_encode, NON_ALPHANUMERIC};
@@ -12,6 +11,7 @@ use svc_agent::{
     },
     Authenticable,
 };
+use svc_utils::extractors::AuthnExtractor;
 use tracing::error;
 use url::Url;
 
@@ -93,77 +93,64 @@ pub async fn redirect_to_frontend(
 pub async fn rollback(
     ctx: Extension<Arc<dyn AppContext>>,
     Path(scope): Path<String>,
-    TypedHeader(Authorization(token)): TypedHeader<Authorization<Bearer>>,
+    AuthnExtractor(agent_id): AuthnExtractor,
 ) -> Response<Body> {
-    match ctx.validate_token(token.token()) {
-        Ok(account_id) => {
-            let object = AuthzObject::new(&["scopes"]).into();
+    let account_id = agent_id.as_account_id();
+    let object = AuthzObject::new(&["scopes"]).into();
 
-            if let Err(err) = ctx
-                .authz()
-                .authorize(
-                    ctx.agent_id().as_account_id().audience().to_string(),
-                    account_id.clone(),
-                    object,
-                    "rollback".into(),
-                )
-                .await
-                .measure()
-            {
-                error!("Failed to authorize action, reason = {:?}", err);
+    if let Err(err) = ctx
+        .authz()
+        .authorize(
+            ctx.agent_id().as_account_id().audience().to_string(),
+            account_id.clone(),
+            object,
+            "rollback".into(),
+        )
+        .await
+        .measure()
+    {
+        error!("Failed to authorize action, reason = {:?}", err);
+        return Response::builder()
+            .status(403)
+            .body(Body::from("Access denied"))
+            .unwrap();
+    }
+
+    match ctx.get_conn().await {
+        Err(err) => {
+            error!("Failed to get db conn, reason = {:?}", err);
+
+            return Response::builder()
+                .status(500)
+                .body(Body::from(format!("Failed to acquire conn: {}", err)))
+                .unwrap();
+        }
+        Ok(mut conn) => {
+            let r = crate::db::scope::DeleteQuery::new(scope.clone())
+                .execute(&mut conn)
+                .await;
+
+            if let Err(err) = r {
+                error!("Failed to delete scope from db, reason = {:?}", err);
+
                 return Response::builder()
-                    .status(403)
-                    .body(Body::from("Access denied"))
+                    .status(500)
+                    .body(Body::from(format!("Failed to delete scope: {}", err)))
                     .unwrap();
             }
 
-            match ctx.get_conn().await {
-                Err(err) => {
-                    error!("Failed to get db conn, reason = {:?}", err);
+            let timing = ShortTermTimingProperties::new(chrono::Utc::now());
+            let props = OutgoingEventProperties::new("scope.frontend.rollback", timing);
+            let path = format!("scopes/{}/events", scope);
+            let event = OutgoingEvent::broadcast("", props, &path);
+            let e = Box::new(event) as Box<dyn IntoPublishableMessage + Send>;
 
-                    return Response::builder()
-                        .status(500)
-                        .body(Body::from(format!("Failed to acquire conn: {}", err)))
-                        .unwrap();
-                }
-                Ok(mut conn) => {
-                    let r = crate::db::scope::DeleteQuery::new(scope.clone())
-                        .execute(&mut conn)
-                        .await;
-
-                    if let Err(err) = r {
-                        error!("Failed to delete scope from db, reason = {:?}", err);
-
-                        return Response::builder()
-                            .status(500)
-                            .body(Body::from(format!("Failed to delete scope: {}", err)))
-                            .unwrap();
-                    }
-
-                    let timing = ShortTermTimingProperties::new(chrono::Utc::now());
-                    let props = OutgoingEventProperties::new("scope.frontend.rollback", timing);
-                    let path = format!("scopes/{}/events", scope);
-                    let event = OutgoingEvent::broadcast("", props, &path);
-                    let e = Box::new(event) as Box<dyn IntoPublishableMessage + Send>;
-
-                    if let Err(err) = ctx.publisher().publish(e) {
-                        error!(
-                            "Failed to publish scope.frontend.rollback event, reason = {:?}",
-                            err
-                        );
-                    }
-                }
+            if let Err(err) = ctx.publisher().publish(e) {
+                error!(
+                    "Failed to publish scope.frontend.rollback event, reason = {:?}",
+                    err
+                );
             }
-        }
-        Err(e) => {
-            error!(
-                header = ?token,
-                "Failed to process Authorization header, err = {:?}", e
-            );
-            return Response::builder()
-                .status(403)
-                .body(Body::from("Access denied"))
-                .unwrap();
         }
     }
 

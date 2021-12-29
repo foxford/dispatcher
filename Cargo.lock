@@ -470,7 +470,6 @@ dependencies = [
  "svc-utils",
  "tokio 1.14.0",
  "tower",
- "tower-http 0.1.1",
  "tracing",
  "tracing-appender",
  "tracing-attributes",
@@ -1523,9 +1522,9 @@ dependencies = [
 
 [[package]]
 name = "once_cell"
-version = "1.8.0"
+version = "1.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "692fcb63b64b1758029e0a96ee63e049ce8c5948587f2f7208df04625e5f6b56"
+checksum = "da32515d9f6e6e489d7bc9d84c71b060db7247dc035bbe44eac88cf87486d8d5"
 
 [[package]]
 name = "opaque-debug"
@@ -2686,15 +2685,18 @@ dependencies = [
 
 [[package]]
 name = "svc-utils"
-version = "0.1.5"
+version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "876a680cb9b40dfb0eee410793f67f70b5dc98f3a90d01c19ce2109de9293b1d"
+checksum = "ff5244f523f20f959682450641d86dd9d4d37e6804966170f0946f18a87146d5"
 dependencies = [
  "axum",
  "futures",
  "http",
  "hyper 0.14.15",
+ "once_cell",
  "prometheus",
+ "svc-agent",
+ "svc-authn",
  "tokio 1.14.0",
  "tower",
  "tower-http 0.2.0",
@@ -2983,7 +2985,6 @@ dependencies = [
  "pin-project",
  "tower-layer",
  "tower-service",
- "tracing",
 ]
 
 [[package]]

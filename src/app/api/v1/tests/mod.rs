@@ -1,15 +1,18 @@
+use std::collections::HashMap;
+
 use hyper::http::Request;
+use svc_authn::jose::ConfigMap;
 use tower::ServiceExt;
 
 use super::*;
-use crate::app::routes;
+use crate::app::http;
 use crate::test_helpers::prelude::*;
 
 #[tokio::test]
 async fn test_healthz() {
     let state = TestState::new(TestAuthz::new()).await;
     let state = Arc::new(state) as Arc<dyn AppContext>;
-    let app = routes::router(state);
+    let app = http::router(state, HashMap::new());
 
     let resp = app
         .oneshot(
@@ -36,7 +39,7 @@ async fn test_api_rollback() {
 
     let state = TestState::new(authz).await;
     let state = Arc::new(state) as Arc<dyn AppContext>;
-    let app = crate::app::routes::router(state.clone());
+    let app = crate::app::http::router(state.clone(), make_authn());
 
     let scope = shared_helpers::random_string();
 
@@ -65,4 +68,23 @@ async fn test_api_rollback() {
     //assert_eq!(resp.status(), 200);
     let body = hyper::body::to_bytes(resp.into_body()).await.unwrap();
     assert_eq!(&body[..], b"Ok");
+}
+
+fn make_authn() -> ConfigMap {
+    use crate::test_helpers::*;
+
+    serde_json::from_str(&format!(
+        r###"
+    {{
+        "{}": {{
+            "algorithm": "ES256",
+            "audience": ["{}"],
+            "key": "{}"
+        }}
+
+    }}
+    "###,
+        TOKEN_ISSUER, USR_AUDIENCE, PUBKEY_PATH
+    ))
+    .unwrap()
 }

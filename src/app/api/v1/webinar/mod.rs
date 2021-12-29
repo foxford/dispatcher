@@ -9,7 +9,7 @@ use crate::app::error::ErrorKind as AppErrorKind;
 use crate::app::AppContext;
 use crate::db::class::WebinarType;
 
-use super::{find, validate_token, AppResult};
+use super::{find, AppResult};
 
 pub async fn options() -> Response<Body> {
     Response::builder().body(Body::empty()).unwrap()

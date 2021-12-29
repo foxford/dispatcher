@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
 use anyhow::Context;
-use axum::extract::{Extension, Path, TypedHeader};
-use headers::{authorization::Bearer, Authorization};
+use axum::extract::{Extension, Path};
 use hyper::{Body, Response};
-use svc_authn::AccountId;
+use svc_authn::{AccountId, Authenticable};
+use svc_utils::extractors::AuthnExtractor;
 use tracing::error;
 use uuid::Uuid;
 
@@ -17,12 +17,16 @@ use crate::app::{authz::AuthzObject, metrics::AuthorizeMetrics};
 pub async fn commit_edition(
     ctx: Extension<Arc<dyn AppContext>>,
     Path((audience, scope, edition_id)): Path<(String, String, Uuid)>,
-    TypedHeader(token): TypedHeader<Authorization<Bearer>>,
+    AuthnExtractor(agent_id): AuthnExtractor,
 ) -> AppResult {
-    let account_id =
-        validate_token(ctx.0.as_ref(), token.0.token()).error(AppErrorKind::Unauthorized)?;
-
-    do_commit_edition(ctx.0.as_ref(), &account_id, &audience, &scope, edition_id).await
+    do_commit_edition(
+        ctx.0.as_ref(),
+        agent_id.as_account_id(),
+        &audience,
+        &scope,
+        edition_id,
+    )
+    .await
 }
 
 async fn do_commit_edition(
