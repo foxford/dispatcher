@@ -22,5 +22,6 @@ pub(crate) async fn create_pool(
 pub(crate) mod authz;
 pub(crate) mod class;
 pub(crate) mod frontend;
+pub(crate) mod record_timestamp;
 pub(crate) mod recording;
 pub(crate) mod scope;

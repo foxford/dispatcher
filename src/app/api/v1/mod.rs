@@ -36,7 +36,7 @@ pub async fn create_event(
 
     let class = find_class(ctx.as_ref(), id)
         .await
-        .error(AppErrorKind::WebinarNotFound)?;
+        .error(AppErrorKind::ClassNotFound)?;
 
     let object = AuthzObject::new(&["classrooms", &class.id().to_string()]).into();
 

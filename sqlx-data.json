@@ -45,6 +45,36 @@
       "nullable": []
     }
   },
+  "24446140c1baaf661a541a983318354666cf5a25f69e93133e131c3ea3e47067": {
+    "query": "\n            INSERT INTO record_timestamp (\n                class_id, account_id, position_secs\n            )\n            VALUES ($1, $2, $3)\n            ON CONFLICT (class_id, account_id)\n            DO UPDATE\n            SET position_secs = EXCLUDED.position_secs, updated_at = NOW()\n            ",
+    "describe": {
+      "columns": [],
+      "parameters": {
+        "Left": [
+          "Uuid",
+          {
+            "Custom": {
+              "name": "account_id",
+              "kind": {
+                "Composite": [
+                  [
+                    "label",
+                    "Text"
+                  ],
+                  [
+                    "audience",
+                    "Text"
+                  ]
+                ]
+              }
+            }
+          },
+          "Int4"
+        ]
+      },
+      "nullable": []
+    }
+  },
   "37284eda5490188734b0ee1a9877aa205948f693260376a8e326bb88b08bab85": {
     "query": "\n            SELECT *\n            FROM scope\n            ",
     "describe": {
@@ -2306,6 +2336,27 @@
         true,
         false,
         true
+      ]
+    }
+  },
+  "e8540174fb5a6ce3accad1c9717d5145c02813cf0b61f086b68e8c38ebde0497": {
+    "query": "\n            SELECT position_secs\n            FROM record_timestamp\n            WHERE class_id = $1\n            AND account_id = $2\n            LIMIT 1;\n            ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "position_secs",
+          "type_info": "Int4"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Uuid",
+          "Record"
+        ]
+      },
+      "nullable": [
+        false
       ]
     }
   },

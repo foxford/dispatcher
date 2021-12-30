@@ -13,6 +13,7 @@ Route                                           | Method | Short description
 /api/v1/minigroups/:minigroup_id/download       | GET    | [Downloads](#download-minigroup) minigroup source file.
 /api/v1/minigroups/:minigroup_id/events         | POST   | [Creates](#create-minigroup-event) event in the room.
 /api/v1/minigroups/:minigroup_id/recreate       | POST   | [Recreates](#recreate-minigroup) minigroup rooms.
+/api/v1/minigroups/:webinar_id/timestamps       | POST   | [Records](#timestamps) current position while viewing a recording.
 
 ### Create minigroup
 
@@ -52,6 +53,9 @@ Attribute              | Type        | Optional | Description
 class_id               | uuid        |          | Webinar id
 id                     | string      |          | Minigroup scope
 real_time              | json object | +        | `event_room_id`, `conference_room_id` and `host` fields
+on_demand              | json array  | +        | Array with original and modified stream versions. Modified stream contains `room_events_uri` with s3 link to dumped events.
+status                 | string      | +        | Minigroup state, possible values: `transcoded`, `adjusted`, `finished`, `real-time`, `closed`
+position               | int         | +        | Previously saved viewership position
 
 Response: status 200 and minigroup object as payload.
 
@@ -108,3 +112,13 @@ Response:
 Attribute              | Type        | Optional | Description
 ---------------------- | ----------- | -------- | --------------
 url
+
+### Save position
+
+Parameters:
+
+Name          | Type    | Default    | Description
+------------- | ------- | ---------- | -----------------------------
+position      | int     | _required_ | Position to save (in seconds)
+
+Response: status **201** and empty payload.

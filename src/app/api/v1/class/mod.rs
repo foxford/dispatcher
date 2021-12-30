@@ -3,6 +3,7 @@ use crate::db::class;
 use super::{find, find_by_scope, find_class_by_scope, AppResult};
 
 pub use commit_edition::commit_edition;
+pub use create_timestamp::create_timestamp;
 pub use read::{read, read_by_scope};
 pub use recreate::recreate;
 use serde::Serialize;
@@ -11,6 +12,7 @@ pub use update::{update, update_by_scope};
 use uuid::Uuid;
 
 mod commit_edition;
+mod create_timestamp;
 mod read;
 mod recreate;
 mod update;
@@ -25,6 +27,8 @@ struct ClassResponseBody {
     #[serde(skip_serializing_if = "Option::is_none")]
     status: Option<ClassStatus>,
     timed_out: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    position: Option<i32>,
 }
 
 impl ClassResponseBody {
@@ -38,6 +42,10 @@ impl ClassResponseBody {
 
     pub fn set_rtc_id(&mut self, rtc_id: Uuid) {
         self.real_time.set_rtc_id(rtc_id);
+    }
+
+    pub fn set_position(&mut self, position_secs: i32) {
+        self.position = Some(position_secs);
     }
 }
 
@@ -55,6 +63,7 @@ impl From<&class::Object> for ClassResponseBody {
             on_demand: vec![],
             status: None,
             timed_out: obj.timed_out(),
+            position: None,
         }
     }
 }
