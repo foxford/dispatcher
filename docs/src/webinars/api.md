@@ -13,6 +13,8 @@ Route                                           | Method | Short description
 /api/v1/webinars/:webinar_id/download           | GET    | [Downloads](#download-webinar) webinar source file.
 /api/v1/webinars/:webinar_id/recreate           | POST   | [Recreates](#recreate-webinar) webinar rooms.
 /api/v1/webinars/:webinar_id/events             | POST   | [Creates](#create-webinar-event) event in the room.
+/api/v1/webinars/:webinar_id/timestamps         | POST   | [Records](#save-position) current position while viewing a recording.
+
 
 ### Create webinar
 
@@ -53,6 +55,7 @@ id                     | string      |          | Webinar scope
 real_time              | json object | +        | `event_room_id` and `conference_room_id` fields
 on_demand              | json array  | +        | Array with original and modified stream versions. Modified stream contains `room_events_uri` with s3 link to dumped events.
 status                 | string      | +        | Webinar state, possible values: `transcoded`, `adjusted`, `finished`, `real-time`, `closed`
+position               | int         | +        | Previously saved viewership position
 
 Response: status 200 and webinar object as payload.
 
@@ -136,5 +139,15 @@ attribute     | string  | _optional_ | An attribute for authorization and filter
 data          | json    | _required_ | The event JSON payload.
 is_claim      | boolean |      false | Whether to notify the tenant.
 is_persistent | boolean |       true | Whether to persist the event.
+
+Response: status **201** and empty payload.
+
+### Save position
+
+Parameters:
+
+Name          | Type    | Default    | Description
+------------- | ------- | ---------- | -----------------------------
+position      | int     | _required_ | Position to save (in seconds)
 
 Response: status **201** and empty payload.

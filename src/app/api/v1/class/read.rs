@@ -32,7 +32,7 @@ async fn do_read<T: AsClassType>(
 ) -> AppResult {
     let class = find::<T>(state, id)
         .await
-        .error(AppErrorKind::WebinarNotFound)?;
+        .error(AppErrorKind::ClassNotFound)?;
 
     do_read_inner::<T>(state, account_id, class).await
 }
@@ -119,6 +119,21 @@ async fn do_read_inner<T: AsClassType>(
                     tags: class.tags().map(ToOwned::to_owned),
                     room_events_uri: class.room_events_uri().cloned(),
                 });
+            }
+
+            {
+                let mut conn = state
+                    .get_conn()
+                    .await
+                    .error(AppErrorKind::DbConnAcquisitionFailed)?;
+                let position =
+                    crate::db::record_timestamp::FindQuery::new(class.id(), account_id.clone())
+                        .execute(&mut conn)
+                        .await
+                        .context("Failed to find recording")
+                        .error(AppErrorKind::DbQueryFailed)?
+                        .position_secs();
+                class_body.set_position(position);
             }
 
             class_body.set_status(ClassStatus::Transcoded);

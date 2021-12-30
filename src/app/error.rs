@@ -28,7 +28,7 @@ pub enum ErrorKind {
     MqttRequestFailed,
     SerializationFailed,
     Unauthorized,
-    WebinarNotFound,
+    ClassNotFound,
     RecordingNotFound,
     ClassClosingFailed,
     TranscodingFlowFailed,
@@ -88,10 +88,10 @@ impl From<ErrorKind> for ErrorKindProperties {
                 title: "Invalid payload",
                 is_notify_sentry: false,
             },
-            ErrorKind::WebinarNotFound => ErrorKindProperties {
+            ErrorKind::ClassNotFound => ErrorKindProperties {
                 status: ResponseStatus::NOT_FOUND,
-                kind: "webinar_not_found",
-                title: "Webinar not found",
+                kind: "class_not_found",
+                title: "Class not found",
                 is_notify_sentry: false,
             },
             ErrorKind::MqttRequestFailed => ErrorKindProperties {

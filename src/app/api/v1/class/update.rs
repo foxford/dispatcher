@@ -38,7 +38,7 @@ pub async fn update<T: AsClassType>(
 ) -> AppResult {
     let class = find::<T>(ctx.as_ref(), id)
         .await
-        .error(AppErrorKind::WebinarNotFound)?;
+        .error(AppErrorKind::ClassNotFound)?;
     let updated_class =
         do_update::<T>(ctx.as_ref(), agent_id.as_account_id(), class, payload).await?;
     Ok(Response::builder()
@@ -58,7 +58,7 @@ pub async fn update_by_scope<T: AsClassType>(
 ) -> AppResult {
     let class = find_by_scope::<T>(ctx.as_ref(), &audience, &scope)
         .await
-        .error(AppErrorKind::WebinarNotFound)?;
+        .error(AppErrorKind::ClassNotFound)?;
 
     let updated_class =
         do_update::<T>(ctx.as_ref(), agent_id.as_account_id(), class, payload).await?;

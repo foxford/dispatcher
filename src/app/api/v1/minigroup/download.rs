@@ -19,7 +19,7 @@ pub async fn download(
 
     let minigroup = find::<MinigroupType>(ctx.as_ref(), id)
         .await
-        .error(AppErrorKind::WebinarNotFound)?;
+        .error(AppErrorKind::ClassNotFound)?;
 
     let object = AuthzObject::new(&["classrooms", &minigroup.id().to_string()]).into();
     ctx.authz()

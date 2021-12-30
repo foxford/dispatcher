@@ -49,7 +49,7 @@ async fn do_recreate<T: AsClassType>(
 ) -> AppResult {
     let webinar = find::<T>(state, id)
         .await
-        .error(AppErrorKind::WebinarNotFound)?;
+        .error(AppErrorKind::ClassNotFound)?;
 
     let object = AuthzObject::new(&["classrooms", &webinar.id().to_string()]).into();
 
