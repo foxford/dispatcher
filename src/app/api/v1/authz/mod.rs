@@ -217,6 +217,7 @@ fn transform_event_authz_request(authz_req: &mut AuthzRequest) {
     // ["rooms", ROOM_ID, "agents"]::list       => ["rooms", ROOM_ID]::read
     // ["rooms", ROOM_ID, "events"]::list       => ["rooms", ROOM_ID]::read
     // ["rooms", ROOM_ID, "events"]::subscribe  => ["rooms", ROOM_ID]::read
+    // ["rooms", ROOM_ID, "events", "draw_lock", "authors", account_id]::create => ["rooms", ROOM_ID, "events", "draw", "authors", account_id]::create
     match authz_req.object.value.get_mut(0..) {
         None => {}
         Some([_rooms, _room_id, v]) if act == "list" && v == "agents" => {
@@ -230,6 +231,9 @@ fn transform_event_authz_request(authz_req: &mut AuthzRequest) {
         Some([_rooms, _room_id, v]) if act == "subscribe" && v == "events" => {
             *act = "read".into();
             authz_req.object.value.truncate(2);
+        }
+        Some([_, _, v, kind, _, _]) if act == "create" && v == "events" && kind == "draw_lock" => {
+            kind.truncate(4);
         }
         Some(_) => {}
     }
@@ -472,4 +476,47 @@ fn test_extract_rtc_id() {
     let r = extract_rtc_id("ms.webinar.testing01.foxford.ru::14aa9730-26e1-487c-9153-bc8cb28d8eb0")
         .expect("Failed to extract rtc_id");
     assert_eq!(r, "14aa9730-26e1-487c-9153-bc8cb28d8eb0");
+}
+
+#[test]
+fn test_transform_event_authz_request() {
+    //  ["rooms", ROOM_ID, "agents"]::list
+    // becomes ["rooms", ROOM_ID]::read
+    let mut authz_req: AuthzRequest = serde_json::from_str(
+        r#"
+        {
+            "subject": {"namespace": "foobar", "value": "barbaz"},
+            "object": {"namespace": "foobar", "value": [ "rooms", "uuid", "agents"]},
+            "action": "list"
+        }
+    "#,
+    )
+    .unwrap();
+    transform_event_authz_request(&mut authz_req);
+
+    assert_eq!(authz_req.action, "read");
+    assert_eq!(authz_req.object.value, ["rooms", "uuid"]);
+}
+
+#[test]
+fn test_transform_event_authz_request_2() {
+    //  ["rooms", ROOM_ID, "events", "draw_lock", "authors", account_id]::create
+    // becomes ["rooms", ROOM_ID, "events", "draw", "authors", account_id]::create
+    let mut authz_req: AuthzRequest = serde_json::from_str(
+        r#"
+        {
+            "subject": {"namespace": "foobar", "value": "barbaz"},
+            "object": {"namespace": "foobar", "value": [ "rooms", "uuid", "events", "draw_lock", "authors", "account_id"]},
+            "action": "create"
+        }
+    "#,
+    )
+    .unwrap();
+    transform_event_authz_request(&mut authz_req);
+
+    assert_eq!(authz_req.action, "create");
+    assert_eq!(
+        authz_req.object.value,
+        ["rooms", "uuid", "events", "draw", "authors", "account_id"]
+    );
 }
