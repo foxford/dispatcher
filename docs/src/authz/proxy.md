@@ -13,13 +13,14 @@ The rules for this modification are[^1]:
 
 * if request comes from `event`:
 
-Object                          | Action      | New object         | New action
-------------------------------- | ----------- | ------------------ | ------------
-["rooms", ROOM_ID, "agents"]    | `list`      | ["classrooms", ID] | `read`
-["rooms", ROOM_ID, "events"]    | `list`      | ["classrooms", ID] | `read`
-["rooms", ROOM_ID, "events"]    | `subscribe` | ["classrooms", ID] | `read`
-["rooms", ROOM_ID, ..]          | *           | ["classrooms", ID] | no change[^2]
-\*                              | *           | no change          | no change[^3]
+Object                                          | Action      | New object                                  | New action
+-------------------------------                 | ----------- | ------------------                          | ------------
+["rooms", ROOM_ID, "agents"]                    | `list`      | ["classrooms", ID]                          | `read`
+["rooms", ROOM_ID, "events"]                    | `list`      | ["classrooms", ID]                          | `read`
+["rooms", ROOM_ID, "events"]                    | `subscribe` | ["classrooms", ID]                          | `read`
+["rooms", ROOM_ID, "events", "draw_lock", ..]   | `create`    | ["classrooms", ID, "events", "draw", ..]    | `create`
+["rooms", ROOM_ID, ..]                          | *           | ["classrooms", ID]                          | no change[^2]
+\*                                              | *           | no change                                   | no change[^3]
 
 * if request comes from `conference`:
 
