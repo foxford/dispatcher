@@ -209,11 +209,6 @@ fn transform_authz_request(authz_req: &mut AuthzRequest, account_id: &AccountId)
 fn transform_event_authz_request(authz_req: &mut AuthzRequest) {
     let act = &mut authz_req.action;
 
-    // only transform rooms/* objects
-    if authz_req.object.value.get(0).map(|s| s.as_ref()) != Some("rooms") {
-        return;
-    }
-
     // ["rooms", ROOM_ID, "agents"]::list       => ["rooms", ROOM_ID]::read
     // ["rooms", ROOM_ID, "events"]::list       => ["rooms", ROOM_ID]::read
     // ["rooms", ROOM_ID, "events"]::subscribe  => ["rooms", ROOM_ID]::read
@@ -518,5 +513,35 @@ fn test_transform_event_authz_request_2() {
     assert_eq!(
         authz_req.object.value,
         ["rooms", "uuid", "events", "draw", "authors", "account_id"]
+    );
+}
+
+#[test]
+fn test_transform_event_authz_request_3() {
+    //  ["classrooms", ROOM_ID, "events", "draw_lock", "authors", account_id]::create
+    // becomes ["classrooms", ROOM_ID, "events", "draw", "authors", account_id]::create
+    let mut authz_req: AuthzRequest = serde_json::from_str(
+        r#"
+        {
+            "subject": {"namespace": "foobar", "value": "barbaz"},
+            "object": {"namespace": "foobar", "value": [ "classrooms", "uuid", "events", "draw_lock", "authors", "account_id"]},
+            "action": "create"
+        }
+    "#,
+    )
+    .unwrap();
+    transform_event_authz_request(&mut authz_req);
+
+    assert_eq!(authz_req.action, "create");
+    assert_eq!(
+        authz_req.object.value,
+        [
+            "classrooms",
+            "uuid",
+            "events",
+            "draw",
+            "authors",
+            "account_id"
+        ]
     );
 }
