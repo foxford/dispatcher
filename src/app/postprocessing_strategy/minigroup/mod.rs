@@ -220,12 +220,7 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
                     .await
                     .context("Failed to get pin events for room")?;
 
-                let conference_room_id = self.minigroup.conference_room_id().ok_or_else(|| {
-                    anyhow!(
-                        "Minigroup {} must have a conference room id",
-                        self.minigroup.id()
-                    )
-                })?;
+                let conference_room_id = self.minigroup.conference_room_id();
 
                 // Fetch writer config snapshots for building muted segments.
                 let mute_events = self

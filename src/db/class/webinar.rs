@@ -40,9 +40,7 @@ impl std::convert::TryFrom<Object> for Webinar {
     fn try_from(value: Object) -> Result<Self, Self::Error> {
         match value.kind() {
             ClassType::Webinar => Ok(Self {
-                conference_room_id: value
-                    .conference_room_id
-                    .ok_or_else(|| WrongKind::new(&value, ClassType::Webinar))?,
+                conference_room_id: value.conference_room_id,
                 id: value.id,
                 kind: value.kind,
                 scope: value.scope,
@@ -123,6 +121,7 @@ impl WebinarInsertQuery {
         }
     }
 
+    #[cfg(test)]
     pub fn reserve(self, reserve: i32) -> Self {
         Self {
             reserve: Some(reserve),
@@ -151,8 +150,8 @@ impl WebinarInsertQuery {
                 tags,
                 preserve_history,
                 created_at,
-                event_room_id,
-                conference_room_id,
+                event_room_id AS "event_room_id!: Uuid",
+                conference_room_id AS "conference_room_id!: Uuid",
                 original_event_room_id,
                 modified_event_room_id,
                 reserve,

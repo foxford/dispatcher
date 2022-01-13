@@ -19,6 +19,31 @@ pub enum ClassType {
     Minigroup,
 }
 
+#[derive(Clone, Copy, Debug)]
+pub enum RtcSharingPolicy {
+    Shared,
+    Owned,
+}
+
+impl ToString for RtcSharingPolicy {
+    fn to_string(&self) -> String {
+        match self {
+            RtcSharingPolicy::Shared => "shared".to_string(),
+            RtcSharingPolicy::Owned => "owned".to_string(),
+        }
+    }
+}
+
+impl From<ClassType> for Option<RtcSharingPolicy> {
+    fn from(v: ClassType) -> Self {
+        match v {
+            ClassType::Webinar => Some(RtcSharingPolicy::Shared),
+            ClassType::Minigroup => Some(RtcSharingPolicy::Owned),
+            ClassType::P2P => None,
+        }
+    }
+}
+
 pub struct WebinarType;
 pub struct P2PType;
 pub struct MinigroupType;
@@ -71,8 +96,7 @@ pub struct Object {
     created_at: DateTime<Utc>,
     #[serde(skip_serializing_if = "Option::is_none")]
     tags: Option<JsonValue>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    conference_room_id: Option<Uuid>,
+    conference_room_id: Uuid,
     event_room_id: Uuid,
     #[serde(skip_serializing_if = "Option::is_none")]
     original_event_room_id: Option<Uuid>,
@@ -110,7 +134,7 @@ impl Object {
         self.event_room_id
     }
 
-    pub fn conference_room_id(&self) -> Option<Uuid> {
+    pub fn conference_room_id(&self) -> Uuid {
         self.conference_room_id
     }
 
@@ -149,6 +173,29 @@ impl Object {
     #[cfg(test)]
     pub fn host(&self) -> Option<&AgentId> {
         self.host.as_ref()
+    }
+
+    pub fn rtc_sharing_policy(&self) -> Option<RtcSharingPolicy> {
+        self.kind.into()
+    }
+}
+
+impl crate::app::services::Creatable for Object {
+    fn id(&self) -> Uuid {
+        self.id()
+    }
+
+    fn audience(&self) -> &str {
+        self.audience()
+    }
+    fn reserve(&self) -> Option<i32> {
+        self.reserve()
+    }
+    fn tags(&self) -> Option<&serde_json::Value> {
+        self.tags()
+    }
+    fn rtc_sharing_policy(&self) -> Option<RtcSharingPolicy> {
+        self.rtc_sharing_policy()
     }
 }
 
@@ -443,8 +490,8 @@ impl UpdateAdjustedRoomsQuery {
                 tags,
                 preserve_history,
                 created_at,
-                event_room_id,
-                conference_room_id,
+                event_room_id AS "event_room_id!: Uuid",
+                conference_room_id AS "conference_room_id!: Uuid",
                 original_event_room_id,
                 modified_event_room_id,
                 reserve,
@@ -455,6 +502,57 @@ impl UpdateAdjustedRoomsQuery {
             self.id,
             self.original_event_room_id,
             self.modified_event_room_id,
+        )
+        .fetch_one(conn)
+        .await
+    }
+}
+
+pub struct EstablishQuery {
+    id: Uuid,
+    event_room_id: Uuid,
+    conference_room_id: Uuid,
+}
+
+impl EstablishQuery {
+    pub fn new(id: Uuid, event_room_id: Uuid, conference_room_id: Uuid) -> Self {
+        Self {
+            id,
+            event_room_id,
+            conference_room_id,
+        }
+    }
+
+    pub async fn execute(self, conn: &mut PgConnection) -> sqlx::Result<Object> {
+        sqlx::query_as!(
+            Object,
+            r#"
+            UPDATE class
+            SET event_room_id = $2,
+                conference_room_id = $3,
+                established = 't'
+            WHERE id = $1
+            RETURNING
+                id,
+                scope,
+                kind AS "kind!: ClassType",
+                audience,
+                time AS "time!: Time",
+                tags,
+                preserve_history,
+                created_at,
+                event_room_id AS "event_room_id!: Uuid",
+                conference_room_id AS "conference_room_id!: Uuid",
+                original_event_room_id,
+                modified_event_room_id,
+                reserve,
+                room_events_uri,
+                host AS "host: AgentId",
+                timed_out
+            "#,
+            self.id,
+            self.event_room_id,
+            self.conference_room_id,
         )
         .fetch_one(conn)
         .await
@@ -498,8 +596,8 @@ impl RecreateQuery {
                 tags,
                 preserve_history,
                 created_at,
-                event_room_id,
-                conference_room_id,
+                event_room_id AS "event_room_id!: Uuid",
+                conference_room_id AS "conference_room_id!: Uuid",
                 original_event_room_id,
                 modified_event_room_id,
                 reserve,
@@ -568,8 +666,8 @@ impl ClassUpdateQuery {
                 tags,
                 preserve_history,
                 created_at,
-                event_room_id,
-                conference_room_id,
+                event_room_id AS "event_room_id!: Uuid",
+                conference_room_id AS "conference_room_id!: Uuid",
                 original_event_room_id,
                 modified_event_room_id,
                 reserve,
@@ -615,8 +713,8 @@ impl RoomCloseQuery {
                 tags,
                 preserve_history,
                 created_at,
-                event_room_id,
-                conference_room_id,
+                event_room_id AS "event_room_id!: Uuid",
+                conference_room_id AS "conference_room_id!: Uuid",
                 original_event_room_id,
                 modified_event_room_id,
                 reserve,
@@ -629,6 +727,32 @@ impl RoomCloseQuery {
         )
         .fetch_one(conn)
         .await
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+pub struct DeleteQuery {
+    id: Uuid,
+}
+
+impl DeleteQuery {
+    pub fn new(id: Uuid) -> Self {
+        Self { id }
+    }
+
+    pub async fn execute(self, conn: &mut PgConnection) -> sqlx::Result<u64> {
+        sqlx::query_as!(
+            Object,
+            r#"
+            DELETE FROM class
+            WHERE id = $1
+            "#,
+            self.id,
+        )
+        .execute(conn)
+        .await
+        .map(|r| r.rows_affected())
     }
 }
 
@@ -658,10 +782,12 @@ pub(crate) mod serde {
     }
 }
 
+mod insert_query;
 mod minigroup;
 mod p2p;
 mod webinar;
 
+pub use insert_query::{Dummy, InsertQuery};
 pub use minigroup::*;
 pub use p2p::*;
 pub use webinar::*;

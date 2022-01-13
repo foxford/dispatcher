@@ -130,7 +130,7 @@ fn get_coneference_update(
     class: &class::Object,
     update: &ClassUpdate,
 ) -> Option<(Uuid, ConfRoomUpdate)> {
-    let conf_room_id = class.conference_room_id()?;
+    let conf_room_id = class.conference_room_id();
     let conf_update = ConfRoomUpdate {
         time: update.time.map(|(start, end)| match start {
             Bound::Included(t) | Bound::Excluded(t) => (Bound::Included(t), end),

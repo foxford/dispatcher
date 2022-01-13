@@ -1,3 +1,5 @@
+use uuid::Uuid;
+
 use crate::db::class;
 
 use super::{find, find_by_scope, find_class_by_scope, AppResult};
@@ -9,7 +11,6 @@ pub use recreate::recreate;
 use serde::Serialize;
 use serde_json::Value;
 pub use update::{update, update_by_scope};
-use uuid::Uuid;
 
 mod commit_edition;
 mod create_timestamp;
@@ -83,8 +84,7 @@ pub struct ClassroomVersion {
 
 #[derive(Serialize)]
 pub struct RealTimeObject {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    conference_room_id: Option<Uuid>,
+    conference_room_id: Uuid,
     event_room_id: Uuid,
     #[serde(skip_serializing_if = "Option::is_none")]
     fallback_uri: Option<String>,

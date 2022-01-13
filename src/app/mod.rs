@@ -250,5 +250,5 @@ mod http;
 mod info;
 mod metrics;
 mod postprocessing_strategy;
-mod services;
+pub mod services;
 mod tide_state;

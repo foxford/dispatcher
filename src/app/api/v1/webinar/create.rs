@@ -3,19 +3,20 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use axum::extract::{Extension, Json};
-use chrono::Utc;
 use hyper::{Body, Response};
 use serde_derive::Deserialize;
 use svc_agent::AccountId;
 use svc_agent::Authenticable;
 use svc_utils::extractors::AuthnExtractor;
-use tracing::error;
+use tracing::{error, info, instrument};
 
+use crate::app::api::v1::AppError;
 use crate::app::error::ErrorExt;
 use crate::app::error::ErrorKind as AppErrorKind;
+use crate::app::services;
 use crate::app::AppContext;
 use crate::app::{authz::AuthzObject, metrics::AuthorizeMetrics};
-use crate::db::class::{self, BoundedDateTimeTuple};
+use crate::db::class::{self, BoundedDateTimeTuple, ClassType};
 
 use super::AppResult;
 
@@ -31,12 +32,24 @@ pub struct WebinarCreatePayload {
     locked_chat: bool,
 }
 
+#[instrument(
+    skip_all,
+    fields(
+        audience = ?payload.audience,
+        scope = ?payload.scope
+    )
+)]
 pub async fn create(
     ctx: Extension<Arc<dyn AppContext>>,
     AuthnExtractor(agent_id): AuthnExtractor,
     Json(payload): Json<WebinarCreatePayload>,
 ) -> AppResult {
-    do_create(ctx.as_ref(), agent_id.as_account_id(), payload).await
+    info!("Creating webinar");
+    let r = do_create(ctx.as_ref(), agent_id.as_account_id(), payload).await;
+    if let Err(e) = &r {
+        error!(error = ?e, "Failed to create webinar");
+    }
+    r
 }
 
 async fn do_create(
@@ -57,85 +70,46 @@ async fn do_create(
         .await
         .measure()?;
 
-    let conference_time = match body.time.map(|t| t.0) {
-        Some(Bound::Included(t)) | Some(Bound::Excluded(t)) => {
-            (Bound::Included(t), Bound::Unbounded)
+    info!("Authorized webinar create");
+
+    let dummy = insert_webinar_dummy(state, &body).await?;
+
+    let time = body.time.unwrap_or((Bound::Unbounded, Bound::Unbounded));
+    let result = services::create_event_and_conference(state, &dummy, &time).await;
+    let mut conn = state
+        .get_conn()
+        .await
+        .error(AppErrorKind::DbConnAcquisitionFailed)?;
+    let event_room_id = match result {
+        Ok((event_id, conference_id)) => {
+            info!(?event_id, ?conference_id, "Created rooms",);
+
+            class::EstablishQuery::new(dummy.id(), event_id, conference_id)
+                .execute(&mut conn)
+                .await
+                .context("Failed to establish webinar dummy")
+                .error(AppErrorKind::DbQueryFailed)?;
+            event_id
         }
-        Some(Bound::Unbounded) | None => (Bound::Included(Utc::now()), Bound::Unbounded),
-    };
-    let conference_fut = state.conference_client().create_room(
-        conference_time,
-        body.audience.clone(),
-        Some("shared".into()),
-        body.reserve,
-        body.tags.clone(),
-        None,
-    );
+        Err(e) => {
+            info!("Failed to create rooms");
 
-    let event_time = (Bound::Included(Utc::now()), Bound::Unbounded);
-    let event_fut = state.event_client().create_room(
-        event_time,
-        body.audience.clone(),
-        Some(true),
-        body.tags.clone(),
-        None,
-    );
-
-    let (event_room_id, conference_room_id) = tokio::try_join!(event_fut, conference_fut)
-        .context("Services requests")
-        .error(AppErrorKind::MqttRequestFailed)?;
-
-    let query = crate::db::class::WebinarInsertQuery::new(
-        body.scope,
-        body.audience,
-        body.time
-            .unwrap_or((Bound::Unbounded, Bound::Unbounded))
-            .into(),
-        conference_room_id,
-        event_room_id,
-    );
-
-    let query = if let Some(tags) = body.tags {
-        query.tags(tags)
-    } else {
-        query
+            class::DeleteQuery::new(dummy.id())
+                .execute(&mut conn)
+                .await
+                .context("Failed to delete webinar dummy")
+                .error(AppErrorKind::DbQueryFailed)?;
+            return Err(e);
+        }
     };
 
-    let query = if let Some(reserve) = body.reserve {
-        query.reserve(reserve)
-    } else {
-        query
-    };
-    let webinar = {
-        let mut conn = state
-            .get_conn()
-            .await
-            .error(AppErrorKind::DbConnAcquisitionFailed)?;
-        query
-            .execute(&mut conn)
-            .await
-            .context("Failed to insert webinar")
-            .error(AppErrorKind::DbQueryFailed)?
-    };
     if body.locked_chat {
-        if let Err(e) = state.event_client().lock_chat(event_room_id).await {
-            error!(
-                %event_room_id,
-                "Failed to lock chat in event room, err = {:?}", e
-            );
-        }
+        services::lock_chat(state, event_room_id).await;
+
+        info!("Locked chat");
     }
 
-    crate::app::services::update_classroom_id(
-        state,
-        webinar.id(),
-        webinar.event_room_id(),
-        webinar.conference_room_id(),
-    )
-    .await
-    .error(AppErrorKind::MqttRequestFailed)?;
-
-    let body = serde_json::to_string_pretty(&webinar)
+    let body = serde_json::to_string_pretty(&dummy)
         .context("Failed to serialize webinar")
         .error(AppErrorKind::SerializationFailed)?;
 
@@ -147,11 +121,48 @@ async fn do_create(
     Ok(response)
 }
 
+async fn insert_webinar_dummy(
+    state: &dyn AppContext,
+    body: &WebinarCreatePayload,
+) -> Result<class::Dummy, AppError> {
+    let query = class::InsertQuery::new(
+        ClassType::Webinar,
+        body.scope.clone(),
+        body.audience.clone(),
+        body.time
+            .unwrap_or((Bound::Unbounded, Bound::Unbounded))
+            .into(),
+    )
+    .preserve_history(true);
+
+    let query = if let Some(ref tags) = body.tags {
+        query.tags(tags.clone())
+    } else {
+        query
+    };
+
+    let query = if let Some(reserve) = body.reserve {
+        query.reserve(reserve)
+    } else {
+        query
+    };
+
+    let mut conn = state
+        .get_conn()
+        .await
+        .error(AppErrorKind::DbConnAcquisitionFailed)?;
+    query
+        .execute(&mut conn)
+        .await
+        .context("Failed to insert webinar")
+        .error(AppErrorKind::DbQueryFailed)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::{db::class::WebinarReadQuery, test_helpers::prelude::*};
-    use chrono::Duration;
+    use chrono::{Duration, Utc};
     use mockall::predicate as pred;
     use uuid::Uuid;
 

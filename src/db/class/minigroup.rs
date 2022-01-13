@@ -40,9 +40,7 @@ impl std::convert::TryFrom<Object> for Minigroup {
     fn try_from(value: Object) -> Result<Self, Self::Error> {
         match value.kind() {
             ClassType::Minigroup => Ok(Self {
-                conference_room_id: value
-                    .conference_room_id
-                    .ok_or_else(|| WrongKind::new(&value, ClassType::Minigroup))?,
+                conference_room_id: value.conference_room_id,
                 id: value.id,
                 kind: value.kind,
                 scope: value.scope,
@@ -154,8 +152,8 @@ impl MinigroupInsertQuery {
                 tags,
                 preserve_history,
                 created_at,
-                event_room_id,
-                conference_room_id,
+                event_room_id AS "event_room_id!: Uuid",
+                conference_room_id AS "conference_room_id!: Uuid",
                 original_event_room_id,
                 modified_event_room_id,
                 reserve,

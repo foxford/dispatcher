@@ -3,7 +3,6 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use axum::extract::{Extension, Json};
-use chrono::Utc;
 use hyper::{Body, Response};
 use serde_derive::Deserialize;
 use svc_agent::AccountId;
@@ -16,13 +15,16 @@ use crate::app::authz::AuthzObject;
 use crate::app::error::ErrorExt;
 use crate::app::error::ErrorKind as AppErrorKind;
 use crate::app::metrics::AuthorizeMetrics;
+use crate::app::services;
 use crate::app::AppContext;
 use crate::db::class;
+use crate::db::class::ClassType;
 
+use super::AppError;
 use super::AppResult;
 
 #[derive(Deserialize)]
-pub struct P2P {
+pub struct P2PCreatePayload {
     scope: String,
     audience: String,
     tags: Option<serde_json::Value>,
@@ -40,14 +42,21 @@ pub struct P2P {
 pub async fn create(
     Extension(ctx): Extension<Arc<dyn AppContext>>,
     AuthnExtractor(agent_id): AuthnExtractor,
-    Json(body): Json<P2P>,
+    Json(body): Json<P2PCreatePayload>,
 ) -> AppResult {
-    do_create(ctx.as_ref(), agent_id.as_account_id(), body).await
+    info!("Creating webinar");
+    let r = do_create(ctx.as_ref(), agent_id.as_account_id(), body).await;
+    if let Err(e) = &r {
+        error!(error = ?e, "Failed to create p2p");
+    }
+    r
 }
 
-async fn do_create(state: &dyn AppContext, account_id: &AccountId, body: P2P) -> AppResult {
-    info!("Creating p2p");
-
+async fn do_create(
+    state: &dyn AppContext,
+    account_id: &AccountId,
+    body: P2PCreatePayload,
+) -> AppResult {
     let object = AuthzObject::new(&["classrooms"]).into();
 
     state
@@ -63,56 +72,36 @@ async fn do_create(state: &dyn AppContext, account_id: &AccountId, body: P2P) ->
 
     info!("Authorized p2p create");
 
-    let conference_fut = state.conference_client().create_room(
-        (Bound::Included(Utc::now()), Bound::Unbounded),
-        body.audience.clone(),
-        None,
-        None,
-        body.tags.clone(),
-        None,
-    );
+    let dummy = insert_p2p_dummy(state, &body).await?;
 
-    let event_fut = state.event_client().create_room(
-        (Bound::Included(Utc::now()), Bound::Unbounded),
-        body.audience.clone(),
-        Some(false),
-        body.tags.clone(),
-        None,
-    );
+    let time = (Bound::Unbounded, Bound::Unbounded);
+    let result = services::create_event_and_conference(state, &dummy, &time).await;
+    let mut conn = state
+        .get_conn()
+        .await
+        .error(AppErrorKind::DbConnAcquisitionFailed)?;
+    let event_room_id = match result {
+        Ok((event_id, conference_id)) => {
+            info!(?event_id, ?conference_id, "Created rooms",);
 
-    let (event_room_id, conference_room_id) = tokio::try_join!(event_fut, conference_fut)
-        .context("Services requests")
-        .error(AppErrorKind::MqttRequestFailed)?;
+            class::EstablishQuery::new(dummy.id(), event_id, conference_id)
+                .execute(&mut conn)
+                .await
+                .context("Failed to establish webinar dummy")
+                .error(AppErrorKind::DbQueryFailed)?;
+            event_id
+        }
+        Err(e) => {
+            info!("Failed to create rooms");
 
-    info!(?event_room_id, ?conference_room_id, "Created rooms",);
-
-    let query = crate::db::class::P2PInsertQuery::new(
-        body.scope,
-        body.audience,
-        conference_room_id,
-        event_room_id,
-    );
-
-    let query = if let Some(tags) = body.tags {
-        query.tags(tags)
-    } else {
-        query
+            class::DeleteQuery::new(dummy.id())
+                .execute(&mut conn)
+                .await
+                .context("Failed to delete webinar dummy")
+                .error(AppErrorKind::DbQueryFailed)?;
+            return Err(e);
+        }
     };
-    let p2p = {
-        let mut conn = state
-            .get_conn()
-            .await
-            .error(AppErrorKind::DbConnAcquisitionFailed)?;
-        query
-            .execute(&mut conn)
-            .await
-            .context("Failed to insert p2p")
-            .error(AppErrorKind::DbQueryFailed)?
-    };
-    info!(
-        class_id = ?p2p.id(),
-        "Inserted p2p into db",
-    );
 
     if body.whiteboard {
         if let Err(e) = state.event_client().create_whiteboard(event_room_id).await {
@@ -123,18 +112,7 @@ async fn do_create(state: &dyn AppContext, account_id: &AccountId, body: P2P) ->
         }
     }
 
-    crate::app::services::update_classroom_id(
-        state,
-        p2p.id(),
-        p2p.event_room_id(),
-        p2p.conference_room_id(),
-    )
-    .await
-    .error(AppErrorKind::MqttRequestFailed)?;
-
-    info!("Successfully updated classroom room id");
-
-    let body = serde_json::to_string_pretty(&p2p)
+    let body = serde_json::to_string_pretty(&dummy)
         .context("Failed to serialize p2p")
         .error(AppErrorKind::SerializationFailed)?;
 
@@ -144,6 +122,35 @@ async fn do_create(state: &dyn AppContext, account_id: &AccountId, body: P2P) ->
         .unwrap();
 
     Ok(response)
+}
+
+async fn insert_p2p_dummy(
+    state: &dyn AppContext,
+    body: &P2PCreatePayload,
+) -> Result<class::Dummy, AppError> {
+    let query = class::InsertQuery::new(
+        ClassType::P2P,
+        body.scope.clone(),
+        body.audience.clone(),
+        (Bound::Unbounded, Bound::Unbounded).into(),
+    )
+    .preserve_history(true);
+
+    let query = if let Some(ref tags) = body.tags {
+        query.tags(tags.clone())
+    } else {
+        query
+    };
+
+    let mut conn = state
+        .get_conn()
+        .await
+        .error(AppErrorKind::DbConnAcquisitionFailed)?;
+    query
+        .execute(&mut conn)
+        .await
+        .context("Failed to insert webinar")
+        .error(AppErrorKind::DbQueryFailed)
 }
 
 #[derive(Deserialize)]
@@ -246,7 +253,7 @@ mod tests {
         let scope = random_string();
 
         let state = Arc::new(state);
-        let body = P2P {
+        let body = P2PCreatePayload {
             scope: scope.clone(),
             audience: USR_AUDIENCE.to_string(),
             tags: None,
@@ -275,7 +282,7 @@ mod tests {
         let scope = random_string();
 
         let state = Arc::new(state);
-        let body = P2P {
+        let body = P2PCreatePayload {
             scope: scope.clone(),
             audience: USR_AUDIENCE.to_string(),
             tags: None,

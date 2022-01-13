@@ -299,9 +299,11 @@ impl HttpTqClient {
             .map(ToOwned::to_owned)
             .unwrap_or_else(|| json!({"scope": class.scope().to_owned()}));
 
-        class.conference_room_id().and_then(|cid| {
-            tags.as_object_mut()
-                .and_then(|map| map.insert("conference_room_id".to_string(), json!(cid)))
+        tags.as_object_mut().and_then(|map| {
+            map.insert(
+                "conference_room_id".to_string(),
+                json!(class.conference_room_id()),
+            )
         });
 
         let task_with_options = if let Some(settings) = self.audience_settings.get(class.audience())
