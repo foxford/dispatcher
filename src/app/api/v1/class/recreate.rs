@@ -3,7 +3,6 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use axum::extract::{Extension, Json, Path};
-use chrono::Utc;
 use hyper::{Body, Response};
 use serde_derive::Deserialize;
 use sqlx::Acquire;
@@ -19,10 +18,8 @@ use crate::app::error::ErrorKind as AppErrorKind;
 use crate::app::AppContext;
 use crate::app::{authz::AuthzObject, metrics::AuthorizeMetrics};
 use crate::db::class;
+use crate::db::class::AsClassType;
 use crate::db::class::BoundedDateTimeTuple;
-use crate::db::class::ClassType;
-use crate::db::class::Object as WebinarObject;
-use crate::{app::api::v1::AppError, db::class::AsClassType};
 
 #[derive(Deserialize)]
 pub struct ClassRecreatePayload {
@@ -67,7 +64,7 @@ async fn do_recreate<T: AsClassType>(
         .measure()?;
 
     let (event_room_id, conference_room_id) =
-        create_event_and_conference::<T>(state, &webinar, &time).await?;
+        crate::app::services::create_event_and_conference(state, &webinar, &time).await?;
 
     let query = crate::db::class::RecreateQuery::new(
         webinar.id(),
@@ -120,46 +117,6 @@ async fn do_recreate<T: AsClassType>(
     let response = Response::builder().body(Body::from(body)).unwrap();
 
     Ok(response)
-}
-
-async fn create_event_and_conference<T: AsClassType>(
-    state: &dyn AppContext,
-    webinar: &WebinarObject,
-    time: &BoundedDateTimeTuple,
-) -> Result<(Uuid, Uuid), AppError> {
-    let conference_time = match time.0 {
-        Bound::Included(t) | Bound::Excluded(t) => (Bound::Included(t), Bound::Unbounded),
-        Bound::Unbounded => (Bound::Included(Utc::now()), Bound::Unbounded),
-    };
-
-    let policy = match T::as_class_type() {
-        ClassType::Webinar => Some("shared".to_string()),
-        ClassType::Minigroup => Some("owned".to_string()),
-        ClassType::P2P => None,
-    };
-    let conference_fut = state.conference_client().create_room(
-        conference_time,
-        webinar.audience().to_owned(),
-        policy,
-        webinar.reserve(),
-        webinar.tags().map(ToOwned::to_owned),
-        Some(webinar.id()),
-    );
-
-    let event_time = (Bound::Included(Utc::now()), Bound::Unbounded);
-    let event_fut = state.event_client().create_room(
-        event_time,
-        webinar.audience().to_owned(),
-        Some(true),
-        webinar.tags().map(ToOwned::to_owned),
-        Some(webinar.id()),
-    );
-
-    let (event_room_id, conference_room_id) = tokio::try_join!(event_fut, conference_fut)
-        .context("Services requests")
-        .error(AppErrorKind::MqttRequestFailed)?;
-
-    Ok((event_room_id, conference_room_id))
 }
 
 #[cfg(test)]
@@ -263,7 +220,7 @@ mod tests {
             assert_eq!(new_webinar.event_room_id(), recreated_event_room_id);
             assert_eq!(
                 new_webinar.conference_room_id(),
-                Some(recreated_conference_room_id)
+                recreated_conference_room_id
             );
         }
 
