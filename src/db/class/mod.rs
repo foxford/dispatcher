@@ -411,13 +411,13 @@ impl UpdateDumpEventsQuery {
     }
 }
 
-pub struct UpdateQuery {
+pub struct UpdateAdjustedRoomsQuery {
     id: Uuid,
     original_event_room_id: Uuid,
     modified_event_room_id: Uuid,
 }
 
-impl UpdateQuery {
+impl UpdateAdjustedRoomsQuery {
     pub fn new(id: Uuid, original_event_room_id: Uuid, modified_event_room_id: Uuid) -> Self {
         Self {
             id,

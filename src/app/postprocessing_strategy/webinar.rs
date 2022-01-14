@@ -77,7 +77,7 @@ impl super::PostprocessingStrategy for WebinarPostprocessingStrategy {
                         .await
                         .context("Failed to begin sqlx db transaction")?;
 
-                    let q = crate::db::class::UpdateQuery::new(
+                    let q = crate::db::class::UpdateAdjustedRoomsQuery::new(
                         self.webinar.id(),
                         original_room_id,
                         modified_room_id,
