@@ -64,6 +64,10 @@ fn webinars_router() -> Router {
             "/api/v1/audiences/:audience/webinars/:scope",
             options(read_options).get(read_by_scope::<WebinarType>),
         )
+        .metered_route(
+            "/api/v1/webinars/:id/timestamps",
+            options(read_options).post(create_timestamp::<WebinarType>),
+        )
         .layer(CorsLayer)
         .metered_route("/api/v1/webinars", post(create_webinar))
         .metered_route("/api/v1/webinars/convert", post(convert_webinar))
@@ -73,10 +77,6 @@ fn webinars_router() -> Router {
             post(recreate::<WebinarType>),
         )
         .metered_route("/api/v1/webinars/:id/events", post(create_event))
-        .metered_route(
-            "/api/v1/webinars/:id/timestamps",
-            post(create_timestamp::<WebinarType>),
-        )
 }
 
 fn p2p_router() -> Router {
@@ -109,6 +109,10 @@ fn minigroups_router() -> Router {
                 .get(read_by_scope::<MinigroupType>)
                 .put(update_by_scope::<MinigroupType>),
         )
+        .metered_route(
+            "/api/v1/minigroups/:id/timestamps",
+            options(read_options).post(create_timestamp::<MinigroupType>),
+        )
         .layer(CorsLayer)
         .metered_route(
             "/api/v1/minigroups/:id/recreate",
@@ -117,10 +121,6 @@ fn minigroups_router() -> Router {
         .metered_route("/api/v1/minigroups", post(create_minigroup))
         .metered_route("/api/v1/minigroups/:id/download", get(download_minigroup))
         .metered_route("/api/v1/minigroups/:id/events", post(create_event))
-        .metered_route(
-            "/api/v1/minigroups/:id/timestamps",
-            post(create_timestamp::<MinigroupType>),
-        )
 }
 
 fn authz_router() -> Router {
