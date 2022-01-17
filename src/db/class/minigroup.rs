@@ -2,6 +2,7 @@ use chrono::serde::ts_seconds;
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 use serde_json::Value as JsonValue;
+#[cfg(test)]
 use sqlx::postgres::{types::PgRange, PgConnection};
 use svc_agent::AgentId;
 use uuid::Uuid;
@@ -67,6 +68,7 @@ use super::{GenericReadQuery, MinigroupType};
 #[cfg(test)]
 pub type MinigroupReadQuery = GenericReadQuery<MinigroupType>;
 
+#[cfg(test)]
 pub struct MinigroupInsertQuery {
     scope: String,
     audience: String,
@@ -80,6 +82,7 @@ pub struct MinigroupInsertQuery {
     reserve: Option<i32>,
 }
 
+#[cfg(test)]
 impl MinigroupInsertQuery {
     pub fn new(
         scope: String,
@@ -109,7 +112,6 @@ impl MinigroupInsertQuery {
         }
     }
 
-    #[cfg(test)]
     pub fn original_event_room_id(self, id: Uuid) -> Self {
         Self {
             original_event_room_id: Some(id),
@@ -117,7 +119,6 @@ impl MinigroupInsertQuery {
         }
     }
 
-    #[cfg(test)]
     pub fn modified_event_room_id(self, id: Uuid) -> Self {
         Self {
             modified_event_room_id: Some(id),
