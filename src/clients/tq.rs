@@ -327,7 +327,7 @@ impl HttpTqClient {
     fn task_id(class: &Class, task: &Task) -> String {
         let mut task_id = format!("{}-{}", task.template(), class.scope());
         if let Some(id) = task.stream_id() {
-            task_id = format!("{}-{}", task_id, id.to_string())
+            task_id = format!("{}-{}", task_id, id)
         }
 
         task_id

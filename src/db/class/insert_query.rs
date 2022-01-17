@@ -177,7 +177,7 @@ mod tests {
 
     #[tokio::test]
     async fn insert_already_established_webinar() {
-        let mut db = TestDb::new().await;
+        let db = TestDb::new().await;
         let mut conn = db.get_conn().await;
 
         let webinar = {
@@ -216,7 +216,7 @@ mod tests {
 
     #[tokio::test]
     async fn insert_not_established_webinar() {
-        let mut db = TestDb::new().await;
+        let db = TestDb::new().await;
         let mut conn = db.get_conn().await;
 
         let dummy = InsertQuery::new(
