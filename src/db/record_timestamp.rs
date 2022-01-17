@@ -69,7 +69,7 @@ impl FindQuery {
         }
     }
 
-    pub async fn execute(self, conn: &mut PgConnection) -> sqlx::Result<Object> {
+    pub async fn execute(self, conn: &mut PgConnection) -> sqlx::Result<Option<Object>> {
         sqlx::query_as!(
             Object,
             r#"
@@ -82,7 +82,7 @@ impl FindQuery {
             self.class_id,
             self.account_id as AccountId,
         )
-        .fetch_one(conn)
+        .fetch_optional(conn)
         .await
     }
 }

@@ -130,10 +130,12 @@ async fn do_read_inner<T: AsClassType>(
                     crate::db::record_timestamp::FindQuery::new(class.id(), account_id.clone())
                         .execute(&mut conn)
                         .await
-                        .context("Failed to find recording")
+                        .context("Failed to find recording timestamp")
                         .error(AppErrorKind::DbQueryFailed)?
-                        .position_secs();
-                class_body.set_position(position);
+                        .map(|v| v.position_secs());
+                if let Some(pos) = position {
+                    class_body.set_position(pos);
+                }
             }
 
             class_body.set_status(ClassStatus::Transcoded);
