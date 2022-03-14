@@ -44,6 +44,7 @@ const CORRELATION_DATA_LENGTH: usize = 16;
 fn generate_correlation_data() -> String {
     thread_rng()
         .sample_iter(&Alphanumeric)
+        .map(char::from)
         .take(CORRELATION_DATA_LENGTH)
         .collect()
 }
