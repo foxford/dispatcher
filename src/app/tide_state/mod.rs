@@ -16,6 +16,8 @@ use crate::clients::tq::TqClient;
 use crate::config::Config;
 use crate::config::StorageConfig;
 
+use super::turn_host::TurnHostSelector;
+
 #[async_trait]
 pub trait AppContext: Sync + Send {
     async fn get_conn(&self) -> Result<PoolConnection<Postgres>>;
@@ -29,6 +31,7 @@ pub trait AppContext: Sync + Send {
     fn storage_config(&self) -> &StorageConfig;
     fn config(&self) -> &Config;
     fn agent(&self) -> Option<&Agent>;
+    fn turn_host_selector(&self) -> &TurnHostSelector;
 
     fn get_preroll_offset(&self, audience: &str) -> i64 {
         self.config()
@@ -59,6 +62,7 @@ pub struct TideState {
     event_client: Arc<dyn EventClient>,
     tq_client: Arc<dyn TqClient>,
     authz: Authz,
+    turn_host_selector: TurnHostSelector,
 }
 
 impl TideState {
@@ -71,6 +75,8 @@ impl TideState {
         agent: Agent,
         authz: Authz,
     ) -> Self {
+        let turn_host_selector = TurnHostSelector::new(&config.turn_hosts);
+
         Self {
             db_pool,
             config,
@@ -79,6 +85,7 @@ impl TideState {
             event_client,
             tq_client,
             authz,
+            turn_host_selector,
         }
     }
 }
@@ -130,6 +137,10 @@ impl AppContext for TideState {
 
     fn agent(&self) -> Option<&Agent> {
         Some(&self.agent)
+    }
+
+    fn turn_host_selector(&self) -> &TurnHostSelector {
+        &self.turn_host_selector
     }
 }
 

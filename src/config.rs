@@ -7,6 +7,8 @@ use svc_authn::jose::{Algorithm, ConfigMap as Authn};
 use svc_authz::ConfigMap as Authz;
 use svc_error::extension::sentry::Config as SentryConfig;
 
+use crate::app::turn_host::TurnHost;
+
 #[derive(Clone, Debug, Deserialize)]
 pub struct Config {
     pub id: AccountId,
@@ -26,6 +28,8 @@ pub struct Config {
     pub storage: StorageConfig,
     #[serde(with = "humantime_serde")]
     pub retry_delay: Duration,
+    #[serde(default)]
+    pub turn_hosts: Vec<TurnHost>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
