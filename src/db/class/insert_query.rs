@@ -194,7 +194,7 @@ mod tests {
 
         let t = Utc::now().trunc_subsecs(0);
 
-        let r = InsertQuery::new(
+        InsertQuery::new(
             ClassType::Webinar,
             webinar.scope().to_owned(),
             webinar.audience().to_owned(),

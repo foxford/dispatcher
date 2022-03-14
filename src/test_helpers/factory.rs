@@ -33,13 +33,6 @@ impl P2P {
         }
     }
 
-    pub fn tags(self, tags: JsonValue) -> Self {
-        Self {
-            tags: Some(tags),
-            ..self
-        }
-    }
-
     pub async fn insert(self, conn: &mut PgConnection) -> db::class::Object {
         let mut q = db::class::P2PInsertQuery::new(
             self.scope,
@@ -172,27 +165,6 @@ impl Webinar {
         }
     }
 
-    pub fn tags(self, tags: JsonValue) -> Self {
-        Self {
-            tags: Some(tags),
-            ..self
-        }
-    }
-
-    pub fn original_event_room_id(self, original_event_room_id: Uuid) -> Self {
-        Self {
-            original_event_room_id: Some(original_event_room_id),
-            ..self
-        }
-    }
-
-    pub fn modified_event_room_id(self, modified_event_room_id: Uuid) -> Self {
-        Self {
-            modified_event_room_id: Some(modified_event_room_id),
-            ..self
-        }
-    }
-
     pub fn reserve(self, reserve: usize) -> Self {
         Self {
             reserve: Some(reserve),
@@ -278,20 +250,6 @@ impl Recording {
     pub fn started_at(self, started_at: DateTime<Utc>) -> Self {
         Self {
             started_at: Some(started_at),
-            ..self
-        }
-    }
-
-    pub fn modified_segments(self, modified_segments: db::recording::Segments) -> Self {
-        Self {
-            modified_segments: Some(modified_segments),
-            ..self
-        }
-    }
-
-    pub fn adjusted_at(self, adjusted_at: DateTime<Utc>) -> Self {
-        Self {
-            adjusted_at: Some(adjusted_at),
             ..self
         }
     }
