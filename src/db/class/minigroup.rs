@@ -126,13 +126,6 @@ impl MinigroupInsertQuery {
         }
     }
 
-    pub fn reserve(self, reserve: i32) -> Self {
-        Self {
-            reserve: Some(reserve),
-            ..self
-        }
-    }
-
     pub async fn execute(self, conn: &mut PgConnection) -> sqlx::Result<Object> {
         let time: PgRange<DateTime<Utc>> = self.time.into();
 

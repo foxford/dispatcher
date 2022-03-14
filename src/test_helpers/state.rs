@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use anyhow::Result;
@@ -39,7 +38,6 @@ pub struct TestState {
     event_client: Arc<MockEventClient>,
     tq_client: Arc<MockTqClient>,
     authz: Authz,
-    audience_settings: HashMap<String, TqAudienceSettings>,
     turn_host_selector: TurnHostSelector,
 }
 
@@ -109,7 +107,6 @@ impl TestState {
             event_client: Arc::new(MockEventClient::new()),
             tq_client: Arc::new(MockTqClient::new()),
             authz: authz.into(),
-            audience_settings: Default::default(),
             turn_host_selector: TurnHostSelector::new(&[]),
         }
     }
@@ -130,7 +127,6 @@ impl TestState {
             event_client: Arc::new(MockEventClient::new()),
             tq_client: Arc::new(MockTqClient::new()),
             authz: authz.into(),
-            audience_settings: Default::default(),
             turn_host_selector: TurnHostSelector::new(&[]),
         }
     }
