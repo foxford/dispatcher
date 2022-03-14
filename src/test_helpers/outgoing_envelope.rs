@@ -1,6 +1,5 @@
 use serde::de::DeserializeOwned;
 use serde_derive::Deserialize;
-use svc_agent::mqtt::ResponseStatus;
 
 #[derive(Debug, Deserialize)]
 pub struct OutgoingEnvelope {
@@ -49,28 +48,7 @@ impl OutgoingEventProperties {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct OutgoingResponseProperties {
-    status: String,
-    correlation_data: String,
-}
-
-impl OutgoingResponseProperties {
-    pub fn status(&self) -> ResponseStatus {
-        ResponseStatus::from_bytes(self.status.as_bytes()).expect("Invalid status code")
-    }
-
-    pub fn correlation_data(&self) -> &str {
-        &self.correlation_data
-    }
-}
+pub struct OutgoingResponseProperties {}
 
 #[derive(Debug, Deserialize)]
-pub struct OutgoingRequestProperties {
-    method: String,
-}
-
-impl OutgoingRequestProperties {
-    pub fn method(&self) -> &str {
-        &self.method
-    }
-}
+pub struct OutgoingRequestProperties {}
