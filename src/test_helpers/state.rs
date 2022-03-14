@@ -14,6 +14,7 @@ use svc_agent::{
 use svc_authz::ClientMap as Authz;
 use url::Url;
 
+use crate::app::turn_host::TurnHostSelector;
 use crate::app::{AppContext, Publisher};
 use crate::clients::conference::{ConferenceClient, MockConferenceClient};
 use crate::clients::event::{EventClient, MockEventClient};
@@ -39,6 +40,7 @@ pub struct TestState {
     tq_client: Arc<MockTqClient>,
     authz: Authz,
     audience_settings: HashMap<String, TqAudienceSettings>,
+    turn_host_selector: TurnHostSelector,
 }
 
 fn build_config() -> Config {
@@ -108,6 +110,7 @@ impl TestState {
             tq_client: Arc::new(MockTqClient::new()),
             authz: authz.into(),
             audience_settings: Default::default(),
+            turn_host_selector: TurnHostSelector::new(&[]),
         }
     }
 
@@ -128,6 +131,7 @@ impl TestState {
             tq_client: Arc::new(MockTqClient::new()),
             authz: authz.into(),
             audience_settings: Default::default(),
+            turn_host_selector: TurnHostSelector::new(&[]),
         }
     }
 
@@ -141,6 +145,11 @@ impl TestState {
                 preroll_offset: Some(value),
                 ..Default::default()
             });
+    }
+
+    pub fn set_turn_hosts(&mut self, hosts: &[&str]) {
+        let hosts = hosts.into_iter().map(|c| (*c).into()).collect::<Vec<_>>();
+        self.turn_host_selector = TurnHostSelector::new(&hosts);
     }
 }
 
@@ -211,6 +220,10 @@ impl AppContext for TestState {
 
     fn agent(&self) -> Option<&svc_agent::mqtt::Agent> {
         None
+    }
+
+    fn turn_host_selector(&self) -> &TurnHostSelector {
+        &self.turn_host_selector
     }
 }
 

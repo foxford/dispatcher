@@ -1,6 +1,6 @@
 use uuid::Uuid;
 
-use crate::db::class;
+use crate::{app::turn_host::TurnHost, db::class};
 
 use super::{find, find_by_scope, find_class_by_scope, AppResult};
 
@@ -30,6 +30,8 @@ struct ClassResponseBody {
     timed_out: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     position: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    turn_host: Option<TurnHost>,
 }
 
 impl ClassResponseBody {
@@ -48,6 +50,10 @@ impl ClassResponseBody {
     pub fn set_position(&mut self, position_secs: i32) {
         self.position = Some(position_secs);
     }
+
+    pub fn set_turn_host(&mut self, turn_host: TurnHost) {
+        self.turn_host = Some(turn_host);
+    }
 }
 
 impl From<&class::Object> for ClassResponseBody {
@@ -65,6 +71,7 @@ impl From<&class::Object> for ClassResponseBody {
             status: None,
             timed_out: obj.timed_out(),
             position: None,
+            turn_host: None,
         }
     }
 }

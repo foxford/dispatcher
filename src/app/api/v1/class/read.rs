@@ -94,6 +94,10 @@ async fn do_read_inner<T: AsClassType>(
     };
     let mut class_body: ClassResponseBody = (&class).into();
 
+    if let Some(turn) = state.turn_host_selector().get(&class) {
+        class_body.set_turn_host(turn);
+    }
+
     let class_end = class.time().end();
     if let Some(recording) = recordings.first() {
         // BEWARE: the order is significant
@@ -155,4 +159,152 @@ async fn do_read_inner<T: AsClassType>(
         .error(AppErrorKind::SerializationFailed)?;
     let response = Response::builder().body(Body::from(body)).unwrap();
     Ok(response)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashSet;
+
+    use super::*;
+    use crate::{
+        db::class::{P2PType, WebinarType},
+        test_helpers::prelude::*,
+    };
+    use serde_json::Value;
+
+    #[tokio::test]
+    async fn read_webinar_unauthorized() {
+        let agent = TestAgent::new("web", "user1", USR_AUDIENCE);
+
+        let state = TestState::new(TestAuthz::new()).await;
+
+        let state = Arc::new(state);
+
+        do_read::<WebinarType>(state.as_ref(), agent.account_id(), Uuid::new_v4())
+            .await
+            .expect_err("Unexpectedly succeeded");
+    }
+
+    #[tokio::test]
+    async fn read_webinar() {
+        let agent = TestAgent::new("web", "user1", USR_AUDIENCE);
+        let db_pool = TestDb::new().await;
+
+        let webinar = {
+            let mut conn = db_pool.get_conn().await;
+            let webinar = factory::Webinar::new(
+                random_string(),
+                USR_AUDIENCE.to_string(),
+                (Bound::Unbounded, Bound::Unbounded).into(),
+                Uuid::new_v4(),
+                Uuid::new_v4(),
+            )
+            .insert(&mut conn)
+            .await;
+
+            webinar
+        };
+
+        let mut authz = TestAuthz::new();
+        authz.allow(
+            agent.account_id(),
+            vec!["classrooms", &webinar.id().to_string()],
+            "read",
+        );
+
+        let mut state = TestState::new_with_pool(db_pool, authz);
+        state.set_turn_hosts(&["turn0"]);
+        let state = Arc::new(state);
+
+        let r = do_read::<WebinarType>(state.as_ref(), agent.account_id(), webinar.id())
+            .await
+            .expect("Failed to read webinar");
+
+        let r = hyper::body::to_bytes(r.into_body()).await.unwrap();
+        let v = serde_json::from_slice::<Value>(&r[..]).expect("Failed to parse json");
+        assert_eq!(v.get("turn_host").unwrap().as_str(), Some("turn0"));
+    }
+
+    #[tokio::test]
+    async fn read_webinar_without_turn_hosts() {
+        let agent = TestAgent::new("web", "user1", USR_AUDIENCE);
+        let db_pool = TestDb::new().await;
+
+        let webinar = {
+            let mut conn = db_pool.get_conn().await;
+            let webinar = factory::Webinar::new(
+                random_string(),
+                USR_AUDIENCE.to_string(),
+                (Bound::Unbounded, Bound::Unbounded).into(),
+                Uuid::new_v4(),
+                Uuid::new_v4(),
+            )
+            .insert(&mut conn)
+            .await;
+
+            webinar
+        };
+
+        let mut authz = TestAuthz::new();
+        authz.allow(
+            agent.account_id(),
+            vec!["classrooms", &webinar.id().to_string()],
+            "read",
+        );
+
+        let state = TestState::new_with_pool(db_pool, authz);
+        let state = Arc::new(state);
+
+        let r = do_read::<WebinarType>(state.as_ref(), agent.account_id(), webinar.id())
+            .await
+            .expect("Failed to read webinar");
+
+        let r = hyper::body::to_bytes(r.into_body()).await.unwrap();
+        let v = serde_json::from_slice::<Value>(&r[..]).expect("Failed to parse json");
+        assert_eq!(v.get("turn_host"), None);
+    }
+
+    #[tokio::test]
+    async fn read_p2p() {
+        let agent = TestAgent::new("web", "user1", USR_AUDIENCE);
+        let db_pool = TestDb::new().await;
+
+        let p2p = {
+            let mut conn = db_pool.get_conn().await;
+            let p2p = factory::P2P::new(
+                random_string(),
+                USR_AUDIENCE.to_string(),
+                Uuid::new_v4(),
+                Uuid::new_v4(),
+            )
+            .insert(&mut conn)
+            .await;
+
+            p2p
+        };
+
+        let mut authz = TestAuthz::new();
+        authz.allow(
+            agent.account_id(),
+            vec!["classrooms", &p2p.id().to_string()],
+            "read",
+        );
+
+        let mut state = TestState::new_with_pool(db_pool, authz);
+        state.set_turn_hosts(&["turn0", "turn1", "turn2", "turn3"]);
+        let state = Arc::new(state);
+
+        let mut turns = vec![];
+        for _ in 0..5 {
+            let r = do_read::<P2PType>(state.as_ref(), agent.account_id(), p2p.id())
+                .await
+                .expect("Failed to read p2p");
+
+            let r = hyper::body::to_bytes(r.into_body()).await.unwrap();
+            let v = serde_json::from_slice::<Value>(&r[..]).expect("Failed to parse json");
+            turns.push(v.get("turn_host").unwrap().as_str().unwrap().to_string());
+        }
+
+        assert_eq!(turns.into_iter().collect::<HashSet<_>>().len(), 1);
+    }
 }
