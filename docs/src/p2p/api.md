@@ -46,6 +46,7 @@ Attribute              | Type        | Optional | Description
 class_id               | uuid        |          | P2P id
 id                     | string      |          | P2p scope
 real_time              | json object | +        | `event_room_id` and `conference_room_id` fields
+turn_host              | string      | +        | TURN host to connect to if needed
 
 Response: status 200 and p2p object as payload.
 
