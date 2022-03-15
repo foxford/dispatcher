@@ -480,6 +480,7 @@ dependencies = [
  "tracing-subscriber",
  "url 2.2.2",
  "uuid",
+ "vec1",
 ]
 
 [[package]]
@@ -3264,6 +3265,15 @@ name = "vcpkg"
 version = "0.2.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "accd4ea62f7bb7a82fe23066fb0957d48ef677f6eeb8215f372f52e48bb32426"
+
+[[package]]
+name = "vec1"
+version = "1.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5fc1631c774f0f9570797191e01247cbefde789eebfbf128074cb934115a6133"
+dependencies = [
+ "serde 1.0.126",
+]
 
 [[package]]
 name = "version_check"

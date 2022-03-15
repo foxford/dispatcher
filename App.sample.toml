@@ -5,6 +5,7 @@ broker_id = "mqtt-gateway.dev.svc.example.org"
 default_frontend_base = "http://test.example.org"
 
 tenants = ["test.example.org"]
+turn_hosts = ["turn.example.org"]
 
 [authn."dev.svc.example.org"]
 audience = ["dev.svc.example.org"]

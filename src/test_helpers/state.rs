@@ -12,6 +12,7 @@ use svc_agent::{
 };
 use svc_authz::ClientMap as Authz;
 use url::Url;
+use vec1::{vec1, Vec1};
 
 use crate::app::turn_host::TurnHostSelector;
 use crate::app::{AppContext, Publisher};
@@ -84,7 +85,8 @@ fn build_config() -> Config {
             "timeout": 5,
             "api_version": "v1"
         },
-        "retry_delay": "1 seconds"
+        "retry_delay": "1 seconds",
+        "turn_hosts": [ "turn.example.org" ]
     });
 
     serde_json::from_value::<Config>(config).expect("Failed to parse test config")
@@ -100,6 +102,7 @@ impl TestState {
 
         Self {
             db_pool: TestDb::new().await,
+            turn_host_selector: TurnHostSelector::new(&config.turn_hosts),
             config,
             agent,
             publisher: Arc::new(TestPublisher::new(address)),
@@ -107,7 +110,6 @@ impl TestState {
             event_client: Arc::new(MockEventClient::new()),
             tq_client: Arc::new(MockTqClient::new()),
             authz: authz.into(),
-            turn_host_selector: TurnHostSelector::new(&[]),
         }
     }
 
@@ -127,7 +129,7 @@ impl TestState {
             event_client: Arc::new(MockEventClient::new()),
             tq_client: Arc::new(MockTqClient::new()),
             authz: authz.into(),
-            turn_host_selector: TurnHostSelector::new(&[]),
+            turn_host_selector: TurnHostSelector::new(&vec1!["turn.example.org".into()]),
         }
     }
 
@@ -145,6 +147,7 @@ impl TestState {
 
     pub fn set_turn_hosts(&mut self, hosts: &[&str]) {
         let hosts = hosts.into_iter().map(|c| (*c).into()).collect::<Vec<_>>();
+        let hosts = Vec1::try_from_vec(hosts).unwrap();
         self.turn_host_selector = TurnHostSelector::new(&hosts);
     }
 }

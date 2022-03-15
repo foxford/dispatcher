@@ -28,8 +28,7 @@ pub struct Config {
     pub storage: StorageConfig,
     #[serde(with = "humantime_serde")]
     pub retry_delay: Duration,
-    #[serde(default)]
-    pub turn_hosts: Vec<TurnHost>,
+    pub turn_hosts: vec1::Vec1<TurnHost>,
 }
 
 #[derive(Clone, Debug, Deserialize)]

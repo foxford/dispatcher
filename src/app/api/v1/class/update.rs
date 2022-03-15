@@ -62,7 +62,10 @@ pub async fn update_by_scope<T: AsClassType>(
 
     let updated_class =
         do_update::<T>(ctx.as_ref(), agent_id.as_account_id(), class, payload).await?;
-    let response: ClassResponseBody = (&updated_class).into();
+
+    let response =
+        ClassResponseBody::new(&updated_class, ctx.turn_host_selector().get(&updated_class));
+
     Ok(Response::builder()
         .body(Body::from(
             serde_json::to_string(&response)
