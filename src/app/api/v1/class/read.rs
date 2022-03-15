@@ -92,11 +92,8 @@ async fn do_read_inner<T: AsClassType>(
             .context("Failed to find recording")
             .error(AppErrorKind::DbQueryFailed)?
     };
-    let mut class_body: ClassResponseBody = (&class).into();
 
-    if let Some(turn) = state.turn_host_selector().get(&class) {
-        class_body.set_turn_host(turn);
-    }
+    let mut class_body = ClassResponseBody::new(&class, state.turn_host_selector().get(&class));
 
     let class_end = class.time().end();
     if let Some(recording) = recordings.first() {
@@ -223,45 +220,6 @@ mod tests {
         let r = hyper::body::to_bytes(r.into_body()).await.unwrap();
         let v = serde_json::from_slice::<Value>(&r[..]).expect("Failed to parse json");
         assert_eq!(v.get("turn_host").unwrap().as_str(), Some("turn0"));
-    }
-
-    #[tokio::test]
-    async fn read_webinar_without_turn_hosts() {
-        let agent = TestAgent::new("web", "user1", USR_AUDIENCE);
-        let db_pool = TestDb::new().await;
-
-        let webinar = {
-            let mut conn = db_pool.get_conn().await;
-            let webinar = factory::Webinar::new(
-                random_string(),
-                USR_AUDIENCE.to_string(),
-                (Bound::Unbounded, Bound::Unbounded).into(),
-                Uuid::new_v4(),
-                Uuid::new_v4(),
-            )
-            .insert(&mut conn)
-            .await;
-
-            webinar
-        };
-
-        let mut authz = TestAuthz::new();
-        authz.allow(
-            agent.account_id(),
-            vec!["classrooms", &webinar.id().to_string()],
-            "read",
-        );
-
-        let state = TestState::new_with_pool(db_pool, authz);
-        let state = Arc::new(state);
-
-        let r = do_read::<WebinarType>(state.as_ref(), agent.account_id(), webinar.id())
-            .await
-            .expect("Failed to read webinar");
-
-        let r = hyper::body::to_bytes(r.into_body()).await.unwrap();
-        let v = serde_json::from_slice::<Value>(&r[..]).expect("Failed to parse json");
-        assert_eq!(v.get("turn_host"), None);
     }
 
     #[tokio::test]

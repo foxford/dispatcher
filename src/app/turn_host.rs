@@ -3,6 +3,7 @@ use std::sync::Arc;
 use hashring::HashRing;
 use rand::{prelude::SliceRandom, thread_rng};
 use serde::{Deserialize, Serialize};
+use vec1::Vec1;
 
 use crate::db::class::{ClassType, Object as Class};
 
@@ -21,7 +22,7 @@ struct Ring {
 }
 
 impl Ring {
-    fn new(hosts: &[TurnHost]) -> Self {
+    fn new(hosts: &Vec1<TurnHost>) -> Self {
         let mut ring = HashRing::new();
         for h in hosts.iter().cloned() {
             ring.add(h);
@@ -30,25 +31,25 @@ impl Ring {
         Self { ring }
     }
 
-    fn get(&self, key: &str) -> Option<TurnHost> {
-        self.ring.get(&key).cloned()
+    fn get(&self, key: &str) -> TurnHost {
+        self.ring.get(&key).cloned().unwrap()
     }
 }
 
 struct RandomVec {
-    hosts: Vec<TurnHost>,
+    hosts: Vec1<TurnHost>,
 }
 
 impl RandomVec {
-    fn new(hosts: &[TurnHost]) -> Self {
+    fn new(hosts: &Vec1<TurnHost>) -> Self {
         Self {
-            hosts: hosts.to_vec(),
+            hosts: hosts.clone(),
         }
     }
 
-    fn get(&self) -> Option<TurnHost> {
+    fn get(&self) -> TurnHost {
         let mut rng = thread_rng();
-        self.hosts.choose(&mut rng).cloned()
+        self.hosts.choose(&mut rng).cloned().unwrap()
     }
 }
 
@@ -63,14 +64,14 @@ pub struct TurnHostSelector {
 }
 
 impl TurnHostSelector {
-    pub fn new(hosts: &[TurnHost]) -> Self {
+    pub fn new(hosts: &Vec1<TurnHost>) -> Self {
         let random = RandomVec::new(hosts);
         let hash_ring = Ring::new(hosts);
         let inner = Arc::new(Inner { random, hash_ring });
         Self { inner }
     }
 
-    pub fn get(&self, class: &Class) -> Option<TurnHost> {
+    pub fn get(&self, class: &Class) -> TurnHost {
         match class.kind() {
             ClassType::Webinar | ClassType::Minigroup => self.inner.random.get(),
             ClassType::P2P => self.inner.hash_ring.get(class.scope()),

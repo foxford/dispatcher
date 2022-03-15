@@ -30,8 +30,7 @@ struct ClassResponseBody {
     timed_out: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     position: Option<i32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    turn_host: Option<TurnHost>,
+    turn_host: TurnHost,
 }
 
 impl ClassResponseBody {
@@ -51,13 +50,7 @@ impl ClassResponseBody {
         self.position = Some(position_secs);
     }
 
-    pub fn set_turn_host(&mut self, turn_host: TurnHost) {
-        self.turn_host = Some(turn_host);
-    }
-}
-
-impl From<&class::Object> for ClassResponseBody {
-    fn from(obj: &class::Object) -> Self {
+    pub fn new(obj: &class::Object, turn_host: TurnHost) -> Self {
         Self {
             class_id: obj.id(),
             id: obj.scope().to_owned(),
@@ -71,7 +64,7 @@ impl From<&class::Object> for ClassResponseBody {
             status: None,
             timed_out: obj.timed_out(),
             position: None,
-            turn_host: None,
+            turn_host,
         }
     }
 }
