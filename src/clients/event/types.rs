@@ -290,6 +290,7 @@ pub struct EventRoomResponse {
 #[derive(Clone, Debug, Serialize)]
 pub struct LockedTypes {
     pub message: bool,
+    pub reaction: bool,
 }
 
 #[derive(Clone, Debug, Serialize)]
