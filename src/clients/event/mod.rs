@@ -53,19 +53,15 @@ pub trait EventClient: Sync + Send {
     async fn dump_room(&self, event_room_id: Uuid) -> Result<(), ClientError>;
 
     async fn lock_chat(&self, room_id: Uuid) -> Result<(), ClientError> {
-        let payload = EventPayload {
+        self.update_locked_types(
             room_id,
-            kind: "chat_disabled",
-            set: "chat_disabled",
-            data: serde_json::json!({"value": true}),
-            label: None,
-        };
-
-        let payload = serde_json::to_value(&payload).unwrap();
-
-        let f1 = self.create_event(payload);
-        let f2 = self.update_locked_types(room_id, LockedTypes { message: true });
-        tokio::try_join!(f1, f2).map(|_| ())
+            LockedTypes {
+                message: true,
+                reaction: true,
+            },
+        )
+        .await
+        .map(|_| ())
     }
 
     async fn create_whiteboard(&self, room_id: Uuid) -> Result<(), ClientError> {
