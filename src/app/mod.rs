@@ -13,7 +13,7 @@ use svc_agent::{
 use svc_authn::token::jws_compact;
 use svc_authz::cache::AuthzCache;
 use svc_authz::ClientMap as Authz;
-use svc_error::{extension::sentry, Error as SvcError};
+use svc_error::extension::sentry as svc_sentry;
 use tracing::{error, info};
 
 use crate::clients::event::{EventClient, TowerClient};
@@ -194,15 +194,10 @@ fn subscribe(agent: &mut Agent, agent_id: &AgentId, config: &Config) -> Result<(
 
 fn resubscribe(agent: &mut Agent, agent_id: &AgentId, config: &Config) {
     if let Err(err) = subscribe(agent, agent_id, config) {
-        let err = format!("Failed to resubscribe after reconnection: {:?}", err);
+        let err = err.context("Failed to resubscribe after reconnection");
         error!("{:?}", err);
 
-        let svc_error = SvcError::builder()
-            .kind("resubscription_error", "Resubscription error")
-            .detail(&err)
-            .build();
-
-        sentry::send(svc_error)
+        svc_sentry::send(Arc::new(err))
             .unwrap_or_else(|err| error!("Error sending error to Sentry: {:?}", err));
     }
 }
