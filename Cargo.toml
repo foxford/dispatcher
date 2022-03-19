@@ -10,7 +10,7 @@ edition = "2018"
 [dependencies]
 anyhow = "1.0"
 async-trait = "0.1"
-axum = { version = "0.3", features = ["headers"] }
+axum = { version = "0.4", features = ["headers"] }
 chrono = { version = "0.4", features = ["serde"] }
 config = "0.10"
 futures = "0.3"
@@ -54,7 +54,7 @@ svc-error = { version = "0.2", features = [
     "sentry-extension",
     "sqlx",
 ] }
-svc-utils = { version = "0.1", features = ["log-middleware", "metrics-middleware", "cors-middleware", "authn-extractor"] }
+svc-utils = { version = "0.2", features = ["log-middleware", "metrics-middleware", "cors-middleware", "authn-extractor"] }
 tokio = { version = "1", features = ["full"] }
 tower = { version = "0.4", features = [ "timeout" ] }
 tracing = "0.1"
