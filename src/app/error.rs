@@ -2,7 +2,7 @@ use std::error::Error as StdError;
 use std::fmt;
 
 use axum::response::IntoResponse;
-use hyper::body::{Body, HttpBody};
+use axum::{body::BoxBody, Json};
 use hyper::Response;
 use svc_agent::mqtt::ResponseStatus;
 use svc_error::{extension::sentry, Error as SvcError};
@@ -180,17 +180,10 @@ impl Error {
 }
 
 impl IntoResponse for Error {
-    type Body = Body;
-    type BodyError = <Self::Body as HttpBody>::Error;
-
-    fn into_response(self) -> Response<Self::Body> {
+    fn into_response(self) -> Response<BoxBody> {
         let properties: ErrorKindProperties = self.kind.into();
-        let body = serde_json::to_string(&self.to_svc_error()).expect("Infallible");
 
-        Response::builder()
-            .status(properties.status.as_u16())
-            .body(Body::from(body))
-            .unwrap()
+        (properties.status, Json(&self.to_svc_error())).into_response()
     }
 }
 
