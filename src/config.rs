@@ -17,6 +17,7 @@ pub struct Config {
     pub broker_id: AccountId,
     pub mqtt: AgentConfig,
     pub default_frontend_base: url::Url,
+    pub default_frontend_base_new: url::Url,
     pub sentry: Option<SentryConfig>,
     pub http: HttpConfig,
     pub conference_client: MqttServiceConfig,
@@ -29,6 +30,7 @@ pub struct Config {
     #[serde(with = "humantime_serde")]
     pub retry_delay: Duration,
     pub turn_hosts: vec1::Vec1<TurnHost>,
+    pub short_namespace: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
