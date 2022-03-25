@@ -103,12 +103,11 @@ async fn find_class_by_scope(
 #[derive(Deserialize)]
 pub struct RedirQuery {
     pub scope: String,
-    pub app: String,
-    pub audience: String,
 }
 
 pub async fn redirect_to_frontend(
     ctx: Extension<Arc<dyn AppContext>>,
+    Path((tenant, app)): Path<(String, String)>,
     Query(query): Query<RedirQuery>,
     request: Request<Body>,
 ) -> AppResult {
@@ -119,12 +118,10 @@ pub async fn redirect_to_frontend(
             None
         }
         Ok(mut conn) => {
-            let fe = crate::db::frontend::FrontendByScopeQuery::new(
-                query.scope.clone(),
-                query.app.clone(),
-            )
-            .execute(&mut conn)
-            .await;
+            let fe =
+                crate::db::frontend::FrontendByScopeQuery::new(query.scope.clone(), app.clone())
+                    .execute(&mut conn)
+                    .await;
             match fe {
                 Err(e) => {
                     error!("Failed to find frontend: {:?}", e);
@@ -139,9 +136,7 @@ pub async fn redirect_to_frontend(
         }
     };
 
-    let mut url = base_url.unwrap_or_else(|| {
-        super::build_default_url(ctx.default_frontend_base(), &query.audience, &query.app)
-    });
+    let mut url = base_url.unwrap_or_else(|| ctx.build_default_frontend_url_new(&tenant, &app));
 
     url.set_query(request.uri().query());
 

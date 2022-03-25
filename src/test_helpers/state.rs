@@ -51,6 +51,7 @@ fn build_config() -> Config {
         "agent_label": "alpha",
         "broker_id": broker_id,
         "default_frontend_base": "http://testing01.example.org",
+        "default_frontend_base_new": "http://dev.example.org",
         "tenants": ["testing01.example.org"],
         "id_token": {
             "algorithm": "ES256",
@@ -181,8 +182,12 @@ impl AppContext for TestState {
         Ok(conn)
     }
 
-    fn default_frontend_base(&self) -> Url {
-        self.config.default_frontend_base.clone()
+    fn build_default_frontend_url(&self, _tenant: &str, _app: &str) -> Url {
+        todo!()
+    }
+
+    fn build_default_frontend_url_new(&self, _tenant: &str, _app: &str) -> Url {
+        todo!()
     }
 
     fn agent_id(&self) -> &AgentId {

@@ -50,6 +50,10 @@ fn redirects_router() -> Router {
         .metered_route("/api/v1/healthz", get(healthz))
         .metered_route("/api/v1/scopes/:scope/rollback", post(rollback))
         .metered_route("/api/v1/redirs", get(redirect_to_frontend2))
+        .metered_route(
+            "/api/v1/redirs/tenants/:tenant/apps/:app",
+            get(redirect_to_frontend2),
+        )
 }
 
 fn webinars_router() -> Router {

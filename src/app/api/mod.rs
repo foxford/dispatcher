@@ -63,8 +63,7 @@ pub async fn redirect_to_frontend(
         }
     };
 
-    let mut url =
-        base_url.unwrap_or_else(|| build_default_url(ctx.default_frontend_base(), &tenant, &app));
+    let mut url = base_url.unwrap_or_else(|| ctx.build_default_frontend_url(&tenant, &app));
 
     url.set_query(request.uri().query());
 
@@ -155,14 +154,6 @@ pub async fn rollback(
     }
 
     Response::builder().body(Body::from("Ok")).unwrap()
-}
-
-fn build_default_url(mut url: Url, tenant: &str, app: &str) -> Url {
-    let host = url.host_str().map(|h| format!("{}.{}.{}", tenant, app, h));
-    if let Err(e) = url.set_host(host.as_deref()) {
-        error!("Default url set_host failed, reason = {:?}", e);
-    }
-    url
 }
 
 fn build_back_url<B>(request: &Request<B>) -> Result<Uri, AppError> {
