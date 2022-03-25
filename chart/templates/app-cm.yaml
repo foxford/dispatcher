@@ -1,0 +1,185 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+    {{- include "dispatcher.labels" . | nindent 4 }}
+  name: {{ include "dispatcher.fullname" . }}-app
+data:
+  App.toml: |
+    {{- $id := list (include "dispatcher.name" . ) (include "dispatcher.shortNamespace" .) .Values.app.svc.audience | compact | join "." }}
+    id = {{ $id | quote }}
+
+    {{- $broker_id := list "mqtt-gateway" (include "dispatcher.shortNamespace" .) .Values.app.svc.audience | compact | join "." }}
+    broker_id = {{ $broker_id | quote }}
+
+    retry_delay = "2 seconds"
+
+    default_frontend_base = "https://{{ list (include "dispatcher.shortNamespace" $) .Values.ingress.host | compact | join "." }}/"
+    default_frontend_base_new = "https://{{ .Values.ingress.host }}/"
+
+    turn_hosts = [
+      {{- range .Values.app.turn_hosts }}
+      {{ . | quote }},
+      {{- end }}
+    ]
+
+    {{- include "dispatcher.shortNamespaceSetting" $ | nindent 4 }}
+
+    tenants = [
+      {{- range .Values.app.audiences }}
+        {{- if .mqtt_events }}
+        {{- $ns_audience := list (include "dispatcher.shortNamespace" $) .audience | compact | join "."  }}
+        {{ $ns_audience | quote }},
+        {{- end }}
+      {{- end }}
+    ]
+
+    [mqtt]
+    uri = "tcp://mqtt-gateway-cluster:51883"
+    incoming_message_queue_size = 1000000
+    outgoing_message_queue_size = 1000000
+    clean_session = false
+    reconnect_interval = 3
+    keep_alive = 15
+    max_message_size = 5000000
+
+    [sentry]
+    dsn = {{ .Values.sentry.dsn | quote }}
+    environment = {{ .Release.Namespace | quote }}
+
+    [http]
+    listener_address = "0.0.0.0:8080"
+    metrics_listener_address = "0.0.0.0:8888"
+
+    [conference_client]
+    {{- $conference := list "conference" (include "dispatcher.shortNamespace" $) .Values.app.svc.audience | compact | join "."  }}
+    account_id = {{ $conference | quote }}
+    timeout = "5"
+    api_version = "v1"
+
+    [event_client]
+    {{- $event := list "event" (include "dispatcher.shortNamespace" $) .Values.app.svc.audience | compact | join "."  }}
+    account_id = {{ $event | quote }}
+    timeout = "5"
+    api_version = "v1"
+
+    [tq_client]
+    {{- $tq := list "tq" (include "dispatcher.shortNamespace" $) .Values.app.svc.audience | compact | join "."  }}
+    base_url = {{ .Values.app.svc.tq_url | quote }}
+    account_id = {{ $tq | quote }}
+    timeout = "5"
+    api_version = "v1"
+    {{- range .Values.app.audiences }}
+    {{- if hasKey . "tq" }}
+    {{- $ns_audience := list (include "dispatcher.shortNamespace" $) .audience | compact | join "."  }}
+    [tq_client.audience_settings.{{ $ns_audience | quote }}]
+    {{- if hasKey .tq "preroll" }}
+    preroll = {{ .tq.preroll | quote }}
+    {{- end }}
+    {{- if hasKey .tq "postroll" }}
+    postroll = {{ .tq.postroll | quote }}
+    {{- end }}
+    {{- if hasKey .tq "watermark" }}
+    watermark = {{ .tq.watermark | quote }}
+    {{- end }}
+    {{- if hasKey .tq "to" }}
+    to = {{ .tq.to | quote }}
+    {{- end }}
+    preroll_offset = {{ .tq.preroll_offset }}
+    {{- end }}
+    {{- end }}
+
+    [storage]
+    base_url = {{ .Values.app.svc.storage_url | quote }}
+
+    ##
+    ## ULMS
+    ##
+    [id_token]
+    algorithm = "ES256"
+    key = "data/keys/svc.private_key.p8.der"
+
+    {{- println "" }}
+
+    {{- with .Values.app.svc }}
+    ##
+    ## SVC
+    ##
+    {{- $svc_audience := list (include "dispatcher.shortNamespace" $) .audience | compact | join "." }}
+    {{- with .authn }}
+    [authn.{{ $svc_audience | quote }}]
+    audience = [{{ $svc_audience | quote }}]
+    algorithm = "ES256"
+    key = {{ .key | quote }}
+    {{- end }}
+
+    {{- println "" }}
+
+    {{- with .authz }}
+    [authz.{{ $svc_audience | quote }}]
+    type = {{ .type | quote }}
+    {{- if eq "localwhitelist" .type }}
+    [[authz.{{ $svc_audience | quote }}.records]]
+    {{- range $record := .records }}
+    subject_account_id = {{ get $record "subject_account_id" | quote }}
+    object = [
+      {{- range $o := get $record "object" }}
+      {{ $o | quote }},
+      {{- end}}
+    ]
+    action = {{ get $record "action" | quote }}
+    {{- end }}
+    {{- end }}
+    {{- end }}
+    {{- end }}
+
+    {{- println "" }}
+
+    {{- range .Values.app.audiences }}
+    ##
+    ## {{ .audience }}
+    ##
+    {{- $svc_audience := list (include "dispatcher.shortNamespace" $) "svc" .audience | compact | join "." }}
+    {{- $usr_audience := list (include "dispatcher.shortNamespace" $) "usr" .audience | compact | join "." }}
+    {{- with .authn }}
+    [authn.{{ list "iam" $svc_audience | join "." | quote }}]
+    audience = [{{ $svc_audience | quote }}, {{ $usr_audience | quote }}]
+    algorithm = "ES256"
+    key = {{ .key | quote }}
+    {{- end }}
+
+    {{- $ns_audience := list (include "dispatcher.shortNamespace" $) .audience | compact | join "."  }}
+    {{- println "" }}
+
+    {{- with .authz }}
+    [authz.{{ $ns_audience | quote }}]
+    type = {{ .type | quote }}
+    {{- if eq "http" .type }}
+    uri = {{ .url | required "A proper tenant url for authz required!" | quote }}
+    algorithm = {{ default "ES256" .algorithm | quote }}
+    key = {{ default "data/keys/svc.private_key.p8.der" .key | quote }}
+    user_agent = {{ default $id .user_agent | quote }}
+    max_retries = {{ default 3 .max_retries }}
+    {{- end }}
+    {{- if eq "local" .type }}
+    trusted = [
+      {{- range $account_label := .trusted }}
+        {{ $ns_audience | list $account_label | join "." | quote }},
+      {{- end }}
+    ]
+    {{- end }}
+    {{- if eq "localwhitelist" .type }}
+    [[authz.{{ $ns_audience | quote }}.records]]
+    {{- range $record := .records }}
+    subject_account_id = {{ get $record "subject_account_id" | quote }}
+    object = [
+      {{- range $o := get $record "object" }}
+      {{ $o | quote }},
+      {{- end}}
+    ]
+    action = {{ get $record "action" | quote }}
+    {{- end }}
+    {{- end }}
+    {{- end }}
+    {{- println "" }}
+    {{- end }}
