@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "dispatcher.name" . }}-headless
+  labels:
+    {{- include "dispatcher.labels" . | nindent 4 }}
+spec:
+  selector:
+    {{- include "dispatcher.selectorLabels" . | nindent 4 }}
+  clusterIP: None
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "dispatcher.serviceName" . }}
+  labels:
+    {{- include "dispatcher.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    {{- range $name, $port := .Values.service.ports }}
+    - port: {{ $port }}
+      protocol: TCP
+      name: {{ $name }}
+    {{- end }}
+  selector:
+    {{- include "dispatcher.selectorLabels" . | nindent 4 }}
