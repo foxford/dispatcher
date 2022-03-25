@@ -181,8 +181,12 @@ impl AppContext for TestState {
         Ok(conn)
     }
 
-    fn default_frontend_base(&self) -> Url {
-        self.config.default_frontend_base.clone()
+    fn build_default_frontend_url(&self, _tenant: &str, _app: &str) -> Url {
+        todo!()
+    }
+
+    fn build_default_frontend_url_new(&self, _tenant: &str, _app: &str) -> Url {
+        todo!()
     }
 
     fn agent_id(&self) -> &AgentId {

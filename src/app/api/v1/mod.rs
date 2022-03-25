@@ -139,9 +139,8 @@ pub async fn redirect_to_frontend(
         }
     };
 
-    let mut url = base_url.unwrap_or_else(|| {
-        super::build_default_url(ctx.default_frontend_base(), &query.audience, &query.app)
-    });
+    let mut url =
+        base_url.unwrap_or_else(|| ctx.build_default_frontend_url_new(&query.audience, &query.app));
 
     url.set_query(request.uri().query());
 
