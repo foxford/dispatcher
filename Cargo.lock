@@ -433,7 +433,7 @@ dependencies = [
 
 [[package]]
 name = "dispatcher"
-version = "0.2.34"
+version = "0.2.35"
 dependencies = [
  "anyhow",
  "async-trait",
