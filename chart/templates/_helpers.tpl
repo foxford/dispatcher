@@ -18,9 +18,21 @@ Short namespace.
 */}}
 {{- define "dispatcher.shortNamespace" -}}
 {{- $shortns := regexSplit "-" .Release.Namespace -1 | first }}
-{{- if eq $shortns "production" }}
+{{- if has $shortns (list "production" "p") }}
 {{- else }}
 {{- $shortns }}
+{{- end }}
+{{- end }}
+
+{{/*
+Sets short_namespace in config if needed
+*/}}
+{{- define "dispatcher.shortNamespaceSetting" -}}
+{{- $shortns := regexSplit "-" .Release.Namespace -1 | first }}
+{{- if has $shortns (list "production" "p") }}
+{{- else }}
+{{- $v := regexReplaceAll "(.)[^\\d]*(.+)" $shortns "${1}${2}" }}
+short_namespace = {{- regexReplaceAll "(.*)-ng(.*)" $v "${1}-foxford${2}" | quote }}
 {{- end }}
 {{- end }}
 
@@ -29,7 +41,7 @@ Namespace in ingress path.
 converts as follows:
 - testing01 -> t01
 - staging01-classroom-ng -> s01/classroom-ng
-- producion-webinar-ng -> webinar-ng
+- producion-webinar-ng -> webinar-foxford
 */}}
 {{- define "dispatcher.ingressPathNamespace" -}}
 {{- $ns_head := regexSplit "-" .Release.Namespace -1 | first }}
@@ -107,4 +119,13 @@ Create the name of the service account to use
 {{- else }}
 {{- default "default" .Values.serviceAccount.name }}
 {{- end }}
+{{- end }}
+
+{{/*
+Create volumeMount name from audience and secret name
+*/}}
+{{- define "nats-gatekeeper.volumeMountName" -}}
+{{- $audience := index . 0 -}}
+{{- $secret := index . 1 -}}
+{{- printf "%s-%s-secret" $audience $secret | replace "." "-" }}
 {{- end }}

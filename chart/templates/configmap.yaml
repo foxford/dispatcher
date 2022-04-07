@@ -6,20 +6,29 @@ metadata:
   name: {{ include "dispatcher.name" . }}-config
 data:
   App.toml: |
-    {{- $id := list (include "dispatcher.name" . ) (include "dispatcher.shortNamespace" .) "svc.netology-group.services" | compact | join "." }}
+    {{- $id := list (include "dispatcher.name" . ) (include "dispatcher.shortNamespace" .) .Values.svc.audience | compact | join "." }}
     id = {{ $id | quote }}
 
-    {{- $broker_id := list "mqtt-gateway" (include "dispatcher.shortNamespace" .) "svc.netology-group.services" | compact | join "." }}
+    {{- $broker_id := list "mqtt-gateway" (include "dispatcher.shortNamespace" .) .Values.svc.audience | compact | join "." }}
     broker_id = {{ $broker_id | quote }}
 
     retry_delay = "2 seconds"
 
-    default_frontend_base = "https://{{ list (include "dispatcher.shortNamespace" $) "netology-group.services" | compact | join "." }}/"
+    default_frontend_base = "https://{{ list (include "dispatcher.shortNamespace" $) .Values.ingress.host | compact | join "." }}/"
+    default_frontend_base_new = "https://{{ .Values.ingress.host }}/"
+
+    turn_hosts = [
+      {{- range .Values.turn_hosts }}
+      {{ . | quote }},
+      {{- end }}
+    ]
+
+    {{- include "dispatcher.shortNamespaceSetting" $ | nindent 4 }}
 
     tenants = [
-      {{- range $audience, $opts := .Values.audiences }}
-        {{- if get $opts "mqtt_events" }}
-        {{- $ns_audience := list (include "dispatcher.shortNamespace" $) $audience | compact | join "."  }}
+      {{- range .Values.audiences }}
+        {{- if get . "mqtt_events" }}
+        {{- $ns_audience := list (include "dispatcher.shortNamespace" $) .audience | compact | join "."  }}
         {{ $ns_audience | quote }},
         {{- end }}
       {{- end }}
@@ -35,7 +44,7 @@ data:
     max_message_size = 5000000
 
     [sentry]
-    dsn = "https://390aa49ccd314bd5ac3e41db8e286f4d@sentry.io/1915189"
+    dsn = {{ .Values.sentry.dsn | quote }}
     environment = {{ .Release.Namespace | quote }}
 
     [http]
@@ -43,34 +52,33 @@ data:
     metrics_listener_address = "0.0.0.0:{{ get .Values.service.ports "metrics" }}"
 
     [conference_client]
-    {{- $conference := list "conference" (include "dispatcher.shortNamespace" $) "svc.netology-group.services" | compact | join "."  }}
+    {{- $conference := list "conference" (include "dispatcher.shortNamespace" $) .Values.svc.audience | compact | join "."  }}
     account_id = {{ $conference | quote }}
     timeout = "5"
     api_version = "v1"
 
     [event_client]
-    {{- $event := list "event" (include "dispatcher.shortNamespace" $) "svc.netology-group.services" | compact | join "."  }}
+    {{- $event := list "event" (include "dispatcher.shortNamespace" $) .Values.svc.audience | compact | join "."  }}
     account_id = {{ $event | quote }}
     timeout = "5"
     api_version = "v1"
 
     [tq_client]
-    {{- $tq := list "event" (include "dispatcher.shortNamespace" $) "svc.netology-group.services" | compact | join "."  }}
-    base_url = "https://{{ $tq }}/"
+    {{- $tq := list "tq" (include "dispatcher.shortNamespace" $) .Values.svc.audience | compact | join "."  }}
+    base_url = {{ .Values.svc.tq_url | quote }}
     account_id = {{ $tq | quote }}
     timeout = "5"
     api_version = "v1"
-    {{- range $audience, $opts := .Values.audiences }}
-    {{- if hasKey $opts "tq" }}
-    {{- $ns_audience := list (include "dispatcher.shortNamespace" $) $audience | compact | join "."  }}
-    [tq_client.audience_settings.{{ $ns_audience | quote }}]
-    preroll_offset = {{ "preroll_offset" | get (get $opts "tq") }}
+    {{- range .Values.audiences }}
+    {{- if hasKey . "tq" }}
+    {{- $ns_audience := list (include "dispatcher.shortNamespace" $) .audience | compact | join "."  }}
+    [tq_client.audience_settings.{{ .audience | quote }}]
+    preroll_offset = {{ "preroll_offset" | get (get . "tq") }}
     {{- end }}
     {{- end }}
 
     [storage]
-    {{- $storage := list "storage" (include "dispatcher.shortNamespace" $) "svc.netology-group.services" | compact | join "."  }}
-    base_url = "https://{{ $storage }}/"
+    base_url = {{ .Values.svc.storage_url | quote }}
 
     ##
     ## ULMS
@@ -81,23 +89,57 @@ data:
 
     {{- println "" }}
 
-    {{- range $audience, $opts := .Values.audiences }}
+    {{- with .Values.svc }}
     ##
-    ## {{ $audience }}
+    ## SVC
     ##
-    {{- $svc_audience := list (include "dispatcher.shortNamespace" $) "svc" $audience | compact | join "." }}
-    {{- $usr_audience := list (include "dispatcher.shortNamespace" $) "usr" $audience | compact | join "." }}
-    {{- with "authn" | get $opts }}
+    {{- $svc_audience := list (include "dispatcher.shortNamespace" $) .audience | compact | join "." }}
+    {{- with .authn }}
+    [authn.{{ $svc_audience | quote }}]
+    audience = [{{ $svc_audience | quote }}]
+    algorithm = "ES256"
+    key = {{ "key" | get . | quote }}
+    {{- end }}
+
+    {{- println "" }}
+
+    {{- with .authz }}
+    [authz.{{ $svc_audience | quote }}]
+    type = {{ .type | quote }}
+    {{- if eq "localwhitelist" .type }}
+    [[authz.{{ $svc_audience | quote }}.records]]
+    {{- range $record := .records }}
+    subject_account_id = {{ get $record "subject_account_id" | quote }}
+    object = [
+      {{- range $o := get $record "object" }}
+      {{ $o | quote }},
+      {{- end}}
+    ]
+    action = {{ get $record "action" | quote }}
+    {{- end }}
+    {{- end }}
+    {{- end }}
+    {{- end }}
+
+    {{- println "" }}
+
+    {{- range .Values.audiences }}
+    ##
+    ## {{ .audience }}
+    ##
+    {{- $svc_audience := list (include "dispatcher.shortNamespace" $) "svc" .audience | compact | join "." }}
+    {{- $usr_audience := list (include "dispatcher.shortNamespace" $) "usr" .audience | compact | join "." }}
+    {{- with "authn" | get . }}
     [authn.{{ list "iam" $svc_audience | join "." | quote }}]
     audience = [{{ $svc_audience | quote }}, {{ $usr_audience | quote }}]
     algorithm = "ES256"
     key = {{ "key" | get . | quote }}
     {{- end }}
 
-    {{- $ns_audience := list (include "dispatcher.shortNamespace" $) $audience | compact | join "."  }}
+    {{- $ns_audience := list (include "dispatcher.shortNamespace" $) .audience | compact | join "."  }}
     {{- println "" }}
 
-    {{- with "authz" | get $opts }}
+    {{- with "authz" | get . }}
     [authz.{{ $ns_audience | quote }}]
     type = {{ .type | quote }}
     {{- if eq "http" .type }}
