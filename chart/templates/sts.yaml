@@ -80,7 +80,7 @@ spec:
             {{- with .Values.svc }}
             {{- $audience := .audience }}
             {{- range .credentials }}
-            - name: {{ include "nats-gatekeeper.volumeMountName" (list $audience .secret) }}
+            - name: {{ include "dispatcher.volumeMountName" (list $audience .secret) }}
               mountPath: {{ .mountPath }}
               subPath: {{ .subPath }}
             {{- end }}
@@ -88,7 +88,7 @@ spec:
             {{- range .Values.audiences }}
             {{- $audience := .audience }}
             {{- range .credentials }}
-            - name: {{ include "nats-gatekeeper.volumeMountName" (list $audience .secret) }}
+            - name: {{ include "dispatcher.volumeMountName" (list $audience .secret) }}
               mountPath: {{ .mountPath }}
               subPath: {{ .subPath }}
             {{- end }}
@@ -102,7 +102,7 @@ spec:
         {{- with .Values.svc }}
         {{- $audience := .audience }}
         {{- range .credentials }}
-        - name: {{ include "nats-gatekeeper.volumeMountName" (list $audience .secret) }}
+        - name: {{ include "dispatcher.volumeMountName" (list $audience .secret) }}
           secret:
             secretName: {{ .secret }}
         {{- end }}
@@ -110,7 +110,7 @@ spec:
         {{- range .Values.audiences }}
         {{- $audience := .audience }}
         {{- range .credentials }}
-        - name: {{ include "nats-gatekeeper.volumeMountName" (list $audience .secret) }}
+        - name: {{ include "dispatcher.volumeMountName" (list $audience .secret) }}
           secret:
             secretName: {{ .secret }}
         {{- end }}
