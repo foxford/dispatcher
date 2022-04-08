@@ -27,12 +27,11 @@ sentry:
 svc:
   audience: svc.services
   credentials:
-    - secret: svc-secret
-      subPath: private-key
-      mountPath: /path/to/svc/private/key
-    - secret: svc-secret
-      subPath: public-key
-      mountPath: /path/to/svc/public/key
+    # svc-secret:
+    #   - subPath: private-key
+    #     mountPath: /path/to/svc/private/key
+    #   - subPath: public-key
+    #     mountPath: /path/to/svc/public/key
   authz:
     type: localwhitelist
     records:
@@ -47,9 +46,9 @@ svc:
 audiences:
   - audience: foo.bar
     credentials:
-      - secret: foobar-der-credentials
-        subPath: foobar-public-key
-        mountPath: /path/to/foobar/public/key
+      foobar-der-credentials:
+        - subPath: foobar-public-key
+          mountPath: /path/to/foobar/public/key
     authn:
       key: path/to/public_key.p8.der
     authz:

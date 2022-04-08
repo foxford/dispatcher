@@ -79,18 +79,22 @@ spec:
               subPath: App.toml
             {{- with .Values.svc }}
             {{- $audience := .audience }}
-            {{- range .credentials }}
-            - name: {{ include "dispatcher.volumeMountName" (list $audience .secret) }}
+            {{- range $secret, $mounts := .credentials }}
+            {{- range $mounts }}
+            - name: {{ include "dispatcher.volumeMountName" (list $audience $secret) }}
               mountPath: {{ .mountPath }}
               subPath: {{ .subPath }}
+            {{- end }}
             {{- end }}
             {{- end }}
             {{- range .Values.audiences }}
             {{- $audience := .audience }}
-            {{- range .credentials }}
-            - name: {{ include "dispatcher.volumeMountName" (list $audience .secret) }}
+            {{- range $secret, $mounts := .credentials }}
+            {{- range $mounts }}
+            - name: {{ include "dispatcher.volumeMountName" (list $audience $secret) }}
               mountPath: {{ .mountPath }}
               subPath: {{ .subPath }}
+            {{- end }}
             {{- end }}
             {{- end }}
           resources:
@@ -101,17 +105,17 @@ spec:
             name: dispatcher-config
         {{- with .Values.svc }}
         {{- $audience := .audience }}
-        {{- range .credentials }}
-        - name: {{ include "dispatcher.volumeMountName" (list $audience .secret) }}
+        {{- range $secret, $mounts := .credentials }}
+        - name: {{ include "dispatcher.volumeMountName" (list $audience $secret) }}
           secret:
-            secretName: {{ .secret }}
+            secretName: {{ $secret }}
         {{- end }}
         {{- end }}
         {{- range .Values.audiences }}
         {{- $audience := .audience }}
-        {{- range .credentials }}
-        - name: {{ include "dispatcher.volumeMountName" (list $audience .secret) }}
+        {{- range $secret, $mounts := .credentials }}
+        - name: {{ include "dispatcher.volumeMountName" (list $audience $secret) }}
           secret:
-            secretName: {{ .secret }}
+            secretName: {{ $secret }}
         {{- end }}
         {{- end }}
