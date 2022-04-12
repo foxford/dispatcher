@@ -138,6 +138,10 @@ fn make_finder(account_id: &AccountId, request_audience: String) -> Result<Finde
             Box::new(|id: &str| Ok(AuthzReadQuery::by_scope(request_audience, id.to_string())))
                 as Finder
         }
+        "presence" => Box::new(|id: &str| {
+            let id = Uuid::from_str(id)?;
+            Ok(AuthzReadQuery::by_id(id))
+        }) as Finder,
         _ => Err(anyhow!("No finder")).error(AppErrorKind::Unauthorized)?,
     };
 
@@ -202,6 +206,7 @@ fn transform_authz_request(authz_req: &mut AuthzRequest, account_id: &AccountId)
         "conference" => transform_conference_authz_request(authz_req),
         "storage" => transform_storage_authz_request(authz_req),
         "nats-gatekeeper" => transform_nats_gatekeeper_authz_request(authz_req),
+        "presence" => transform_presence_authz_request(authz_req),
         _ => {}
     }
 }
@@ -329,6 +334,10 @@ fn transform_nats_gatekeeper_authz_request(authz_req: &mut AuthzRequest) {
         }
         Some(_) => {}
     }
+}
+
+fn transform_presence_authz_request(authz_req: &mut AuthzRequest) {
+    authz_req.action = "read".into();
 }
 
 async fn substitute_class(
