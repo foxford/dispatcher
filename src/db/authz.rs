@@ -3,6 +3,7 @@ use uuid::Uuid;
 
 enum AuthzClassQueryState {
     Event(Uuid),
+    Id(Uuid),
     Conference(Uuid),
     RecordingRtcId(Uuid),
     Scope { audience: String, scope: String },
@@ -26,6 +27,12 @@ impl AuthzReadQuery {
     pub fn by_conference(id: Uuid) -> Self {
         Self {
             state: AuthzClassQueryState::Conference(id),
+        }
+    }
+
+    pub fn by_id(id: Uuid) -> Self {
+        Self {
+            state: AuthzClassQueryState::Id(id),
         }
     }
 
@@ -101,6 +108,20 @@ impl AuthzReadQuery {
                     "#,
                     audience,
                     scope
+                )
+                .fetch_optional(conn)
+                .await
+            }
+            AuthzClassQueryState::Id(id) => {
+                sqlx::query_as!(
+                    AuthzClass,
+                    r#"
+                        SELECT
+                            id::text AS "id!: String"
+                        FROM class
+                        WHERE id = $1
+                    "#,
+                    id,
                 )
                 .fetch_optional(conn)
                 .await
