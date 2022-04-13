@@ -41,13 +41,13 @@ spec:
           livenessProbe:
             httpGet:
               path: /api/v1/healthz
-              port: 8080
+              port: {{ .Values.service.ports.http }}
             initialDelaySeconds: 5
             periodSeconds: 5
           startupProbe:
             httpGet:
               path: /api/v1/healthz
-              port: 8080
+              port: {{ .Values.service.ports.http }}
             failureThreshold: 10
             periodSeconds: 3
           env:

@@ -27,7 +27,7 @@ data:
 
     tenants = [
       {{- range .Values.audiences }}
-        {{- if get . "mqtt_events" }}
+        {{- if .mqtt_events }}
         {{- $ns_audience := list (include "dispatcher.shortNamespace" $) .audience | compact | join "."  }}
         {{ $ns_audience | quote }},
         {{- end }}
@@ -48,8 +48,8 @@ data:
     environment = {{ .Release.Namespace | quote }}
 
     [http]
-    listener_address = "0.0.0.0:{{ get .Values.service.ports "http" }}"
-    metrics_listener_address = "0.0.0.0:{{ get .Values.service.ports "metrics" }}"
+    listener_address = "0.0.0.0:{{ .Values.service.ports.http }}"
+    metrics_listener_address = "0.0.0.0:{{ .Values.service.ports.metrics }}"
 
     [conference_client]
     {{- $conference := list "conference" (include "dispatcher.shortNamespace" $) .Values.svc.audience | compact | join "."  }}
@@ -73,7 +73,7 @@ data:
     {{- if hasKey . "tq" }}
     {{- $ns_audience := list (include "dispatcher.shortNamespace" $) .audience | compact | join "."  }}
     [tq_client.audience_settings.{{ .audience | quote }}]
-    preroll_offset = {{ "preroll_offset" | get (get . "tq") }}
+    preroll_offset = {{ .tq.preroll_offset }}
     {{- end }}
     {{- end }}
 
@@ -98,7 +98,7 @@ data:
     [authn.{{ $svc_audience | quote }}]
     audience = [{{ $svc_audience | quote }}]
     algorithm = "ES256"
-    key = {{ "key" | get . | quote }}
+    key = {{ .key | quote }}
     {{- end }}
 
     {{- println "" }}
@@ -129,17 +129,17 @@ data:
     ##
     {{- $svc_audience := list (include "dispatcher.shortNamespace" $) "svc" .audience | compact | join "." }}
     {{- $usr_audience := list (include "dispatcher.shortNamespace" $) "usr" .audience | compact | join "." }}
-    {{- with "authn" | get . }}
+    {{- with .authn }}
     [authn.{{ list "iam" $svc_audience | join "." | quote }}]
     audience = [{{ $svc_audience | quote }}, {{ $usr_audience | quote }}]
     algorithm = "ES256"
-    key = {{ "key" | get . | quote }}
+    key = {{ .key | quote }}
     {{- end }}
 
     {{- $ns_audience := list (include "dispatcher.shortNamespace" $) .audience | compact | join "."  }}
     {{- println "" }}
 
-    {{- with "authz" | get . }}
+    {{- with .authz }}
     [authz.{{ $ns_audience | quote }}]
     type = {{ .type | quote }}
     {{- if eq "http" .type }}

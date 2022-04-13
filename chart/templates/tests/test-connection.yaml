@@ -12,5 +12,5 @@ spec:
     - name: wget
       image: busybox
       command: ['wget']
-      args: ['http://{{ include "dispatcher.name" . }}-service:{{ get .Values.service.ports "http" }}/api/v1/healthz']
+      args: ['http://{{ include "dispatcher.name" . }}-service:{{ .Values.service.ports.http }}/api/v1/healthz']
   restartPolicy: Never
