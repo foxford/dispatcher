@@ -149,7 +149,7 @@ async fn insert_p2p_dummy(
     query
         .execute(&mut conn)
         .await
-        .context("Failed to insert webinar")
+        .context("Failed to insert p2p")
         .error(AppErrorKind::DbQueryFailed)
 }
 

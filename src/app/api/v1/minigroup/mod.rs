@@ -156,7 +156,7 @@ async fn insert_minigroup_dummy(
     query
         .execute(&mut conn)
         .await
-        .context("Failed to insert webinar")
+        .context("Failed to insert minigroup")
         .error(AppErrorKind::DbQueryFailed)
 }
 
