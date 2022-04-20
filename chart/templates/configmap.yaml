@@ -35,7 +35,7 @@ data:
     ]
 
     [mqtt]
-    uri = "tcp://mqtt-gateway-loadbalancer:51883"
+    uri = "tcp://mqtt-gateway-loadbalancer-internal:51883"
     incoming_message_queue_size = 1000000
     outgoing_message_queue_size = 1000000
     clean_session = false
