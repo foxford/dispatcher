@@ -9,6 +9,10 @@ container:
     repository: foxford/dispatcher
     tag: ""
 
+  migrations:
+    repository: foxford/dispatcher-migration
+    tag: ""
+
   resources:
     limits:
       cpu: 0.5
