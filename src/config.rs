@@ -44,7 +44,7 @@ pub struct JwtConfig {
 pub fn load() -> Result<Config, config::ConfigError> {
     config::Config::builder()
         .add_source(config::File::with_name("App"))
-        .add_source(config::Environment::with_prefix("APP").separator("__"))
+        .add_source(config::Environment::with_prefix("APP"))
         .build()
         .and_then(|c| c.try_deserialize::<Config>())
 }
