@@ -143,7 +143,7 @@ data:
     [authz.{{ $ns_audience | quote }}]
     type = {{ .type | quote }}
     {{- if eq "http" .type }}
-    uri = {{ default "http://dispatcher-service:8080/api/v1/authz/" .uri | quote }}
+    uri = {{ .uri | required "A proper tenant url for authz required!" | quote }}
     algorithm = {{ default "ES256" .algorithm | quote }}
     key = {{ default "data/keys/svc.private_key.p8.der" .key | quote }}
     user_agent = {{ default $id .user_agent | quote }}
