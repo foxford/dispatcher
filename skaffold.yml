@@ -15,17 +15,14 @@ build:
     useDockerCLI: true
     tryImportMissing: true
 deploy:
-  kustomize:
   helm:
-    paths:
     releases:
-    - deploy/k8s/overlays/ns
-    - name: dispatcher
-      chartPath: chart
-      artifactOverrides:
-        container.image: foxford/dispatcher
-        container.migrations: foxford/dispatcher-migration
-      imageStrategy:
-        helm: {}
-      valuesFiles:
-        - deploy/values.yaml
+      - name: dispatcher
+        chartPath: chart
+        artifactOverrides:
+          container.image: foxford/dispatcher
+          container.migrations: foxford/dispatcher-migration
+        imageStrategy:
+          helm: {}
+        valuesFiles:
+          - deploy/values.yaml
