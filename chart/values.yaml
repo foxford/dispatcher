@@ -13,13 +13,13 @@ container:
     repository: foxford/dispatcher-migration
     tag: ""
 
-  resources:
-    limits:
-      cpu: 0.5
-      memory: 500Mi
-    requests:
-      cpu: 0.1
-      memory: 50Mi
+resources:
+  limits:
+    cpu: 0.5
+    memory: 500Mi
+  requests:
+    cpu: 0.1
+    memory: 50Mi
 
 turn_hosts:
   - turn01.example.org:1234
@@ -59,7 +59,11 @@ audiences:
       type: http
       url: "https://authz.example.org/api/v1/authz"
     tq:
-      preroll_offset: 4181
+      preroll: "https://storage.net/preroll.m4v"
+      postroll: "https://storage.net/postroll.m4v"
+      watermark: "https://storage.net/logo.png"
+      to: "yandex"
+      preroll_offset: 0
     mqtt_events: true
 
 env:

@@ -73,6 +73,18 @@ data:
     {{- if hasKey . "tq" }}
     {{- $ns_audience := list (include "dispatcher.shortNamespace" $) .audience | compact | join "."  }}
     [tq_client.audience_settings.{{ .audience | quote }}]
+    {{- if hasKey .tq "preroll" }}
+    preroll = {{ .tq.preroll | quote }}
+    {{- end }}
+    {{- if hasKey .tq "postroll" }}
+    postroll = {{ .tq.postroll | quote }}
+    {{- end }}
+    {{- if hasKey .tq "watermark" }}
+    watermark = {{ .tq.watermark | quote }}
+    {{- end }}
+    {{- if hasKey .tq "to" }}
+    to = {{ .tq.to | quote }}
+    {{- end }}
     preroll_offset = {{ .tq.preroll_offset }}
     {{- end }}
     {{- end }}
@@ -143,7 +155,7 @@ data:
     [authz.{{ $ns_audience | quote }}]
     type = {{ .type | quote }}
     {{- if eq "http" .type }}
-    uri = {{ .uri | required "A proper tenant url for authz required!" | quote }}
+    uri = {{ .url | required "A proper tenant url for authz required!" | quote }}
     algorithm = {{ default "ES256" .algorithm | quote }}
     key = {{ default "data/keys/svc.private_key.p8.der" .key | quote }}
     user_agent = {{ default $id .user_agent | quote }}
