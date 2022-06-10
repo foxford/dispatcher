@@ -4,7 +4,7 @@ use sqlx::postgres::PgConnection;
 use svc_agent::AgentId;
 use uuid::Uuid;
 
-use crate::db::{self, recording::Segments};
+use crate::db::{self, class::Properties, recording::Segments};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -15,6 +15,7 @@ pub struct P2P {
     conference_room_id: Uuid,
     event_room_id: Uuid,
     tags: Option<JsonValue>,
+    properties: Option<Properties>,
 }
 
 impl P2P {
@@ -30,6 +31,7 @@ impl P2P {
             conference_room_id,
             event_room_id,
             tags: None,
+            properties: None,
         }
     }
 
@@ -43,6 +45,10 @@ impl P2P {
 
         if let Some(tags) = self.tags {
             q = q.tags(tags);
+        }
+
+        if let Some(properties) = self.properties {
+            q = q.properties(properties);
         }
 
         q.execute(conn).await.expect("Failed to insert P2P")

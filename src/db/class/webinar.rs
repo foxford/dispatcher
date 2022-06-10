@@ -23,6 +23,8 @@ pub struct Webinar {
     created_at: DateTime<Utc>,
     #[serde(skip_serializing_if = "Option::is_none")]
     tags: Option<JsonValue>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    properties: Option<JsonValue>,
     conference_room_id: Uuid,
     event_room_id: Uuid,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -51,6 +53,7 @@ impl std::convert::TryFrom<Object> for Webinar {
                 modified_event_room_id: value.modified_event_room_id,
                 created_at: value.created_at,
                 tags: value.tags,
+                properties: value.properties,
                 preserve_history: value.preserve_history,
                 reserve: value.reserve,
                 room_events_uri: value.room_events_uri,
@@ -68,6 +71,7 @@ pub struct WebinarInsertQuery {
     audience: String,
     time: Time,
     tags: Option<JsonValue>,
+    properties: Option<JsonValue>,
     preserve_history: bool,
     conference_room_id: Uuid,
     event_room_id: Uuid,
@@ -90,6 +94,7 @@ impl WebinarInsertQuery {
             audience,
             time,
             tags: None,
+            properties: None,
             preserve_history: true,
             conference_room_id,
             event_room_id,
@@ -138,9 +143,10 @@ impl WebinarInsertQuery {
             INSERT INTO class (
                 scope, audience, time, tags, preserve_history, kind,
                 conference_room_id, event_room_id,
-                original_event_room_id, modified_event_room_id, reserve, room_events_uri
+                original_event_room_id, modified_event_room_id, reserve, room_events_uri,
+                properties
             )
-            VALUES ($1, $2, $3, $4, $5, $6::class_type, $7, $8, $9, $10, $11, $12)
+            VALUES ($1, $2, $3, $4, $5, $6::class_type, $7, $8, $9, $10, $11, $12, $13)
             RETURNING
                 id,
                 scope,
@@ -148,6 +154,7 @@ impl WebinarInsertQuery {
                 audience,
                 time AS "time!: Time",
                 tags,
+                properties,
                 preserve_history,
                 created_at,
                 event_room_id AS "event_room_id!: Uuid",
@@ -171,6 +178,7 @@ impl WebinarInsertQuery {
             self.modified_event_room_id,
             self.reserve,
             self.room_events_uri,
+            self.properties,
         )
         .fetch_one(conn)
         .await

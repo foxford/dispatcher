@@ -19,6 +19,8 @@ pub enum ClassType {
     Minigroup,
 }
 
+pub type Properties = serde_json::Map<String, JsonValue>;
+
 #[derive(Clone, Copy, Debug)]
 pub enum RtcSharingPolicy {
     Shared,
@@ -96,6 +98,8 @@ pub struct Object {
     created_at: DateTime<Utc>,
     #[serde(skip_serializing_if = "Option::is_none")]
     tags: Option<JsonValue>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    properties: Option<JsonValue>,
     conference_room_id: Uuid,
     event_room_id: Uuid,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -144,6 +148,10 @@ impl Object {
 
     pub fn tags(&self) -> Option<&JsonValue> {
         self.tags.as_ref()
+    }
+
+    pub fn properties(&self) -> Option<&JsonValue> {
+        self.properties.as_ref()
     }
 
     pub fn original_event_room_id(&self) -> Option<Uuid> {
@@ -488,6 +496,7 @@ impl UpdateAdjustedRoomsQuery {
                 audience,
                 time AS "time!: Time",
                 tags,
+                properties,
                 preserve_history,
                 created_at,
                 event_room_id AS "event_room_id!: Uuid",
@@ -539,6 +548,7 @@ impl EstablishQuery {
                 audience,
                 time AS "time!: Time",
                 tags,
+                properties,
                 preserve_history,
                 created_at,
                 event_room_id AS "event_room_id!: Uuid",
@@ -594,6 +604,7 @@ impl RecreateQuery {
                 audience,
                 time AS "time!: Time",
                 tags,
+                properties,
                 preserve_history,
                 created_at,
                 event_room_id AS "event_room_id!: Uuid",
@@ -664,6 +675,7 @@ impl ClassUpdateQuery {
                 audience,
                 time AS "time!: Time",
                 tags,
+                properties,
                 preserve_history,
                 created_at,
                 event_room_id AS "event_room_id!: Uuid",
@@ -711,6 +723,7 @@ impl RoomCloseQuery {
                 audience,
                 time AS "time!: Time",
                 tags,
+                properties,
                 preserve_history,
                 created_at,
                 event_room_id AS "event_room_id!: Uuid",

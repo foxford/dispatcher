@@ -17,6 +17,7 @@ use crate::app::metrics::AuthorizeMetrics;
 use crate::app::services;
 use crate::app::AppContext;
 use crate::db::class::ClassType;
+use crate::db::class::Properties;
 use crate::db::class::{self, BoundedDateTimeTuple};
 
 use super::AppError;
@@ -29,6 +30,7 @@ pub struct MinigroupCreatePayload {
     #[serde(default, with = "crate::serde::ts_seconds_option_bound_tuple")]
     time: Option<BoundedDateTimeTuple>,
     tags: Option<serde_json::Value>,
+    properties: Option<Properties>,
     reserve: Option<i32>,
     #[serde(default = "class::default_locked_chat")]
     locked_chat: bool,
@@ -112,7 +114,7 @@ async fn do_create(
     }
 
     let body = serde_json::to_string_pretty(&dummy)
-        .context("Failed to serialize webinar")
+        .context("Failed to serialize minigroup")
         .error(AppErrorKind::SerializationFailed)?;
 
     let response = Response::builder()
@@ -139,6 +141,12 @@ async fn insert_minigroup_dummy(
 
     let query = if let Some(ref tags) = body.tags {
         query.tags(tags.clone())
+    } else {
+        query
+    };
+
+    let query = if let Some(ref properties) = body.properties {
+        query.properties(properties.clone())
     } else {
         query
     };
@@ -190,6 +198,7 @@ mod tests {
                 audience: USR_AUDIENCE.to_string(),
                 time: None,
                 tags: None,
+                properties: None,
                 reserve: Some(10),
                 locked_chat: true,
             };
@@ -236,6 +245,7 @@ mod tests {
                 audience: USR_AUDIENCE.to_string(),
                 time: Some(time),
                 tags: None,
+                properties: None,
                 reserve: Some(10),
                 locked_chat: true,
             };
@@ -269,6 +279,7 @@ mod tests {
                 audience: USR_AUDIENCE.to_string(),
                 time: None,
                 tags: None,
+                properties: None,
                 reserve: Some(10),
                 locked_chat: true,
             };
@@ -276,6 +287,55 @@ mod tests {
             do_create(state.as_ref(), agent.account_id(), body)
                 .await
                 .expect_err("Unexpectedly succeeded");
+        }
+
+        #[tokio::test]
+        async fn create_minigroup_with_properties() {
+            let agent = TestAgent::new("web", "user1", USR_AUDIENCE);
+
+            let mut authz = TestAuthz::new();
+            authz.allow(agent.account_id(), vec!["classrooms"], "create");
+
+            let mut state = TestState::new(authz).await;
+            let event_room_id = Uuid::new_v4();
+            let conference_room_id = Uuid::new_v4();
+
+            create_minigroup_mocks(&mut state, event_room_id, conference_room_id);
+
+            let scope = random_string();
+
+            let mut properties = serde_json::Map::new();
+            properties.insert("is_adult".into(), true.into());
+            let properties = Some(properties);
+
+            let state = Arc::new(state);
+            let body = MinigroupCreatePayload {
+                scope: scope.clone(),
+                audience: USR_AUDIENCE.to_string(),
+                time: None,
+                tags: None,
+                properties: properties.clone(),
+                reserve: Some(10),
+                locked_chat: true,
+            };
+
+            let r = do_create(state.as_ref(), agent.account_id(), body).await;
+            r.expect("Failed to create minigroup");
+
+            // Assert DB changes.
+            let mut conn = state.get_conn().await.expect("Failed to get conn");
+
+            let new_minigroup = MinigroupReadQuery::by_scope(USR_AUDIENCE, &scope)
+                .execute(&mut conn)
+                .await
+                .expect("Failed to fetch minigroup")
+                .expect("Minigroup not found");
+
+            assert_eq!(new_minigroup.reserve(), Some(10),);
+            assert_eq!(
+                new_minigroup.properties(),
+                properties.map(serde_json::Value::Object).as_ref()
+            );
         }
 
         fn create_minigroup_mocks(

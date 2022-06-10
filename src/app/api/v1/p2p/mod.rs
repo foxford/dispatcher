@@ -19,6 +19,7 @@ use crate::app::services;
 use crate::app::AppContext;
 use crate::db::class;
 use crate::db::class::ClassType;
+use crate::db::class::Properties;
 
 use super::AppError;
 use super::AppResult;
@@ -28,6 +29,7 @@ pub struct P2PCreatePayload {
     scope: String,
     audience: String,
     tags: Option<serde_json::Value>,
+    properties: Option<Properties>,
     #[serde(default = "class::default_whiteboard")]
     whiteboard: bool,
 }
@@ -44,7 +46,7 @@ pub async fn create(
     AuthnExtractor(agent_id): AuthnExtractor,
     Json(body): Json<P2PCreatePayload>,
 ) -> AppResult {
-    info!("Creating webinar");
+    info!("Creating p2p");
     let r = do_create(ctx.as_ref(), agent_id.as_account_id(), body).await;
     if let Err(e) = &r {
         error!(error = ?e, "Failed to create p2p");
@@ -138,6 +140,12 @@ async fn insert_p2p_dummy(
 
     let query = if let Some(ref tags) = body.tags {
         query.tags(tags.clone())
+    } else {
+        query
+    };
+
+    let query = if let Some(ref properties) = body.properties {
+        query.properties(properties.clone())
     } else {
         query
     };
@@ -257,6 +265,7 @@ mod tests {
             scope: scope.clone(),
             audience: USR_AUDIENCE.to_string(),
             tags: None,
+            properties: None,
             whiteboard: true,
         };
 
@@ -286,12 +295,59 @@ mod tests {
             scope: scope.clone(),
             audience: USR_AUDIENCE.to_string(),
             tags: None,
+            properties: None,
             whiteboard: true,
         };
 
         do_create(state.as_ref(), agent.account_id(), body)
             .await
             .expect_err("Unexpectedly succeeded");
+    }
+
+    #[tokio::test]
+    async fn create_p2p_with_properties() {
+        let agent = TestAgent::new("web", "user1", USR_AUDIENCE);
+
+        let mut authz = TestAuthz::new();
+        authz.allow(agent.account_id(), vec!["classrooms"], "create");
+
+        let mut state = TestState::new(authz).await;
+        let event_room_id = Uuid::new_v4();
+        let conference_room_id = Uuid::new_v4();
+
+        create_p2p_mocks(&mut state, event_room_id, conference_room_id);
+
+        let scope = random_string();
+
+        let mut properties = serde_json::Map::new();
+        properties.insert("is_adult".into(), true.into());
+        let properties = Some(properties);
+
+        let state = Arc::new(state);
+        let body = P2PCreatePayload {
+            scope: scope.clone(),
+            audience: USR_AUDIENCE.to_string(),
+            tags: None,
+            properties: properties.clone(),
+            whiteboard: true,
+        };
+
+        let r = do_create(state.as_ref(), agent.account_id(), body).await;
+        r.expect("Failed to create p2p");
+
+        // Assert DB changes.
+        let mut conn = state.get_conn().await.expect("Failed to get conn");
+
+        let new_p2p = P2PReadQuery::by_scope(USR_AUDIENCE, &scope)
+            .execute(&mut conn)
+            .await
+            .expect("Failed to fetch p2p")
+            .expect("P2P not found");
+
+        assert_eq!(
+            new_p2p.properties(),
+            properties.map(serde_json::Value::Object).as_ref()
+        );
     }
 
     fn create_p2p_mocks(state: &mut TestState, event_room_id: Uuid, conference_room_id: Uuid) {
