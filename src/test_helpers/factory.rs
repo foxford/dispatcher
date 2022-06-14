@@ -161,6 +161,7 @@ pub struct Webinar {
     original_event_room_id: Option<Uuid>,
     modified_event_room_id: Option<Uuid>,
     reserve: Option<usize>,
+    properties: Option<ClassProperties>,
 }
 
 impl Webinar {
@@ -181,12 +182,20 @@ impl Webinar {
             original_event_room_id: None,
             modified_event_room_id: None,
             reserve: None,
+            properties: None,
         }
     }
 
     pub fn reserve(self, reserve: usize) -> Self {
         Self {
             reserve: Some(reserve),
+            ..self
+        }
+    }
+
+    pub fn properties(self, properties: ClassProperties) -> Self {
+        Self {
+            properties: Some(properties),
             ..self
         }
     }
@@ -214,6 +223,10 @@ impl Webinar {
 
         if let Some(reserve) = self.reserve {
             q = q.reserve(reserve as i32);
+        }
+
+        if let Some(properties) = self.properties {
+            q = q.properties(properties);
         }
 
         q.execute(conn).await.expect("Failed to insert webinar")
