@@ -7,7 +7,7 @@ use sqlx::postgres::{types::PgRange, PgConnection};
 use svc_agent::AgentId;
 use uuid::Uuid;
 
-use super::{ClassType, Object, Time, WrongKind};
+use super::{ClassType, Object, ClassProperties, Time, WrongKind};
 
 #[derive(Clone, Debug, Serialize, sqlx::FromRow)]
 pub struct Minigroup {
@@ -114,9 +114,9 @@ impl MinigroupInsertQuery {
         }
     }
 
-    pub fn properties(self, properties: JsonValue) -> Self {
+    pub fn properties(self, properties: ClassProperties) -> Self {
         Self {
-            properties: Some(properties),
+            properties: Some(JsonValue::Object(properties)),
             ..self
         }
     }

@@ -109,7 +109,7 @@ impl InsertQuery {
         }
     }
 
-    pub fn properties(self, properties: Properties) -> Self {
+    pub fn properties(self, properties: ClassProperties) -> Self {
         Self {
             properties: Some(JsonValue::Object(properties)),
             ..self

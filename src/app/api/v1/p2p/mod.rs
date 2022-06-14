@@ -19,7 +19,7 @@ use crate::app::services;
 use crate::app::AppContext;
 use crate::db::class;
 use crate::db::class::ClassType;
-use crate::db::class::Properties;
+use crate::db::class::ClassProperties;
 
 use super::AppError;
 use super::AppResult;
@@ -29,7 +29,7 @@ pub struct P2PCreatePayload {
     scope: String,
     audience: String,
     tags: Option<serde_json::Value>,
-    properties: Option<Properties>,
+    properties: Option<ClassProperties>,
     #[serde(default = "class::default_whiteboard")]
     whiteboard: bool,
 }

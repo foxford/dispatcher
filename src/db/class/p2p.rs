@@ -5,7 +5,7 @@ use serde_json::Value as JsonValue;
 use sqlx::postgres::{types::PgRange, PgConnection};
 use uuid::Uuid;
 
-use super::{AgentId, ClassType, Object, Properties, Time};
+use super::{AgentId, ClassType, Object, ClassProperties, Time};
 
 pub struct P2PInsertQuery {
     scope: String,
@@ -40,7 +40,7 @@ impl P2PInsertQuery {
         }
     }
 
-    pub fn properties(self, properties: Properties) -> Self {
+    pub fn properties(self, properties: ClassProperties) -> Self {
         Self {
             properties: Some(JsonValue::Object(properties)),
             ..self

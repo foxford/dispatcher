@@ -10,6 +10,7 @@ use serde_derive::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 
 pub type BoundedDateTimeTuple = (Bound<DateTime<Utc>>, Bound<DateTime<Utc>>);
+pub type ClassProperties = serde_json::Map<String, JsonValue>;
 
 #[derive(Clone, Copy, Debug, sqlx::Type, PartialEq, Eq)]
 #[sqlx(type_name = "class_type", rename_all = "lowercase")]
@@ -18,8 +19,6 @@ pub enum ClassType {
     P2P,
     Minigroup,
 }
-
-pub type Properties = serde_json::Map<String, JsonValue>;
 
 #[derive(Clone, Copy, Debug)]
 pub enum RtcSharingPolicy {

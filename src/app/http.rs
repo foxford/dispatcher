@@ -7,7 +7,8 @@ use svc_utils::middleware::{CorsLayer, LogLayer, MeteredRoute};
 
 use super::api::v1::authz::proxy as proxy_authz;
 use super::api::v1::class::{
-    commit_edition, create_timestamp, read, read_by_scope, recreate, update, update_by_scope,
+    commit_edition, create_timestamp, read, read_by_scope, read_property, recreate, update,
+    update_by_scope,
 };
 use super::api::v1::minigroup::{create as create_minigroup, download as download_minigroup};
 use super::api::v1::p2p::{convert as convert_p2p, create as create_p2p};
@@ -132,8 +133,13 @@ fn authz_router() -> Router {
 }
 
 fn utils_router() -> Router {
-    Router::new().metered_route(
-        "/api/v1/audiences/:audience/classes/:scope/editions/:id",
-        post(commit_edition),
-    )
+    Router::new()
+        .metered_route(
+            "/api/v1/audiences/:audience/classes/:scope/editions/:id",
+            post(commit_edition),
+        )
+        .metered_route(
+            "/api/v1/classes/:class/properties/:property_id",
+            get(read_property), // TODO: .put(update_property),
+        )
 }

@@ -17,7 +17,7 @@ use crate::app::metrics::AuthorizeMetrics;
 use crate::app::services;
 use crate::app::AppContext;
 use crate::db::class::ClassType;
-use crate::db::class::Properties;
+use crate::db::class::ClassProperties;
 use crate::db::class::{self, BoundedDateTimeTuple};
 
 use super::AppError;
@@ -30,7 +30,7 @@ pub struct MinigroupCreatePayload {
     #[serde(default, with = "crate::serde::ts_seconds_option_bound_tuple")]
     time: Option<BoundedDateTimeTuple>,
     tags: Option<serde_json::Value>,
-    properties: Option<Properties>,
+    properties: Option<ClassProperties>,
     reserve: Option<i32>,
     #[serde(default = "class::default_locked_chat")]
     locked_chat: bool,
