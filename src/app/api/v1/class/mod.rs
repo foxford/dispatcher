@@ -6,7 +6,7 @@ use super::{find, find_by_scope, find_class_by_scope, AppResult};
 
 pub use commit_edition::commit_edition;
 pub use create_timestamp::create_timestamp;
-pub use properties::read_property;
+pub use properties::{read_property, update_property};
 pub use read::{read, read_by_scope};
 pub use recreate::recreate;
 use serde::Serialize;

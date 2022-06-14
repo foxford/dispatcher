@@ -632,6 +632,7 @@ pub struct ClassUpdateQuery {
     time: Option<Time>,
     reserve: Option<i32>,
     host: Option<AgentId>,
+    properties: Option<serde_json::Value>,
 }
 
 impl ClassUpdateQuery {
@@ -641,6 +642,7 @@ impl ClassUpdateQuery {
             time: None,
             reserve: None,
             host: None,
+            properties: None,
         }
     }
 
@@ -659,13 +661,24 @@ impl ClassUpdateQuery {
         self
     }
 
+    pub fn properties(self, properties: ClassProperties) -> Self {
+        Self {
+            properties: Some(serde_json::Value::Object(properties)),
+            ..self
+        }
+    }
+
     pub async fn execute(self, conn: &mut PgConnection) -> sqlx::Result<Object> {
         let time: Option<PgRange<DateTime<Utc>>> = self.time.map(Into::into);
         let query = sqlx::query_as!(
             Object,
             r#"
             UPDATE class
-            SET time = COALESCE($2, time), reserve = COALESCE($3, reserve), host = COALESCE($4, host)
+            SET
+                time = COALESCE($2, time),
+                reserve = COALESCE($3, reserve),
+                host = COALESCE($4, host),
+                properties = COALESCE($5, properties)
             WHERE id = $1
             RETURNING
                 id,
@@ -690,6 +703,7 @@ impl ClassUpdateQuery {
             time,
             self.reserve,
             self.host as Option<AgentId>,
+            self.properties,
         );
 
         query.fetch_one(conn).await

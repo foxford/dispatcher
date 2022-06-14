@@ -2,12 +2,10 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use axum::extract::{Extension, Json, Path};
-use chrono::Utc;
 use hyper::{Body, Response};
 use svc_agent::Authenticable;
 use svc_authn::AccountId;
 use svc_utils::extractors::AuthnExtractor;
-use tracing::error;
 use uuid::Uuid;
 
 use super::*;
@@ -17,94 +15,127 @@ use crate::app::error::ErrorExt;
 use crate::app::error::ErrorKind as AppErrorKind;
 use crate::app::AppContext;
 use crate::app::{authz::AuthzObject, metrics::AuthorizeMetrics};
+use crate::db::class::ClassProperties;
 
 pub async fn read_property(
-    ctx: Extension<Arc<dyn AppContext>>,
+    Extension(ctx): Extension<Arc<dyn AppContext>>,
     Path((class_id, property_id)): Path<(Uuid, String)>,
     AuthnExtractor(agent_id): AuthnExtractor,
 ) -> AppResult {
-    ReadProperty {
-        class_id,
-        property_id,
-        state: ctx.0.as_ref(),
-        account_id: agent_id.as_account_id(),
+    let account_id = agent_id.as_account_id();
+
+    let class = find_class(ctx.as_ref(), class_id)
+        .await
+        .error(AppErrorKind::ClassNotFound)?;
+
+    AuthClassAction {
+        state: ctx.as_ref(),
+        account_id,
+        class: &class,
+        op: "read",
     }
-    .run()
-    .await
+    .check()
+    .await?;
+
+    let property = read_properties(&class)?.get(&property_id).ok_or_else(|| {
+        Error::new(
+            AppErrorKind::ClassPropertyNotFound,
+            anyhow!("missing class property"),
+        )
+    })?;
+
+    let body = serde_json::to_string(property)
+        .context("Failed to serialize class property")
+        .error(AppErrorKind::SerializationFailed)?;
+    let response = Response::builder().body(Body::from(body)).unwrap();
+    Ok(response)
 }
 
-struct ReadProperty<'a> {
+pub async fn update_property(
+    Extension(ctx): Extension<Arc<dyn AppContext>>,
+    Path((class_id, property_id)): Path<(Uuid, String)>,
+    AuthnExtractor(agent_id): AuthnExtractor,
+    Json(payload): Json<serde_json::Value>,
+) -> AppResult {
+    let account_id = agent_id.as_account_id();
+
+    let class = find_class(ctx.as_ref(), class_id)
+        .await
+        .error(AppErrorKind::ClassNotFound)?;
+
+    AuthClassAction {
+        state: ctx.as_ref(),
+        account_id,
+        class: &class,
+        op: "update",
+    }
+    .check()
+    .await?;
+
+    let mut properties = read_properties(&class)?.clone();
+    properties.insert(property_id, payload);
+
+    // here to prevent excess `clone` of `properties`
+    let body = serde_json::to_string(&properties)
+        .context("Failed to serialize class property")
+        .error(AppErrorKind::SerializationFailed)?;
+
+    let query = crate::db::class::ClassUpdateQuery::new(class.id()).properties(properties);
+
+    let mut conn = ctx.get_conn().await.error(AppErrorKind::DbQueryFailed)?;
+    query
+        .execute(&mut conn)
+        .await
+        .context("Failed to update class properties")
+        .error(AppErrorKind::DbQueryFailed)?;
+
+    let response = Response::builder().body(Body::from(body)).unwrap();
+    Ok(response)
+}
+
+// TODO: tests
+
+struct AuthClassAction<'a> {
     state: &'a dyn AppContext,
     account_id: &'a AccountId,
-    class_id: Uuid,
-    property_id: String,
+    class: &'a class::Object,
+    op: &'static str,
 }
 
-impl ReadProperty<'_> {
-    async fn run(self) -> AppResult {
-        let class = find_class(self.state, self.class_id)
-            .await
-            .error(AppErrorKind::ClassNotFound)?;
-
-        let object = AuthzObject::new(&["classrooms", &class.id().to_string()]).into();
+impl AuthClassAction<'_> {
+    async fn check(self) -> Result<(), Error> {
+        let object = AuthzObject::new(&["classrooms", &self.class.id().to_string()]).into();
         self.state
             .authz()
             .authorize(
-                class.audience().to_owned(),
+                self.class.audience().to_owned(),
                 self.account_id.clone(),
                 object,
-                "read".into(),
+                self.op.into(),
             )
             .await
             .measure()?;
 
-        let property = class
-            .properties()
-            .ok_or_else(|| {
-                Error::new(
-                    AppErrorKind::NoClassProperties,
-                    anyhow!("no properties for this class"),
-                )
-            })?
-            .as_object()
-            .ok_or_else(|| {
-                Error::new(
-                    AppErrorKind::InvalidClassProperties,
-                    anyhow!("invalid class properties"),
-                )
-            })?
-            .get(&self.property_id)
-            .ok_or_else(|| {
-                Error::new(
-                    AppErrorKind::ClassPropertyNotFound,
-                    anyhow!("missing class property"),
-                )
-            })?;
-
-        let body = serde_json::to_string(property)
-            .context("Failed to serialize class property")
-            .error(AppErrorKind::SerializationFailed)?;
-        let response = Response::builder().body(Body::from(body)).unwrap();
-        Ok(response)
+        Ok(())
     }
 }
 
-// pub async fn update_property<T: AsClassType>(
-//     Extension(ctx): Extension<Arc<dyn AppContext>>,
-//     Path(id): Path<Uuid>,
-//     AuthnExtractor(agent_id): AuthnExtractor,
-//     Json(payload): Json<ClassUpdate>,
-// ) -> AppResult {
-//     let class = find::<T>(ctx.as_ref(), id)
-//         .await
-//         .error(AppErrorKind::ClassNotFound)?;
-//     let updated_class =
-//         do_update::<T>(ctx.as_ref(), agent_id.as_account_id(), class, payload).await?;
-//     Ok(Response::builder()
-//         .body(Body::from(
-//             serde_json::to_string(&updated_class)
-//                 .context("Failed to serialize minigroup")
-//                 .error(AppErrorKind::SerializationFailed)?,
-//         ))
-//         .unwrap())
-// }
+fn read_properties(class: &class::Object) -> Result<&ClassProperties, Error> {
+    let props = class
+        .properties()
+        .ok_or_else(|| {
+            Error::new(
+                AppErrorKind::NoClassProperties,
+                anyhow!("no properties for this class"),
+            )
+        })?
+        .as_object()
+        .ok_or_else(|| {
+            Error::new(
+                AppErrorKind::InvalidClassProperties,
+                anyhow!("invalid class properties"),
+            )
+        })?;
+
+    Ok(props)
+}
