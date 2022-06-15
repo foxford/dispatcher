@@ -205,6 +205,96 @@ mod tests {
     use uuid::Uuid;
 
     #[tokio::test]
+    async fn read_property_unauthorized() {
+        let agent = TestAgent::new("web", "user1", USR_AUDIENCE);
+        let event_room_id = Uuid::new_v4();
+        let conference_room_id = Uuid::new_v4();
+
+        let state = TestState::new(TestAuthz::new()).await;
+        let webinar = {
+            let mut conn = state.get_conn().await.expect("Failed to fetch connection");
+
+            let properties = serde_json::Map::from_iter(
+                vec![("test1".to_owned(), serde_json::json!("test2"))].into_iter(),
+            );
+
+            factory::Webinar::new(
+                random_string(),
+                USR_AUDIENCE.to_string(),
+                (Bound::Unbounded, Bound::Unbounded).into(),
+                event_room_id,
+                conference_room_id,
+            )
+            .properties(properties)
+            .insert(&mut conn)
+            .await
+        };
+
+        let state = Arc::new(state);
+
+        ReadProperty {
+            state: state.as_ref(),
+            account_id: agent.account_id(),
+            class_id: webinar.id(),
+            property_id: "test1".to_owned(),
+        }
+        .run()
+        .await
+        .expect_err("Unexpectedly succeeded");
+    }
+
+    #[tokio::test]
+    async fn read_property() {
+        let agent = TestAgent::new("web", "user1", USR_AUDIENCE);
+        let event_room_id = Uuid::new_v4();
+        let conference_room_id = Uuid::new_v4();
+
+        let db_pool = TestDb::new().await;
+        let webinar = {
+            let mut conn = db_pool.get_conn().await;
+
+            let properties = serde_json::Map::from_iter(
+                vec![("test1".to_owned(), serde_json::json!("test2"))].into_iter(),
+            );
+
+            factory::Webinar::new(
+                random_string(),
+                USR_AUDIENCE.to_string(),
+                (Bound::Unbounded, Bound::Unbounded).into(),
+                event_room_id,
+                conference_room_id,
+            )
+            .properties(properties)
+            .insert(&mut conn)
+            .await
+        };
+
+        let mut authz = TestAuthz::new();
+        authz.allow(
+            agent.account_id(),
+            vec!["classrooms", &webinar.id().to_string()],
+            "read",
+        );
+
+        let mut state = TestState::new_with_pool(db_pool, authz);
+        update_webinar_mocks(&mut state, event_room_id, conference_room_id);
+
+        let state = Arc::new(state);
+
+        let property_value = ReadProperty {
+            state: state.as_ref(),
+            account_id: agent.account_id(),
+            class_id: webinar.id(),
+            property_id: "test1".to_owned(),
+        }
+        .run()
+        .await
+        .expect("Failed to read property");
+
+        assert_eq!(property_value, serde_json::json!("test2"));
+    }
+
+    #[tokio::test]
     async fn update_property_unauthorized() {
         let agent = TestAgent::new("web", "user1", USR_AUDIENCE);
         let event_room_id = Uuid::new_v4();

@@ -98,13 +98,6 @@ impl Minigroup {
         }
     }
 
-    pub fn properties(self, properties: ClassProperties) -> Self {
-        Self {
-            properties: Some(properties),
-            ..self
-        }
-    }
-
     pub fn original_event_room_id(self, original_event_room_id: Uuid) -> Self {
         Self {
             original_event_room_id: Some(original_event_room_id),
