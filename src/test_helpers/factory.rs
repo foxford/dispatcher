@@ -98,6 +98,13 @@ impl Minigroup {
         }
     }
 
+    pub fn properties(self, properties: ClassProperties) -> Self {
+        Self {
+            properties: Some(properties),
+            ..self
+        }
+    }
+
     pub fn original_event_room_id(self, original_event_room_id: Uuid) -> Self {
         Self {
             original_event_room_id: Some(original_event_room_id),
@@ -119,14 +126,11 @@ impl Minigroup {
             self.time,
             self.conference_room_id,
             self.event_room_id,
+            self.properties.unwrap_or_default(),
         );
 
         if let Some(tags) = self.tags {
             q = q.tags(tags);
-        }
-
-        if let Some(properties) = self.properties {
-            q = q.properties(properties);
         }
 
         if let Some(original_event_room_id) = self.original_event_room_id {
@@ -200,6 +204,7 @@ impl Webinar {
             self.time,
             self.conference_room_id,
             self.event_room_id,
+            self.properties.unwrap_or_default(),
         );
 
         if let Some(tags) = self.tags {
@@ -216,10 +221,6 @@ impl Webinar {
 
         if let Some(reserve) = self.reserve {
             q = q.reserve(reserve as i32);
-        }
-
-        if let Some(properties) = self.properties {
-            q = q.properties(properties);
         }
 
         q.execute(conn).await.expect("Failed to insert webinar")

@@ -32,7 +32,8 @@ pub struct WebinarConvertObject {
     #[serde(default, with = "crate::serde::ts_seconds_option_bound_tuple")]
     time: Option<BoundedDateTimeTuple>,
     tags: Option<serde_json::Value>,
-    properties: Option<ClassProperties>,
+    #[serde(default)]
+    properties: ClassProperties,
     original_event_room_id: Option<Uuid>,
     modified_event_room_id: Option<Uuid>,
     recording: Option<RecordingConvertObject>,
@@ -104,16 +105,11 @@ async fn do_convert(
         time.into(),
         body.conference_room_id,
         body.event_room_id,
+        body.properties,
     );
 
     let query = if let Some(tags) = tags {
         query.tags(tags)
-    } else {
-        query
-    };
-
-    let query = if let Some(properties) = body.properties {
-        query.properties(properties)
     } else {
         query
     };
@@ -256,7 +252,7 @@ mod tests {
             audience: USR_AUDIENCE.to_string(),
             time: None,
             tags: None,
-            properties: None,
+            properties: ClassProperties::default(),
             event_room_id,
             conference_room_id,
             original_event_room_id: None,
@@ -289,7 +285,7 @@ mod tests {
             audience: USR_AUDIENCE.to_string(),
             time: Some((Bound::Unbounded, Bound::Unbounded)),
             tags: Some(json!({"scope": "whatever"})),
-            properties: None,
+            properties: ClassProperties::default(),
             event_room_id,
             conference_room_id,
             original_event_room_id: None,
@@ -333,7 +329,7 @@ mod tests {
             audience: USR_AUDIENCE.to_string(),
             time: Some((Bound::Unbounded, Bound::Unbounded)),
             tags: Some(json!({"scope": "whatever"})),
-            properties: None,
+            properties: ClassProperties::default(),
             event_room_id,
             conference_room_id,
             original_event_room_id: None,
@@ -385,7 +381,7 @@ mod tests {
             audience: USR_AUDIENCE.to_string(),
             time: None,
             tags: None,
-            properties: None,
+            properties: ClassProperties::default(),
             event_room_id,
             conference_room_id,
             original_event_room_id: None,

@@ -28,7 +28,8 @@ pub struct WebinarCreatePayload {
     #[serde(default, with = "crate::serde::ts_seconds_option_bound_tuple")]
     time: Option<BoundedDateTimeTuple>,
     tags: Option<serde_json::Value>,
-    properties: Option<ClassProperties>,
+    #[serde(default)]
+    properties: ClassProperties,
     reserve: Option<i32>,
     #[serde(default = "class::default_locked_chat")]
     locked_chat: bool,
@@ -134,17 +135,12 @@ async fn insert_webinar_dummy(
         body.time
             .unwrap_or((Bound::Unbounded, Bound::Unbounded))
             .into(),
+        body.properties.clone(),
     )
     .preserve_history(true);
 
     let query = if let Some(ref tags) = body.tags {
         query.tags(tags.clone())
-    } else {
-        query
-    };
-
-    let query = if let Some(ref properties) = body.properties {
-        query.properties(properties.clone())
     } else {
         query
     };
@@ -195,7 +191,7 @@ mod tests {
             audience: USR_AUDIENCE.to_string(),
             time: None,
             tags: None,
-            properties: None,
+            properties: ClassProperties::default(),
             reserve: Some(10),
             locked_chat: true,
         };
@@ -242,7 +238,7 @@ mod tests {
             audience: USR_AUDIENCE.to_string(),
             time: Some(time),
             tags: None,
-            properties: None,
+            properties: ClassProperties::default(),
             reserve: Some(10),
             locked_chat: true,
         };
@@ -276,7 +272,7 @@ mod tests {
             audience: USR_AUDIENCE.to_string(),
             time: None,
             tags: None,
-            properties: None,
+            properties: ClassProperties::default(),
             reserve: Some(10),
             locked_chat: true,
         };
@@ -301,9 +297,8 @@ mod tests {
 
         let scope = random_string();
 
-        let mut properties = serde_json::Map::new();
+        let mut properties: ClassProperties = serde_json::Map::new().into();
         properties.insert("is_adult".into(), true.into());
-        let properties = Some(properties);
 
         let state = Arc::new(state);
         let body = WebinarCreatePayload {
@@ -329,10 +324,7 @@ mod tests {
             .expect("Webinar not found");
 
         assert_eq!(new_webinar.reserve(), Some(10),);
-        assert_eq!(
-            new_webinar.properties(),
-            properties.map(serde_json::Value::Object).as_ref()
-        );
+        assert_eq!(*new_webinar.properties(), properties);
     }
 
     fn create_webinar_mocks(state: &mut TestState, event_room_id: Uuid, conference_room_id: Uuid) {

@@ -55,14 +55,12 @@ impl ReadProperty<'_> {
         .authorize()
         .await?;
 
-        let property = read_properties(&class)?
-            .get(&self.property_id)
-            .ok_or_else(|| {
-                Error::new(
-                    AppErrorKind::ClassPropertyNotFound,
-                    anyhow!("missing class property"),
-                )
-            })?;
+        let property = class.properties().get(&self.property_id).ok_or_else(|| {
+            Error::new(
+                AppErrorKind::ClassPropertyNotFound,
+                anyhow!("missing class property"),
+            )
+        })?;
 
         Ok(property.clone())
     }
@@ -109,7 +107,7 @@ impl UpdateProperty<'_> {
         .authorize()
         .await?;
 
-        let mut properties = read_properties(&class)?.clone();
+        let mut properties = class.properties().clone();
         properties.insert(self.property_id, self.payload);
 
         let query =
@@ -155,26 +153,6 @@ impl ClassAction<'_> {
     }
 }
 
-fn read_properties(class: &class::Object) -> Result<&ClassProperties, Error> {
-    let props = class
-        .properties()
-        .ok_or_else(|| {
-            Error::new(
-                AppErrorKind::NoClassProperties,
-                anyhow!("no properties for this class"),
-            )
-        })?
-        .as_object()
-        .ok_or_else(|| {
-            Error::new(
-                AppErrorKind::InvalidClassProperties,
-                anyhow!("invalid class properties"),
-            )
-        })?;
-
-    Ok(props)
-}
-
 trait IntoResponseBody
 where
     Self: Sized,
@@ -216,7 +194,8 @@ mod tests {
 
             let properties = serde_json::Map::from_iter(
                 vec![("test1".to_owned(), serde_json::json!("test2"))].into_iter(),
-            );
+            )
+            .into();
 
             factory::Webinar::new(
                 random_string(),
@@ -255,7 +234,8 @@ mod tests {
 
             let properties = serde_json::Map::from_iter(
                 vec![("test1".to_owned(), serde_json::json!("test2"))].into_iter(),
-            );
+            )
+            .into();
 
             factory::Webinar::new(
                 random_string(),
@@ -306,7 +286,8 @@ mod tests {
 
             let properties = serde_json::Map::from_iter(
                 vec![("test1".to_owned(), serde_json::json!("test2"))].into_iter(),
-            );
+            )
+            .into();
 
             factory::Webinar::new(
                 random_string(),
@@ -346,7 +327,8 @@ mod tests {
             let mut conn = db_pool.get_conn().await;
             let properties = serde_json::Map::from_iter(
                 vec![("test1".to_owned(), serde_json::json!("test2"))].into_iter(),
-            );
+            )
+            .into();
 
             factory::Webinar::new(
                 random_string(),
@@ -391,12 +373,16 @@ mod tests {
             .expect("Failed to fetch webinar")
             .expect("Webinar not found");
 
-        let should_be_props = Some(serde_json::json!({
+        let should_be_props: ClassProperties = serde_json::json!({
             "test1": "test3"
-        }));
+        })
+        .as_object()
+        .unwrap()
+        .clone()
+        .into();
 
-        assert_eq!(should_be_props.as_ref(), updated_webinar.properties());
-        assert_eq!(should_be_props, Some(serde_json::Value::Object(response)),);
+        assert_eq!(should_be_props, *updated_webinar.properties());
+        assert_eq!(should_be_props, response);
     }
 
     fn update_webinar_mocks(state: &mut TestState, event_room_id: Uuid, conference_room_id: Uuid) {

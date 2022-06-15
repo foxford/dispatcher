@@ -11,7 +11,7 @@ pub struct P2PInsertQuery {
     scope: String,
     audience: String,
     tags: Option<JsonValue>,
-    properties: Option<JsonValue>,
+    properties: Option<ClassProperties>,
     conference_room_id: Uuid,
     event_room_id: Uuid,
 }
@@ -42,7 +42,7 @@ impl P2PInsertQuery {
 
     pub fn properties(self, properties: ClassProperties) -> Self {
         Self {
-            properties: Some(JsonValue::Object(properties)),
+            properties: Some(properties),
             ..self
         }
     }
@@ -65,7 +65,7 @@ impl P2PInsertQuery {
                 audience,
                 time AS "time!: Time",
                 tags,
-                properties,
+                properties AS "properties: _",
                 preserve_history,
                 created_at,
                 event_room_id AS "event_room_id!: Uuid",
@@ -85,7 +85,7 @@ impl P2PInsertQuery {
             ClassType::P2P as ClassType,
             self.conference_room_id,
             self.event_room_id,
-            self.properties,
+            self.properties.unwrap_or_default().into_json(),
         )
         .fetch_one(conn)
         .await

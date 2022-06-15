@@ -10,7 +10,62 @@ use serde_derive::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 
 pub type BoundedDateTimeTuple = (Bound<DateTime<Utc>>, Bound<DateTime<Utc>>);
-pub type ClassProperties = serde_json::Map<String, JsonValue>;
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+pub struct ClassProperties(serde_json::Map<String, JsonValue>);
+
+impl ClassProperties {
+    pub fn into_json(self) -> serde_json::Value {
+        serde_json::Value::Object(self.0)
+    }
+}
+
+impl From<serde_json::Map<String, JsonValue>> for ClassProperties {
+    fn from(map: serde_json::Map<String, JsonValue>) -> Self {
+        Self(map)
+    }
+}
+
+impl std::ops::Deref for ClassProperties {
+    type Target = serde_json::Map<String, JsonValue>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl std::ops::DerefMut for ClassProperties {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl sqlx::Encode<'_, sqlx::Postgres> for ClassProperties {
+    fn encode_by_ref<'q>(
+        &self,
+        buf: &mut <sqlx::Postgres as sqlx::database::HasArguments<'q>>::ArgumentBuffer,
+    ) -> sqlx::encode::IsNull {
+        serde_json::Value::Object(self.0.clone()).encode_by_ref(buf)
+    }
+}
+
+impl sqlx::Decode<'_, sqlx::Postgres> for ClassProperties {
+    fn decode<'r>(
+        value: <sqlx::Postgres as sqlx::database::HasValueRef<'r>>::ValueRef,
+    ) -> Result<Self, sqlx::error::BoxDynError> {
+        let raw_value = serde_json::Value::decode(value)?;
+        match raw_value {
+            JsonValue::Object(map) => Ok(map.into()),
+            _ => Err(format!("failed to decode jsonb value as json object").into()),
+        }
+    }
+}
+
+impl sqlx::Type<sqlx::Postgres> for ClassProperties {
+    fn type_info() -> <sqlx::Postgres as sqlx::Database>::TypeInfo {
+        serde_json::Value::type_info()
+    }
+}
 
 #[derive(Clone, Copy, Debug, sqlx::Type, PartialEq, Eq)]
 #[sqlx(type_name = "class_type", rename_all = "lowercase")]
@@ -97,8 +152,7 @@ pub struct Object {
     created_at: DateTime<Utc>,
     #[serde(skip_serializing_if = "Option::is_none")]
     tags: Option<JsonValue>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    properties: Option<JsonValue>,
+    properties: ClassProperties,
     conference_room_id: Uuid,
     event_room_id: Uuid,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -149,8 +203,8 @@ impl Object {
         self.tags.as_ref()
     }
 
-    pub fn properties(&self) -> Option<&JsonValue> {
-        self.properties.as_ref()
+    pub fn properties(&self) -> &ClassProperties {
+        &self.properties
     }
 
     pub fn original_event_room_id(&self) -> Option<Uuid> {
@@ -495,7 +549,7 @@ impl UpdateAdjustedRoomsQuery {
                 audience,
                 time AS "time!: Time",
                 tags,
-                properties,
+                properties AS "properties: _",
                 preserve_history,
                 created_at,
                 event_room_id AS "event_room_id!: Uuid",
@@ -547,7 +601,7 @@ impl EstablishQuery {
                 audience,
                 time AS "time!: Time",
                 tags,
-                properties,
+                properties AS "properties: _",
                 preserve_history,
                 created_at,
                 event_room_id AS "event_room_id!: Uuid",
@@ -603,7 +657,7 @@ impl RecreateQuery {
                 audience,
                 time AS "time!: Time",
                 tags,
-                properties,
+                properties AS "properties: _",
                 preserve_history,
                 created_at,
                 event_room_id AS "event_room_id!: Uuid",
@@ -632,7 +686,7 @@ pub struct ClassUpdateQuery {
     time: Option<Time>,
     reserve: Option<i32>,
     host: Option<AgentId>,
-    properties: Option<serde_json::Value>,
+    properties: Option<ClassProperties>,
 }
 
 impl ClassUpdateQuery {
@@ -663,7 +717,7 @@ impl ClassUpdateQuery {
 
     pub fn properties(self, properties: ClassProperties) -> Self {
         Self {
-            properties: Some(serde_json::Value::Object(properties)),
+            properties: Some(properties),
             ..self
         }
     }
@@ -687,7 +741,7 @@ impl ClassUpdateQuery {
                 audience,
                 time AS "time!: Time",
                 tags,
-                properties,
+                properties AS "properties!: ClassProperties",
                 preserve_history,
                 created_at,
                 event_room_id AS "event_room_id!: Uuid",
@@ -703,7 +757,7 @@ impl ClassUpdateQuery {
             time,
             self.reserve,
             self.host as Option<AgentId>,
-            self.properties,
+            self.properties.unwrap_or_default().into_json(),
         );
 
         query.fetch_one(conn).await
@@ -736,7 +790,7 @@ impl RoomCloseQuery {
                 audience,
                 time AS "time!: Time",
                 tags,
-                properties,
+                properties AS "properties: _",
                 preserve_history,
                 created_at,
                 event_room_id AS "event_room_id!: Uuid",

@@ -29,7 +29,8 @@ pub struct P2PCreatePayload {
     scope: String,
     audience: String,
     tags: Option<serde_json::Value>,
-    properties: Option<ClassProperties>,
+    #[serde(default)]
+    properties: ClassProperties,
     #[serde(default = "class::default_whiteboard")]
     whiteboard: bool,
 }
@@ -135,17 +136,12 @@ async fn insert_p2p_dummy(
         body.scope.clone(),
         body.audience.clone(),
         (Bound::Unbounded, Bound::Unbounded).into(),
+        body.properties.clone(),
     )
     .preserve_history(true);
 
     let query = if let Some(ref tags) = body.tags {
         query.tags(tags.clone())
-    } else {
-        query
-    };
-
-    let query = if let Some(ref properties) = body.properties {
-        query.properties(properties.clone())
     } else {
         query
     };
@@ -272,7 +268,7 @@ mod tests {
             scope: scope.clone(),
             audience: USR_AUDIENCE.to_string(),
             tags: None,
-            properties: None,
+            properties: ClassProperties::default(),
             whiteboard: true,
         };
 
@@ -302,7 +298,7 @@ mod tests {
             scope: scope.clone(),
             audience: USR_AUDIENCE.to_string(),
             tags: None,
-            properties: None,
+            properties: ClassProperties::default(),
             whiteboard: true,
         };
 
@@ -326,9 +322,8 @@ mod tests {
 
         let scope = random_string();
 
-        let mut properties = serde_json::Map::new();
+        let mut properties: ClassProperties = serde_json::Map::new().into();
         properties.insert("is_adult".into(), true.into());
-        let properties = Some(properties);
 
         let state = Arc::new(state);
         let body = P2PCreatePayload {
@@ -351,10 +346,7 @@ mod tests {
             .expect("Failed to fetch p2p")
             .expect("P2P not found");
 
-        assert_eq!(
-            new_p2p.properties(),
-            properties.map(serde_json::Value::Object).as_ref()
-        );
+        assert_eq!(*new_p2p.properties(), properties);
     }
 
     fn create_p2p_mocks(state: &mut TestState, event_room_id: Uuid, conference_room_id: Uuid) {

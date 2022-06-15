@@ -68,7 +68,10 @@ pub async fn create_timestamp<T: AsClassType>(
 #[cfg(test)]
 mod create_timestamp_tests {
     use super::*;
-    use crate::{db::class::WebinarType, test_helpers::prelude::*};
+    use crate::{
+        db::class::{ClassProperties, WebinarType},
+        test_helpers::prelude::*,
+    };
     use chrono::{Duration, Utc};
     use serde_json::Value as JsonValue;
     use std::ops::Bound;

@@ -7,7 +7,7 @@ use sqlx::postgres::{types::PgRange, PgConnection};
 use svc_agent::AgentId;
 use uuid::Uuid;
 
-use super::{ClassType, Object, Time, WrongKind};
+use super::{ClassType, Object, Time, WrongKind, ClassProperties};
 
 #[derive(Clone, Debug, Serialize, sqlx::FromRow)]
 pub struct Minigroup {
@@ -74,7 +74,7 @@ pub struct MinigroupInsertQuery {
     audience: String,
     time: Time,
     tags: Option<JsonValue>,
-    properties: Option<JsonValue>,
+    properties: ClassProperties,
     preserve_history: bool,
     conference_room_id: Uuid,
     event_room_id: Uuid,
@@ -91,13 +91,14 @@ impl MinigroupInsertQuery {
         time: Time,
         conference_room_id: Uuid,
         event_room_id: Uuid,
+        properties: ClassProperties,
     ) -> Self {
         Self {
             scope,
             audience,
             time,
             tags: None,
-            properties: None,
+            properties,
             preserve_history: true,
             conference_room_id,
             event_room_id,
@@ -110,13 +111,6 @@ impl MinigroupInsertQuery {
     pub fn tags(self, tags: JsonValue) -> Self {
         Self {
             tags: Some(tags),
-            ..self
-        }
-    }
-
-    pub fn properties(self, properties: super::ClassProperties) -> Self {
-        Self {
-            properties: Some(JsonValue::Object(properties)),
             ..self
         }
     }
@@ -164,7 +158,7 @@ impl MinigroupInsertQuery {
                 room_events_uri,
                 host AS "host: AgentId",
                 timed_out,
-                properties
+                properties AS "properties: _"
             "#,
             self.scope,
             self.audience,
@@ -177,7 +171,7 @@ impl MinigroupInsertQuery {
             self.original_event_room_id,
             self.modified_event_room_id,
             self.reserve,
-            self.properties,
+            self.properties.into_json(),
         )
         .fetch_one(conn)
         .await

@@ -335,7 +335,7 @@ mod handle_adjust {
     use crate::app::AppContext;
     use crate::clients::event::test_helpers::EventBuilder;
     use crate::clients::event::{EventData, EventRoomResponse, HostEventData, PinEventData};
-    use crate::db::class::MinigroupReadQuery;
+    use crate::db::class::{ClassProperties, MinigroupReadQuery};
     use crate::db::recording::{RecordingListQuery, Segments};
     use crate::test_helpers::{prelude::*, shared_helpers::random_string};
 
@@ -812,6 +812,7 @@ mod handle_transcoding_completion {
     use uuid::Uuid;
 
     use crate::app::{AppContext, API_VERSION};
+    use crate::db::class::ClassProperties;
     use crate::db::recording::{RecordingListQuery, Segments};
     use crate::test_helpers::{prelude::*, shared_helpers::random_string};
 

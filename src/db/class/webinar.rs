@@ -23,8 +23,7 @@ pub struct Webinar {
     created_at: DateTime<Utc>,
     #[serde(skip_serializing_if = "Option::is_none")]
     tags: Option<JsonValue>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    properties: Option<JsonValue>,
+    properties: ClassProperties,
     conference_room_id: Uuid,
     event_room_id: Uuid,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -71,7 +70,7 @@ pub struct WebinarInsertQuery {
     audience: String,
     time: Time,
     tags: Option<JsonValue>,
-    properties: Option<JsonValue>,
+    properties: ClassProperties,
     preserve_history: bool,
     conference_room_id: Uuid,
     event_room_id: Uuid,
@@ -88,13 +87,14 @@ impl WebinarInsertQuery {
         time: Time,
         conference_room_id: Uuid,
         event_room_id: Uuid,
+        properties: ClassProperties,
     ) -> Self {
         Self {
             scope,
             audience,
             time,
             tags: None,
-            properties: None,
+            properties,
             preserve_history: true,
             conference_room_id,
             event_room_id,
@@ -108,13 +108,6 @@ impl WebinarInsertQuery {
     pub fn tags(self, tags: JsonValue) -> Self {
         Self {
             tags: Some(tags),
-            ..self
-        }
-    }
-
-    pub fn properties(self, properties: ClassProperties) -> Self {
-        Self {
-            properties: Some(serde_json::Value::Object(properties)),
             ..self
         }
     }
@@ -161,7 +154,7 @@ impl WebinarInsertQuery {
                 audience,
                 time AS "time!: Time",
                 tags,
-                properties,
+                properties AS "properties: _",
                 preserve_history,
                 created_at,
                 event_room_id AS "event_room_id!: Uuid",
@@ -185,7 +178,7 @@ impl WebinarInsertQuery {
             self.modified_event_room_id,
             self.reserve,
             self.room_events_uri,
-            self.properties,
+            self.properties.into_json(),
         )
         .fetch_one(conn)
         .await
