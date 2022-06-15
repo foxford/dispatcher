@@ -18,6 +18,7 @@ use crate::app::AppContext;
 use crate::app::{authz::AuthzObject, metrics::AuthorizeMetrics};
 use crate::clients::{conference::ConferenceRoomResponse, event::EventRoomResponse};
 use crate::db::class::BoundedDateTimeTuple;
+use crate::db::class::ClassProperties;
 use crate::db::recording::Segments;
 
 use super::AppResult;
@@ -31,6 +32,7 @@ pub struct WebinarConvertObject {
     #[serde(default, with = "crate::serde::ts_seconds_option_bound_tuple")]
     time: Option<BoundedDateTimeTuple>,
     tags: Option<serde_json::Value>,
+    properties: Option<ClassProperties>,
     original_event_room_id: Option<Uuid>,
     modified_event_room_id: Option<Uuid>,
     recording: Option<RecordingConvertObject>,
@@ -106,6 +108,12 @@ async fn do_convert(
 
     let query = if let Some(tags) = tags {
         query.tags(tags)
+    } else {
+        query
+    };
+
+    let query = if let Some(properties) = body.properties {
+        query.properties(properties)
     } else {
         query
     };
@@ -248,6 +256,7 @@ mod tests {
             audience: USR_AUDIENCE.to_string(),
             time: None,
             tags: None,
+            properties: None,
             event_room_id,
             conference_room_id,
             original_event_room_id: None,
@@ -280,6 +289,7 @@ mod tests {
             audience: USR_AUDIENCE.to_string(),
             time: Some((Bound::Unbounded, Bound::Unbounded)),
             tags: Some(json!({"scope": "whatever"})),
+            properties: None,
             event_room_id,
             conference_room_id,
             original_event_room_id: None,
@@ -323,6 +333,7 @@ mod tests {
             audience: USR_AUDIENCE.to_string(),
             time: Some((Bound::Unbounded, Bound::Unbounded)),
             tags: Some(json!({"scope": "whatever"})),
+            properties: None,
             event_room_id,
             conference_room_id,
             original_event_room_id: None,
@@ -374,6 +385,7 @@ mod tests {
             audience: USR_AUDIENCE.to_string(),
             time: None,
             tags: None,
+            properties: None,
             event_room_id,
             conference_room_id,
             original_event_room_id: None,

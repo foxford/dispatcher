@@ -18,8 +18,8 @@ use crate::app::metrics::AuthorizeMetrics;
 use crate::app::services;
 use crate::app::AppContext;
 use crate::db::class;
-use crate::db::class::ClassType;
 use crate::db::class::ClassProperties;
+use crate::db::class::ClassType;
 
 use super::AppError;
 use super::AppResult;
@@ -168,6 +168,7 @@ pub struct P2PConvertObject {
     event_room_id: Uuid,
     conference_room_id: Uuid,
     tags: Option<serde_json::Value>,
+    properties: Option<ClassProperties>,
 }
 
 pub async fn convert(
@@ -198,6 +199,12 @@ pub async fn convert(
 
     let query = if let Some(tags) = body.tags {
         query.tags(tags)
+    } else {
+        query
+    };
+
+    let query = if let Some(properties) = body.properties {
+        query.properties(properties)
     } else {
         query
     };
