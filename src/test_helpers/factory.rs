@@ -126,11 +126,14 @@ impl Minigroup {
             self.time,
             self.conference_room_id,
             self.event_room_id,
-            self.properties.unwrap_or_default(),
         );
 
         if let Some(tags) = self.tags {
             q = q.tags(tags);
+        }
+
+        if let Some(properties) = self.properties {
+            q = q.properties(properties);
         }
 
         if let Some(original_event_room_id) = self.original_event_room_id {
@@ -204,11 +207,14 @@ impl Webinar {
             self.time,
             self.conference_room_id,
             self.event_room_id,
-            self.properties.unwrap_or_default(),
         );
 
         if let Some(tags) = self.tags {
             q = q.tags(tags);
+        }
+
+        if let Some(properties) = self.properties {
+            q = q.properties(properties);
         }
 
         if let Some(original_event_room_id) = self.original_event_room_id {

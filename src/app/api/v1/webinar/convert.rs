@@ -105,7 +105,6 @@ async fn do_convert(
         time.into(),
         body.conference_room_id,
         body.event_room_id,
-        body.properties,
     );
 
     let query = if let Some(tags) = tags {
@@ -113,6 +112,8 @@ async fn do_convert(
     } else {
         query
     };
+
+    let query = query.properties(body.properties);
 
     let query = if let Some(id) = body.original_event_room_id {
         query.original_event_room_id(id)

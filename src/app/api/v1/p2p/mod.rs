@@ -136,8 +136,8 @@ async fn insert_p2p_dummy(
         body.scope.clone(),
         body.audience.clone(),
         (Bound::Unbounded, Bound::Unbounded).into(),
-        body.properties.clone(),
     )
+    .properties(body.properties.clone())
     .preserve_history(true);
 
     let query = if let Some(ref tags) = body.tags {

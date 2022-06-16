@@ -15,8 +15,8 @@ pub type BoundedDateTimeTuple = (Bound<DateTime<Utc>>, Bound<DateTime<Utc>>);
 pub struct ClassProperties(serde_json::Map<String, JsonValue>);
 
 impl ClassProperties {
-    pub fn into_json(self) -> serde_json::Value {
-        serde_json::Value::Object(self.0)
+    pub fn into_json(self) -> JsonValue {
+        JsonValue::Object(self.0)
     }
 }
 
@@ -45,25 +45,27 @@ impl sqlx::Encode<'_, sqlx::Postgres> for ClassProperties {
         &self,
         buf: &mut <sqlx::Postgres as sqlx::database::HasArguments<'q>>::ArgumentBuffer,
     ) -> sqlx::encode::IsNull {
-        serde_json::Value::Object(self.0.clone()).encode_by_ref(buf)
+        self.clone().into_json().encode_by_ref(buf)
     }
 }
 
 impl sqlx::Decode<'_, sqlx::Postgres> for ClassProperties {
-    fn decode<'r>(
-        value: <sqlx::Postgres as sqlx::database::HasValueRef<'r>>::ValueRef,
+    fn decode(
+        value: <sqlx::Postgres as sqlx::database::HasValueRef<'_>>::ValueRef,
     ) -> Result<Self, sqlx::error::BoxDynError> {
         let raw_value = serde_json::Value::decode(value)?;
         match raw_value {
             JsonValue::Object(map) => Ok(map.into()),
-            _ => Err(format!("failed to decode jsonb value as json object").into()),
+            _ => Err("failed to decode jsonb value as json object"
+                .to_owned()
+                .into()),
         }
     }
 }
 
 impl sqlx::Type<sqlx::Postgres> for ClassProperties {
     fn type_info() -> <sqlx::Postgres as sqlx::Database>::TypeInfo {
-        serde_json::Value::type_info()
+        <JsonValue as sqlx::Type<sqlx::Postgres>>::type_info()
     }
 }
 
@@ -757,7 +759,7 @@ impl ClassUpdateQuery {
             time,
             self.reserve,
             self.host as Option<AgentId>,
-            self.properties.unwrap_or_default().into_json(),
+            self.properties.unwrap_or_default() as ClassProperties,
         );
 
         query.fetch_one(conn).await

@@ -70,7 +70,7 @@ pub struct InsertQuery {
     audience: String,
     time: Time,
     tags: Option<JsonValue>,
-    properties: ClassProperties,
+    properties: Option<ClassProperties>,
     preserve_history: bool,
     conference_room_id: Option<Uuid>,
     event_room_id: Option<Uuid>,
@@ -82,20 +82,14 @@ pub struct InsertQuery {
 }
 
 impl InsertQuery {
-    pub fn new(
-        kind: ClassType,
-        scope: String,
-        audience: String,
-        time: Time,
-        properties: ClassProperties,
-    ) -> Self {
+    pub fn new(kind: ClassType, scope: String, audience: String, time: Time) -> Self {
         Self {
             kind,
             scope,
             audience,
             time,
-            properties,
             tags: None,
+            properties: None,
             preserve_history: true,
             conference_room_id: None,
             event_room_id: None,
@@ -110,6 +104,13 @@ impl InsertQuery {
     pub fn tags(self, tags: JsonValue) -> Self {
         Self {
             tags: Some(tags),
+            ..self
+        }
+    }
+
+    pub fn properties(self, properties: ClassProperties) -> Self {
+        Self {
+            properties: Some(properties),
             ..self
         }
     }
@@ -174,7 +175,7 @@ impl InsertQuery {
             self.reserve,
             self.room_events_uri,
             self.established,
-            self.properties.into_json(),
+            self.properties.unwrap_or_default() as ClassProperties,
         )
         .fetch_one(conn)
         .await
@@ -213,7 +214,6 @@ mod tests {
             webinar.scope().to_owned(),
             webinar.audience().to_owned(),
             (Bound::Included(t), Bound::Unbounded).into(),
-            ClassProperties::default(),
         )
         .execute(&mut conn)
         .await
@@ -239,7 +239,6 @@ mod tests {
             random_string(),
             USR_AUDIENCE.to_string(),
             (Bound::Unbounded, Bound::Unbounded).into(),
-            ClassProperties::default(),
         )
         .execute(&mut conn)
         .await
@@ -252,7 +251,6 @@ mod tests {
             dummy.scope().to_owned(),
             dummy.audience().to_owned(),
             (Bound::Included(t), Bound::Unbounded).into(),
-            ClassProperties::default(),
         )
         .execute(&mut conn)
         .await

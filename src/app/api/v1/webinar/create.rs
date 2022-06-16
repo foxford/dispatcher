@@ -135,8 +135,8 @@ async fn insert_webinar_dummy(
         body.time
             .unwrap_or((Bound::Unbounded, Bound::Unbounded))
             .into(),
-        body.properties.clone(),
     )
+    .properties(body.properties.clone())
     .preserve_history(true);
 
     let query = if let Some(ref tags) = body.tags {

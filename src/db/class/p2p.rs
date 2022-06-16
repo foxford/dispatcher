@@ -85,7 +85,7 @@ impl P2PInsertQuery {
             ClassType::P2P as ClassType,
             self.conference_room_id,
             self.event_room_id,
-            self.properties.unwrap_or_default().into_json(),
+            self.properties.unwrap_or_default() as ClassProperties,
         )
         .fetch_one(conn)
         .await

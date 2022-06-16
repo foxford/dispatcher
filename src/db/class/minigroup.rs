@@ -7,7 +7,7 @@ use sqlx::postgres::{types::PgRange, PgConnection};
 use svc_agent::AgentId;
 use uuid::Uuid;
 
-use super::{ClassType, Object, Time, WrongKind, ClassProperties};
+use super::{ClassType, Object, Time, WrongKind};
 
 #[derive(Clone, Debug, Serialize, sqlx::FromRow)]
 pub struct Minigroup {
@@ -63,7 +63,7 @@ impl std::convert::TryFrom<Object> for Minigroup {
 }
 
 #[cfg(test)]
-use super::{GenericReadQuery, MinigroupType};
+use super::{ClassProperties, GenericReadQuery, MinigroupType};
 
 #[cfg(test)]
 pub type MinigroupReadQuery = GenericReadQuery<MinigroupType>;
@@ -74,7 +74,7 @@ pub struct MinigroupInsertQuery {
     audience: String,
     time: Time,
     tags: Option<JsonValue>,
-    properties: ClassProperties,
+    properties: Option<ClassProperties>,
     preserve_history: bool,
     conference_room_id: Uuid,
     event_room_id: Uuid,
@@ -91,14 +91,13 @@ impl MinigroupInsertQuery {
         time: Time,
         conference_room_id: Uuid,
         event_room_id: Uuid,
-        properties: ClassProperties,
     ) -> Self {
         Self {
             scope,
             audience,
             time,
             tags: None,
-            properties,
+            properties: None,
             preserve_history: true,
             conference_room_id,
             event_room_id,
@@ -111,6 +110,13 @@ impl MinigroupInsertQuery {
     pub fn tags(self, tags: JsonValue) -> Self {
         Self {
             tags: Some(tags),
+            ..self
+        }
+    }
+
+    pub fn properties(self, properties: ClassProperties) -> Self {
+        Self {
+            properties: Some(properties),
             ..self
         }
     }
@@ -171,7 +177,7 @@ impl MinigroupInsertQuery {
             self.original_event_room_id,
             self.modified_event_room_id,
             self.reserve,
-            self.properties.into_json(),
+            self.properties.unwrap_or_default() as ClassProperties,
         )
         .fetch_one(conn)
         .await

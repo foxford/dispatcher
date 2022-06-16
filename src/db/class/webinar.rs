@@ -70,7 +70,7 @@ pub struct WebinarInsertQuery {
     audience: String,
     time: Time,
     tags: Option<JsonValue>,
-    properties: ClassProperties,
+    properties: Option<ClassProperties>,
     preserve_history: bool,
     conference_room_id: Uuid,
     event_room_id: Uuid,
@@ -87,14 +87,13 @@ impl WebinarInsertQuery {
         time: Time,
         conference_room_id: Uuid,
         event_room_id: Uuid,
-        properties: ClassProperties,
     ) -> Self {
         Self {
             scope,
             audience,
             time,
             tags: None,
-            properties,
+            properties: None,
             preserve_history: true,
             conference_room_id,
             event_room_id,
@@ -108,6 +107,13 @@ impl WebinarInsertQuery {
     pub fn tags(self, tags: JsonValue) -> Self {
         Self {
             tags: Some(tags),
+            ..self
+        }
+    }
+
+    pub fn properties(self, properties: ClassProperties) -> Self {
+        Self {
+            properties: Some(properties),
             ..self
         }
     }
@@ -178,7 +184,7 @@ impl WebinarInsertQuery {
             self.modified_event_room_id,
             self.reserve,
             self.room_events_uri,
-            self.properties.into_json(),
+            self.properties.unwrap_or_default() as ClassProperties,
         )
         .fetch_one(conn)
         .await
