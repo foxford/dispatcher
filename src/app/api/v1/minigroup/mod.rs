@@ -326,7 +326,7 @@ mod tests {
                 .expect("Failed to fetch minigroup")
                 .expect("Minigroup not found");
 
-            assert_eq!(new_minigroup.reserve(), Some(10),);
+            assert_eq!(new_minigroup.reserve(), Some(10));
             assert_eq!(*new_minigroup.properties(), properties);
         }
 
