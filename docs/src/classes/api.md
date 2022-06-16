@@ -7,7 +7,7 @@ Route                                                       | Method | Short des
 ----------------------------------------------------------- | ------ | ----------
 /api/v1/audiences/:audience/classes/:scope/editions/:id     | POST   | Commits edition with id=:id of a class with scope=:scope
 /api/v1/classes/:class_id/properties/:property_id           | GET    | [Reads](#read-property) the property
-/api/v1/classes/:class_id/properties/:property_id           | POST   | [Updates](#update-property) the property
+/api/v1/classes/:class_id/properties/:property_id           | PUT    | [Updates](#update-property) the property
 
 ### Read property
 
