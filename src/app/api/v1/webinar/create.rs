@@ -323,7 +323,7 @@ mod tests {
             .expect("Failed to fetch webinar")
             .expect("Webinar not found");
 
-        assert_eq!(new_webinar.reserve(), Some(10),);
+        assert_eq!(new_webinar.reserve(), Some(10));
         assert_eq!(*new_webinar.properties(), properties);
     }
 
