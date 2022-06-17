@@ -164,7 +164,8 @@ pub struct P2PConvertObject {
     event_room_id: Uuid,
     conference_room_id: Uuid,
     tags: Option<serde_json::Value>,
-    properties: Option<ClassProperties>,
+    #[serde(default)]
+    properties: ClassProperties,
 }
 
 pub async fn convert(
@@ -199,11 +200,7 @@ pub async fn convert(
         query
     };
 
-    let query = if let Some(properties) = body.properties {
-        query.properties(properties)
-    } else {
-        query
-    };
+    let query = query.properties(body.properties);
 
     let p2p = {
         let mut conn = ctx
