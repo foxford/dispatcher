@@ -32,6 +32,7 @@ pub enum ErrorKind {
     ClassClosingFailed,
     TranscodingFlowFailed,
     EditionFailed,
+    ClassPropertyNotFound,
 }
 
 impl ErrorKind {
@@ -134,6 +135,12 @@ impl From<ErrorKind> for ErrorKindProperties {
                 kind: "edition_flow_failed",
                 title: "Edition flow failed",
                 is_notify_sentry: true,
+            },
+            ErrorKind::ClassPropertyNotFound => ErrorKindProperties {
+                status: ResponseStatus::NOT_FOUND,
+                kind: "class_property_not_found",
+                title: "Class property not found",
+                is_notify_sentry: false,
             },
         }
     }

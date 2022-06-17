@@ -63,7 +63,7 @@ impl std::convert::TryFrom<Object> for Minigroup {
 }
 
 #[cfg(test)]
-use super::{GenericReadQuery, MinigroupType};
+use super::{ClassProperties, GenericReadQuery, MinigroupType};
 
 #[cfg(test)]
 pub type MinigroupReadQuery = GenericReadQuery<MinigroupType>;
@@ -74,6 +74,7 @@ pub struct MinigroupInsertQuery {
     audience: String,
     time: Time,
     tags: Option<JsonValue>,
+    properties: Option<ClassProperties>,
     preserve_history: bool,
     conference_room_id: Uuid,
     event_room_id: Uuid,
@@ -96,6 +97,7 @@ impl MinigroupInsertQuery {
             audience,
             time,
             tags: None,
+            properties: None,
             preserve_history: true,
             conference_room_id,
             event_room_id,
@@ -108,6 +110,13 @@ impl MinigroupInsertQuery {
     pub fn tags(self, tags: JsonValue) -> Self {
         Self {
             tags: Some(tags),
+            ..self
+        }
+    }
+
+    pub fn properties(self, properties: ClassProperties) -> Self {
+        Self {
+            properties: Some(properties),
             ..self
         }
     }
@@ -134,9 +143,10 @@ impl MinigroupInsertQuery {
             r#"
             INSERT INTO class (
                 scope, audience, time, tags, preserve_history, kind, conference_room_id,
-                event_room_id, original_event_room_id, modified_event_room_id, reserve
+                event_room_id, original_event_room_id, modified_event_room_id, reserve,
+                properties
             )
-            VALUES ($1, $2, $3, $4, $5, $6::class_type, $7, $8, $9, $10, $11)
+            VALUES ($1, $2, $3, $4, $5, $6::class_type, $7, $8, $9, $10, $11, $12)
             RETURNING
                 id,
                 scope,
@@ -153,7 +163,8 @@ impl MinigroupInsertQuery {
                 reserve,
                 room_events_uri,
                 host AS "host: AgentId",
-                timed_out
+                timed_out,
+                properties AS "properties: _"
             "#,
             self.scope,
             self.audience,
@@ -166,6 +177,7 @@ impl MinigroupInsertQuery {
             self.original_event_room_id,
             self.modified_event_room_id,
             self.reserve,
+            self.properties.unwrap_or_default() as ClassProperties,
         )
         .fetch_one(conn)
         .await

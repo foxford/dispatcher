@@ -11,6 +11,64 @@ use serde_json::Value as JsonValue;
 
 pub type BoundedDateTimeTuple = (Bound<DateTime<Utc>>, Bound<DateTime<Utc>>);
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+pub struct ClassProperties(serde_json::Map<String, JsonValue>);
+
+impl ClassProperties {
+    pub fn into_json(self) -> JsonValue {
+        JsonValue::Object(self.0)
+    }
+}
+
+impl From<serde_json::Map<String, JsonValue>> for ClassProperties {
+    fn from(map: serde_json::Map<String, JsonValue>) -> Self {
+        Self(map)
+    }
+}
+
+impl std::ops::Deref for ClassProperties {
+    type Target = serde_json::Map<String, JsonValue>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl std::ops::DerefMut for ClassProperties {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl sqlx::Encode<'_, sqlx::Postgres> for ClassProperties {
+    fn encode_by_ref<'q>(
+        &self,
+        buf: &mut <sqlx::Postgres as sqlx::database::HasArguments<'q>>::ArgumentBuffer,
+    ) -> sqlx::encode::IsNull {
+        self.clone().into_json().encode_by_ref(buf)
+    }
+}
+
+impl sqlx::Decode<'_, sqlx::Postgres> for ClassProperties {
+    fn decode(
+        value: <sqlx::Postgres as sqlx::database::HasValueRef<'_>>::ValueRef,
+    ) -> Result<Self, sqlx::error::BoxDynError> {
+        let raw_value = serde_json::Value::decode(value)?;
+        match raw_value {
+            JsonValue::Object(map) => Ok(map.into()),
+            _ => Err("failed to decode jsonb value as json object"
+                .to_owned()
+                .into()),
+        }
+    }
+}
+
+impl sqlx::Type<sqlx::Postgres> for ClassProperties {
+    fn type_info() -> <sqlx::Postgres as sqlx::Database>::TypeInfo {
+        <JsonValue as sqlx::Type<sqlx::Postgres>>::type_info()
+    }
+}
+
 #[derive(Clone, Copy, Debug, sqlx::Type, PartialEq, Eq)]
 #[sqlx(type_name = "class_type", rename_all = "lowercase")]
 pub enum ClassType {
@@ -96,6 +154,7 @@ pub struct Object {
     created_at: DateTime<Utc>,
     #[serde(skip_serializing_if = "Option::is_none")]
     tags: Option<JsonValue>,
+    properties: ClassProperties,
     conference_room_id: Uuid,
     event_room_id: Uuid,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -144,6 +203,10 @@ impl Object {
 
     pub fn tags(&self) -> Option<&JsonValue> {
         self.tags.as_ref()
+    }
+
+    pub fn properties(&self) -> &ClassProperties {
+        &self.properties
     }
 
     pub fn original_event_room_id(&self) -> Option<Uuid> {
@@ -488,6 +551,7 @@ impl UpdateAdjustedRoomsQuery {
                 audience,
                 time AS "time!: Time",
                 tags,
+                properties AS "properties: _",
                 preserve_history,
                 created_at,
                 event_room_id AS "event_room_id!: Uuid",
@@ -539,6 +603,7 @@ impl EstablishQuery {
                 audience,
                 time AS "time!: Time",
                 tags,
+                properties AS "properties: _",
                 preserve_history,
                 created_at,
                 event_room_id AS "event_room_id!: Uuid",
@@ -594,6 +659,7 @@ impl RecreateQuery {
                 audience,
                 time AS "time!: Time",
                 tags,
+                properties AS "properties: _",
                 preserve_history,
                 created_at,
                 event_room_id AS "event_room_id!: Uuid",
@@ -622,6 +688,7 @@ pub struct ClassUpdateQuery {
     time: Option<Time>,
     reserve: Option<i32>,
     host: Option<AgentId>,
+    properties: Option<ClassProperties>,
 }
 
 impl ClassUpdateQuery {
@@ -631,6 +698,7 @@ impl ClassUpdateQuery {
             time: None,
             reserve: None,
             host: None,
+            properties: None,
         }
     }
 
@@ -649,13 +717,24 @@ impl ClassUpdateQuery {
         self
     }
 
+    pub fn properties(self, properties: ClassProperties) -> Self {
+        Self {
+            properties: Some(properties),
+            ..self
+        }
+    }
+
     pub async fn execute(self, conn: &mut PgConnection) -> sqlx::Result<Object> {
         let time: Option<PgRange<DateTime<Utc>>> = self.time.map(Into::into);
         let query = sqlx::query_as!(
             Object,
             r#"
             UPDATE class
-            SET time = COALESCE($2, time), reserve = COALESCE($3, reserve), host = COALESCE($4, host)
+            SET
+                time = COALESCE($2, time),
+                reserve = COALESCE($3, reserve),
+                host = COALESCE($4, host),
+                properties = COALESCE($5, properties)
             WHERE id = $1
             RETURNING
                 id,
@@ -664,6 +743,7 @@ impl ClassUpdateQuery {
                 audience,
                 time AS "time!: Time",
                 tags,
+                properties AS "properties!: ClassProperties",
                 preserve_history,
                 created_at,
                 event_room_id AS "event_room_id!: Uuid",
@@ -679,6 +759,7 @@ impl ClassUpdateQuery {
             time,
             self.reserve,
             self.host as Option<AgentId>,
+            self.properties.unwrap_or_default() as ClassProperties,
         );
 
         query.fetch_one(conn).await
@@ -711,6 +792,7 @@ impl RoomCloseQuery {
                 audience,
                 time AS "time!: Time",
                 tags,
+                properties AS "properties: _",
                 preserve_history,
                 created_at,
                 event_room_id AS "event_room_id!: Uuid",

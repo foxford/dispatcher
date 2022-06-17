@@ -18,6 +18,7 @@ use crate::app::AppContext;
 use crate::app::{authz::AuthzObject, metrics::AuthorizeMetrics};
 use crate::clients::{conference::ConferenceRoomResponse, event::EventRoomResponse};
 use crate::db::class::BoundedDateTimeTuple;
+use crate::db::class::ClassProperties;
 use crate::db::recording::Segments;
 
 use super::AppResult;
@@ -31,6 +32,8 @@ pub struct WebinarConvertObject {
     #[serde(default, with = "crate::serde::ts_seconds_option_bound_tuple")]
     time: Option<BoundedDateTimeTuple>,
     tags: Option<serde_json::Value>,
+    #[serde(default)]
+    properties: ClassProperties,
     original_event_room_id: Option<Uuid>,
     modified_event_room_id: Option<Uuid>,
     recording: Option<RecordingConvertObject>,
@@ -109,6 +112,8 @@ async fn do_convert(
     } else {
         query
     };
+
+    let query = query.properties(body.properties);
 
     let query = if let Some(id) = body.original_event_room_id {
         query.original_event_room_id(id)
@@ -248,6 +253,7 @@ mod tests {
             audience: USR_AUDIENCE.to_string(),
             time: None,
             tags: None,
+            properties: ClassProperties::default(),
             event_room_id,
             conference_room_id,
             original_event_room_id: None,
@@ -280,6 +286,7 @@ mod tests {
             audience: USR_AUDIENCE.to_string(),
             time: Some((Bound::Unbounded, Bound::Unbounded)),
             tags: Some(json!({"scope": "whatever"})),
+            properties: ClassProperties::default(),
             event_room_id,
             conference_room_id,
             original_event_room_id: None,
@@ -323,6 +330,7 @@ mod tests {
             audience: USR_AUDIENCE.to_string(),
             time: Some((Bound::Unbounded, Bound::Unbounded)),
             tags: Some(json!({"scope": "whatever"})),
+            properties: ClassProperties::default(),
             event_room_id,
             conference_room_id,
             original_event_room_id: None,
@@ -374,6 +382,7 @@ mod tests {
             audience: USR_AUDIENCE.to_string(),
             time: None,
             tags: None,
+            properties: ClassProperties::default(),
             event_room_id,
             conference_room_id,
             original_event_room_id: None,

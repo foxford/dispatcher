@@ -20,6 +20,7 @@ Attribute              | Type        | Optional | Description
 scope                  | string      |          | Scope
 audience               | string      |          | Audience
 tags                   | json object | +        | Arbitrary tags.
+properties             | json object | +        | Arbitrary class properties.
 whiteboard             | bool        | +        | Flag to add whiteboard to created event room (defaults to true)
 
 Response: status 201 and p2p object as payload.
@@ -61,6 +62,7 @@ Attribute              | Type        | Optional | Description
 scope                  | string      |          | Scope
 audience               | string      |          | Audience
 tags                   | json object | +        | Arbitrary tags
+properties             | json object | +        | Arbitrary class properties.
 conference_room_id     | uuid        |          | Conference room uuid
 event_room_id          | uuid        |          | Event room uuid
 

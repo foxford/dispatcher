@@ -16,6 +16,7 @@ use crate::app::error::ErrorKind as AppErrorKind;
 use crate::app::services;
 use crate::app::AppContext;
 use crate::app::{authz::AuthzObject, metrics::AuthorizeMetrics};
+use crate::db::class::ClassProperties;
 use crate::db::class::{self, BoundedDateTimeTuple, ClassType};
 
 use super::AppResult;
@@ -27,6 +28,8 @@ pub struct WebinarCreatePayload {
     #[serde(default, with = "crate::serde::ts_seconds_option_bound_tuple")]
     time: Option<BoundedDateTimeTuple>,
     tags: Option<serde_json::Value>,
+    #[serde(default)]
+    properties: ClassProperties,
     reserve: Option<i32>,
     #[serde(default = "class::default_locked_chat")]
     locked_chat: bool,
@@ -133,6 +136,7 @@ async fn insert_webinar_dummy(
             .unwrap_or((Bound::Unbounded, Bound::Unbounded))
             .into(),
     )
+    .properties(body.properties.clone())
     .preserve_history(true);
 
     let query = if let Some(ref tags) = body.tags {
@@ -187,6 +191,7 @@ mod tests {
             audience: USR_AUDIENCE.to_string(),
             time: None,
             tags: None,
+            properties: ClassProperties::default(),
             reserve: Some(10),
             locked_chat: true,
         };
@@ -233,6 +238,7 @@ mod tests {
             audience: USR_AUDIENCE.to_string(),
             time: Some(time),
             tags: None,
+            properties: ClassProperties::default(),
             reserve: Some(10),
             locked_chat: true,
         };
@@ -266,6 +272,7 @@ mod tests {
             audience: USR_AUDIENCE.to_string(),
             time: None,
             tags: None,
+            properties: ClassProperties::default(),
             reserve: Some(10),
             locked_chat: true,
         };
@@ -273,6 +280,51 @@ mod tests {
         do_create(state.as_ref(), agent.account_id(), body)
             .await
             .expect_err("Unexpectedly succeeded");
+    }
+
+    #[tokio::test]
+    async fn create_webinar_with_properties() {
+        let agent = TestAgent::new("web", "user1", USR_AUDIENCE);
+
+        let mut authz = TestAuthz::new();
+        authz.allow(agent.account_id(), vec!["classrooms"], "create");
+
+        let mut state = TestState::new(authz).await;
+        let event_room_id = Uuid::new_v4();
+        let conference_room_id = Uuid::new_v4();
+
+        create_webinar_mocks(&mut state, event_room_id, conference_room_id);
+
+        let scope = random_string();
+
+        let mut properties: ClassProperties = serde_json::Map::new().into();
+        properties.insert("is_adult".into(), true.into());
+
+        let state = Arc::new(state);
+        let body = WebinarCreatePayload {
+            scope: scope.clone(),
+            audience: USR_AUDIENCE.to_string(),
+            time: None,
+            tags: None,
+            properties: properties.clone(),
+            reserve: Some(10),
+            locked_chat: true,
+        };
+
+        let r = do_create(state.as_ref(), agent.account_id(), body).await;
+        r.expect("Failed to create webinar");
+
+        // Assert DB changes.
+        let mut conn = state.get_conn().await.expect("Failed to get conn");
+
+        let new_webinar = WebinarReadQuery::by_scope(USR_AUDIENCE, &scope)
+            .execute(&mut conn)
+            .await
+            .expect("Failed to fetch webinar")
+            .expect("Webinar not found");
+
+        assert_eq!(new_webinar.reserve(), Some(10));
+        assert_eq!(*new_webinar.properties(), properties);
     }
 
     fn create_webinar_mocks(state: &mut TestState, event_room_id: Uuid, conference_room_id: Uuid) {

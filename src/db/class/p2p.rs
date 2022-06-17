@@ -5,12 +5,13 @@ use serde_json::Value as JsonValue;
 use sqlx::postgres::{types::PgRange, PgConnection};
 use uuid::Uuid;
 
-use super::{AgentId, ClassType, Object, Time};
+use super::{AgentId, ClassProperties, ClassType, Object, Time};
 
 pub struct P2PInsertQuery {
     scope: String,
     audience: String,
     tags: Option<JsonValue>,
+    properties: Option<ClassProperties>,
     conference_room_id: Uuid,
     event_room_id: Uuid,
 }
@@ -26,6 +27,7 @@ impl P2PInsertQuery {
             scope,
             audience,
             tags: None,
+            properties: None,
             conference_room_id,
             event_room_id,
         }
@@ -38,6 +40,13 @@ impl P2PInsertQuery {
         }
     }
 
+    pub fn properties(self, properties: ClassProperties) -> Self {
+        Self {
+            properties: Some(properties),
+            ..self
+        }
+    }
+
     pub async fn execute(self, conn: &mut PgConnection) -> sqlx::Result<Object> {
         let time: PgRange<DateTime<Utc>> = (Bound::Unbounded, Bound::Unbounded).into();
 
@@ -46,9 +55,9 @@ impl P2PInsertQuery {
             r#"
             INSERT INTO class (
                 scope, audience, time, tags, preserve_history, kind,
-                conference_room_id, event_room_id
+                conference_room_id, event_room_id, properties
             )
-            VALUES ($1, $2, $3, $4, $5, $6::class_type, $7, $8)
+            VALUES ($1, $2, $3, $4, $5, $6::class_type, $7, $8, $9)
             RETURNING
                 id,
                 scope,
@@ -56,6 +65,7 @@ impl P2PInsertQuery {
                 audience,
                 time AS "time!: Time",
                 tags,
+                properties AS "properties: _",
                 preserve_history,
                 created_at,
                 event_room_id AS "event_room_id!: Uuid",
@@ -75,6 +85,7 @@ impl P2PInsertQuery {
             ClassType::P2P as ClassType,
             self.conference_room_id,
             self.event_room_id,
+            self.properties.unwrap_or_default() as ClassProperties,
         )
         .fetch_one(conn)
         .await

@@ -26,6 +26,7 @@ scope                  | string      |          | Scope
 audience               | string      |          | Audience
 time                   | [int, int]  | +        | Start and end
 tags                   | json object | +        | Arbitrary tags.
+properties             | json object | +        | Arbitrary class properties.
 reserve                | i32         | +        | Slots to reserve on janus backend.
 locked_chat            | bool        | +        | Lock chat in created event room (defaults to true)
 
@@ -83,6 +84,7 @@ scope                  | string      |          | Scope
 audience               | string      |          | Audience
 time                   | [int, int]  | +        | Start and end
 tags                   | json object | +        | Arbitrary tags
+properties             | json object | +        | Arbitrary class properties
 conference_room_id     | uuid        |          | Conference room uuid
 event_room_id          | uuid        |          | Event room uuid
 original_event_room_id | uuid        | +        | Original event room id

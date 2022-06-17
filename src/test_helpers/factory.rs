@@ -4,7 +4,7 @@ use sqlx::postgres::PgConnection;
 use svc_agent::AgentId;
 use uuid::Uuid;
 
-use crate::db::{self, recording::Segments};
+use crate::db::{self, class::ClassProperties, recording::Segments};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -15,6 +15,7 @@ pub struct P2P {
     conference_room_id: Uuid,
     event_room_id: Uuid,
     tags: Option<JsonValue>,
+    properties: Option<ClassProperties>,
 }
 
 impl P2P {
@@ -30,6 +31,7 @@ impl P2P {
             conference_room_id,
             event_room_id,
             tags: None,
+            properties: None,
         }
     }
 
@@ -43,6 +45,10 @@ impl P2P {
 
         if let Some(tags) = self.tags {
             q = q.tags(tags);
+        }
+
+        if let Some(properties) = self.properties {
+            q = q.properties(properties);
         }
 
         q.execute(conn).await.expect("Failed to insert P2P")
@@ -59,6 +65,7 @@ pub struct Minigroup {
     conference_room_id: Uuid,
     event_room_id: Uuid,
     tags: Option<JsonValue>,
+    properties: Option<ClassProperties>,
     original_event_room_id: Option<Uuid>,
     modified_event_room_id: Option<Uuid>,
 }
@@ -78,6 +85,7 @@ impl Minigroup {
             conference_room_id,
             event_room_id,
             tags: None,
+            properties: None,
             original_event_room_id: None,
             modified_event_room_id: None,
         }
@@ -86,6 +94,13 @@ impl Minigroup {
     pub fn tags(self, tags: JsonValue) -> Self {
         Self {
             tags: Some(tags),
+            ..self
+        }
+    }
+
+    pub fn properties(self, properties: ClassProperties) -> Self {
+        Self {
+            properties: Some(properties),
             ..self
         }
     }
@@ -117,6 +132,10 @@ impl Minigroup {
             q = q.tags(tags);
         }
 
+        if let Some(properties) = self.properties {
+            q = q.properties(properties);
+        }
+
         if let Some(original_event_room_id) = self.original_event_room_id {
             q = q.original_event_room_id(original_event_room_id);
         }
@@ -142,6 +161,7 @@ pub struct Webinar {
     original_event_room_id: Option<Uuid>,
     modified_event_room_id: Option<Uuid>,
     reserve: Option<usize>,
+    properties: Option<ClassProperties>,
 }
 
 impl Webinar {
@@ -162,12 +182,20 @@ impl Webinar {
             original_event_room_id: None,
             modified_event_room_id: None,
             reserve: None,
+            properties: None,
         }
     }
 
     pub fn reserve(self, reserve: usize) -> Self {
         Self {
             reserve: Some(reserve),
+            ..self
+        }
+    }
+
+    pub fn properties(self, properties: ClassProperties) -> Self {
+        Self {
+            properties: Some(properties),
             ..self
         }
     }
@@ -183,6 +211,10 @@ impl Webinar {
 
         if let Some(tags) = self.tags {
             q = q.tags(tags);
+        }
+
+        if let Some(properties) = self.properties {
+            q = q.properties(properties);
         }
 
         if let Some(original_event_room_id) = self.original_event_room_id {
