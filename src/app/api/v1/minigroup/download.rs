@@ -59,11 +59,19 @@ pub async fn download(
 
 fn format_url(config: &StorageConfig, minigroup: &Class) -> String {
     let mut url = config.base_url.clone();
-    url.set_path(&format!(
-        "/api/v2/backends/yandex/sets/ms.minigroup.{}::{}/objects/mp4",
-        minigroup.audience(),
-        minigroup.scope()
-    ));
+    let recording_id = format!("ms.webinar.{}::{}", minigroup.audience(), minigroup.scope());
+    url.path_segments_mut()
+        .expect("cannot-be-a-base URL")
+        .extend(&[
+            "api",
+            "v2",
+            "backends",
+            "yandex",
+            "sets",
+            &recording_id,
+            "objects",
+            "mp4",
+        ]);
 
     url.to_string()
 }
