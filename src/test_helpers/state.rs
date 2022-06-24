@@ -68,7 +68,7 @@ fn build_config() -> Config {
             "metrics_listener_address": "0.0.0.0:3001"
         },
         "storage": {
-            "base_url": "http://localhost:4000/"
+            "base_url": "http://localhost:4000/some-postfix"
         },
         "conference_client": {
             "account_id": "conference.dev.svc.example.org",
