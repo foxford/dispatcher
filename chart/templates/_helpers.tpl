@@ -35,13 +35,11 @@ Common labels
 */}}
 {{- define "dispatcher.labels" -}}
 helm.sh/chart: {{ include "dispatcher.chart" . }}
-app.kubernetes.io/name: {{ include "dispatcher.name" . }}
-app.kubernetes.io/instance: {{ .Release.Name }}
+{{ include "dispatcher.selectorLabels" . }}
 {{- if .Chart.AppVersion }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
-k8s-app: {{ include "dispatcher.name" . }}
 {{- end }}
 
 {{/*
@@ -50,7 +48,6 @@ Selector labels
 {{- define "dispatcher.selectorLabels" -}}
 app.kubernetes.io/name: {{ include "dispatcher.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
-app: {{ include "dispatcher.name" . }}
 {{- end }}
 
 {{/*
