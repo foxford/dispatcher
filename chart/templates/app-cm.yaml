@@ -17,11 +17,15 @@ data:
     default_frontend_base = "https://{{ list (include "dispatcher.shortNamespace" $) .Values.ingress.host | compact | join "." }}/"
     default_frontend_base_new = "https://{{ .Values.ingress.host }}/"
 
+    {{- if .Values.app.turn }}
     turn_hosts = [
-      {{- range .Values.app.turn_hosts }}
+      {{- range .Values.app.turn.hosts }}
       {{ . | quote }},
       {{- end }}
     ]
+    {{- else }}
+    turn_hosts = []
+    {{- end }}
 
     {{- include "dispatcher.shortNamespaceSetting" $ | nindent 4 }}
 
@@ -33,6 +37,15 @@ data:
         {{- end }}
       {{- end }}
     ]
+
+    {{- if .Values.app.frontend }}
+    {{- range $tenant, $tenantData := .Values.app.frontend }}
+    [frontend.{{ $tenant | quote }}]
+    base_url = {{ $tenantData.base_url | quote }}
+    {{- end}}
+    {{- else }}
+    [frontend]
+    {{- end}}
 
     [mqtt]
     uri = "tcp://mqtt-gateway-cluster:51883"
@@ -65,7 +78,7 @@ data:
 
     [tq_client]
     {{- $tq := list "tq" (include "dispatcher.shortNamespace" $) .Values.app.svc.audience | compact | join "."  }}
-    base_url = {{ .Values.app.svc.tq_url | quote }}
+    base_url = "http://tq-cluster:3000/"
     account_id = {{ $tq | quote }}
     timeout = "5"
     api_version = "v1"
@@ -90,7 +103,11 @@ data:
     {{- end }}
 
     [storage]
-    base_url = {{ .Values.app.svc.storage_url | quote }}
+    {{- if .Values.app.storage }}
+    base_url = {{ .Values.app.storage.url | quote }}
+    {{- else}}
+    base_url = {{ (include "dispatcher.defaultStorageUrl" .) }}
+    {{- end }}
 
     ##
     ## ULMS

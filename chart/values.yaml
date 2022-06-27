@@ -18,46 +18,52 @@ app:
       memory: 50Mi
 
   svc:
-    audience: svc.services
+    audience: foobar
     credentials:
-      # svc-secret:
+      # foobar-der-credentials:
       #   - subPath: private-key
-      #     mountPath: /path/to/svc/private/key
+      #     mountPath: /path/to/foobar/private/key
       #   - subPath: public-key
-      #     mountPath: /path/to/svc/public/key
+      #     mountPath: /path/to/foobar/public/key
     authz:
-      type: localwhitelist
-      records:
-        - subject_account_id: "devops.foo.bar"
-          object: ["scopes"]
-          action: "rollback"
+      # type: localwhitelist
+      # records:
+      #   - subject_account_id: "devops.foo.bar"
+      #     object: ["scopes"]
+      #     action: "rollback"
     authn:
-      key: /path/to/key
-    tq_url: "https://example.org/webinar/tq"
-    storage_url: "https://example.org/webinar/storage"
+      # key: /path/to/key
 
   audiences:
-    - audience: foo.bar
+    - audience: foobar
       credentials:
-        foobar-der-credentials:
-          - subPath: foobar-public-key
-            mountPath: /path/to/foobar/public/key
+        # foobar-der-credentials:
+        #   - subPath: foobar-public-key
+        #     mountPath: /path/to/foobar/public/key
       authn:
-        key: path/to/public_key.p8.der
+        # key: path/to/public_key.p8.der
       authz:
-        type: http
-        url: "https://authz.example.org/api/v1/authz"
+        # type: http
+        # url: https://authz.example.org/api/v1/authz
       tq:
-        preroll: "https://storage.net/preroll.m4v"
-        postroll: "https://storage.net/postroll.m4v"
-        watermark: "https://storage.net/logo.png"
-        to: "yandex"
         preroll_offset: 0
+        # to: yandex
+        # preroll: https://storage.net/preroll.m4v
+        # postroll: https://storage.net/postroll.m4v
+        # watermark: https://storage.net/logo.png
       mqtt_events: true
 
-  turn_hosts:
-    - turn01.example.org:1234
-    - turn02.example.org:5678
+  # frontend:
+  #   example:
+  #     base_url: "https://example.org"
+
+  # storage:
+  #   url: https://example.org/webinar/storage
+
+  # turn:
+  #   hosts:
+  #     - turn01.example.org:1234
+  #     - turn02.example.org:5678
 
 migrations:
   image:
@@ -74,8 +80,8 @@ migrations:
 
 env:
   RUST_LOG: warn,dispatcher=info,svc_utils=info,svc_utils::metrics=warn
-  DATABASE_POOL_SIZE: 15
-  DATABASE_POOL_IDLE_SIZE: 15
+  DATABASE_POOL_SIZE: 10
+  DATABASE_POOL_IDLE_SIZE: 10
   DATABASE_POOL_TIMEOUT: 5
   DATABASE_POOL_MAX_LIFETIME: 43200
 
@@ -86,8 +92,9 @@ clusterService:
 
 ingress:
   host: example.org
-  tls:
-    secretName: tls-certificates
+
+tls:
+  secretName: tls-certificates
 
 sentry:
   dsn: "https://dsn.sentry.example.org/"
