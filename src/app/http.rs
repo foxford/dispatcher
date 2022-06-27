@@ -82,6 +82,10 @@ fn webinars_router() -> Router {
             post(recreate::<WebinarType>),
         )
         .metered_route("/api/v1/webinars/:id/events", post(create_event))
+        .metered_route(
+            "/api/v1/webinars/:id/properties/:property_id",
+            get(read_property).put(update_property),
+        )
 }
 
 fn p2p_router() -> Router {
@@ -98,6 +102,10 @@ fn p2p_router() -> Router {
         .metered_route("/api/v1/p2p", post(create_p2p))
         .metered_route("/api/v1/p2p/convert", post(convert_p2p))
         .metered_route("/api/v1/p2p/:id/events", post(create_event))
+        .metered_route(
+            "/api/v1/p2p/:id/properties/:property_id",
+            get(read_property).put(update_property),
+        )
 }
 
 fn minigroups_router() -> Router {
@@ -126,6 +134,10 @@ fn minigroups_router() -> Router {
         .metered_route("/api/v1/minigroups", post(create_minigroup))
         .metered_route("/api/v1/minigroups/:id/download", get(download_minigroup))
         .metered_route("/api/v1/minigroups/:id/events", post(create_event))
+        .metered_route(
+            "/api/v1/minigroups/:id/properties/:property_id",
+            get(read_property).put(update_property),
+        )
 }
 
 fn authz_router() -> Router {
@@ -133,13 +145,8 @@ fn authz_router() -> Router {
 }
 
 fn utils_router() -> Router {
-    Router::new()
-        .metered_route(
-            "/api/v1/audiences/:audience/classes/:scope/editions/:id",
-            post(commit_edition),
-        )
-        .metered_route(
-            "/api/v1/classes/:class/properties/:property_id",
-            get(read_property).put(update_property),
-        )
+    Router::new().metered_route(
+        "/api/v1/audiences/:audience/classes/:scope/editions/:id",
+        post(commit_edition),
+    )
 }

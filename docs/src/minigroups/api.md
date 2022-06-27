@@ -14,6 +14,8 @@ Route                                           | Method | Short description
 /api/v1/minigroups/:minigroup_id/events         | POST   | [Creates](#create-minigroup-event) event in the room.
 /api/v1/minigroups/:minigroup_id/recreate       | POST   | [Recreates](#recreate-minigroup) minigroup rooms.
 /api/v1/minigroups/:webinar_id/timestamps       | POST   | [Records](#timestamps) current position while viewing a recording.
+/api/v1/minigroups/:id/properties/:property_id  | GET    | [Reads](#read-property) the property
+/api/v1/minigroups/:id/properties/:property_id  | PUT    | [Updates](#update-property) the property
 
 ### Create minigroup
 
@@ -124,3 +126,31 @@ Name          | Type    | Default    | Description
 position      | int     | _required_ | Position to save (in seconds)
 
 Response: status **201** and empty payload.
+
+
+### Read property
+
+Route parameters:
+
+Attribute              | Type        | Optional | Description
+---------------------- | ----------- | -------- | -------------------------------------------------
+id                     | uuid        |          | Minigroup id
+property_id            | string      |          | Property id is any string
+
+Response: status 200 and requested property as payload.
+
+
+### Update property
+
+Route parameters:
+
+Attribute              | Type        | Optional | Description
+---------------------- | ----------- | -------- | -------------------------------------------------
+id                     | uuid        |          | Minigroup id
+property_id            | string      |          | Property id is any string
+
+Request body:
+
+Any valid JSON value that should be associated with the given property id.
+
+Response: status 200 and updated class properties as payload.
