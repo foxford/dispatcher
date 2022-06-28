@@ -4,8 +4,12 @@ broker_id = "mqtt-gateway.dev.svc.example.org"
 
 default_frontend_base = "http://test.example.org"
 
+[frontend."example"]
+base_url = "https://apps.example.com"
+
 tenants = ["test.example.org"]
 turn_hosts = ["turn.example.org"]
+retry_delay = "5 sec"
 
 [authn."dev.svc.example.org"]
 audience = ["dev.svc.example.org"]
@@ -49,6 +53,7 @@ reconnect_interval = 3
 
 [http]
 listener_address = "0.0.0.0:3000"
+metrics_listener_address = "0.0.0.0:8888"
 
 [storage]
-base_url = "mqtt://0.0.0.0:1883"
+base_url = "https://storage.example.com"
