@@ -31,6 +31,7 @@ pub struct Config {
     pub retry_delay: Duration,
     pub turn_hosts: vec1::Vec1<TurnHost>,
     pub short_namespace: Option<String>,
+    pub frontend: HashMap<String, FrontendConfig>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -83,5 +84,10 @@ pub struct MqttServiceConfig {
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct StorageConfig {
+    pub base_url: url::Url,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct FrontendConfig {
     pub base_url: url::Url,
 }

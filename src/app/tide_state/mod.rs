@@ -105,12 +105,16 @@ impl AppContext for TideState {
     }
 
     fn build_default_frontend_url_new(&self, tenant: &str, app: &str) -> Url {
-        build_default_url_new(
-            self.config.default_frontend_base_new.clone(),
-            self.config.short_namespace.as_deref(),
-            tenant,
-            app,
-        )
+        if let Some(config) = self.config.frontend.get(tenant) {
+            build_tenant_url(config.base_url.clone(), app)
+        } else {
+            build_default_url_new(
+                self.config.default_frontend_base_new.clone(),
+                self.config.short_namespace.as_deref(),
+                tenant,
+                app,
+            )
+        }
     }
 
     fn agent_id(&self) -> &AgentId {
@@ -170,6 +174,13 @@ fn build_default_url_new(mut url: Url, ns: Option<&str>, tenant: &str, app: &str
         None => format!("/{}-{}/{}/", app, tenant, app),
     };
     url.set_path(&path);
+    url
+}
+
+fn build_tenant_url(mut url: Url, app: &str) -> Url {
+    url.path_segments_mut()
+        .expect("cannot-be-a-base URL")
+        .push(app);
     url
 }
 
