@@ -180,7 +180,7 @@ fn build_default_url_new(mut url: Url, ns: Option<&str>, tenant: &str, app: &str
 fn build_tenant_url(mut url: Url, app: &str) -> Url {
     url.path_segments_mut()
         .expect("cannot-be-a-base URL")
-        .push(app);
+        .extend(&[app, ""]);
     url
 }
 
