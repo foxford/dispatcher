@@ -10,6 +10,8 @@ Route                                   | Method | Short description
 /api/v1/p2p                             | POST   | [Creates](#create-p2p) p2p and required rooms in other services.
 /api/v1/p2p/convert                     | POST   | [Creates](#convert-p2p) p2p with already existing event and conference rooms.
 /api/v1/p2p/:p2p_id/events              | POST   | [Creates](#create-p2p-event) event in the room.
+/api/v1/p2p/:id/properties/:property_id | GET    | [Reads](#read-property) the property
+/api/v1/p2p/:id/properties/:property_id | PUT    | [Updates](#update-property) the property
 
 ### Create p2p
 
@@ -83,3 +85,31 @@ is_claim      | boolean |      false | Whether to notify the tenant.
 is_persistent | boolean |       true | Whether to persist the event.
 
 Response: status **201** and empty payload.
+
+
+### Read property
+
+Route parameters:
+
+Attribute              | Type        | Optional | Description
+---------------------- | ----------- | -------- | -------------------------------------------------
+id                     | uuid        |          | P2P id
+property_id            | string      |          | Property id is any string
+
+Response: status 200 and requested property as payload.
+
+
+### Update property
+
+Route parameters:
+
+Attribute              | Type        | Optional | Description
+---------------------- | ----------- | -------- | -------------------------------------------------
+id                     | uuid        |          | P2P id
+property_id            | string      |          | Property id is any string
+
+Request body:
+
+Any valid JSON value that should be associated with the given property id.
+
+Response: status 200 and updated class properties as payload.
