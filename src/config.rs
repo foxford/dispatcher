@@ -31,6 +31,7 @@ pub struct Config {
     pub retry_delay: Duration,
     pub turn_hosts: vec1::Vec1<TurnHost>,
     pub short_namespace: Option<String>,
+    pub default_frontend_base_url: url::Url,
     pub frontend: HashMap<String, FrontendConfig>,
 }
 
