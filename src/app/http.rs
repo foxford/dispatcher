@@ -145,8 +145,10 @@ fn authz_router() -> Router {
 }
 
 fn utils_router() -> Router {
-    Router::new().metered_route(
-        "/api/v1/audiences/:audience/classes/:scope/editions/:id",
-        post(commit_edition),
-    )
+    Router::new()
+        .metered_route(
+            "/api/v1/audiences/:audience/classes/:scope/editions/:id",
+            options(read_options).post(commit_edition),
+        )
+        .layer(CorsLayer)
 }
