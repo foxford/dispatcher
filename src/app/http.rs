@@ -73,6 +73,13 @@ fn webinars_router() -> Router {
             "/api/v1/webinars/:id/timestamps",
             options(read_options).post(create_timestamp::<WebinarType>),
         )
+        .metered_route("/api/v1/webinars/:id/events", post(create_event))
+        .metered_route(
+            "/api/v1/webinars/:id/properties/:property_id",
+            options(read_options)
+                .get(read_property)
+                .put(update_property),
+        )
         .layer(CorsLayer)
         .metered_route("/api/v1/webinars", post(create_webinar))
         .metered_route("/api/v1/webinars/convert", post(convert_webinar))
@@ -80,11 +87,6 @@ fn webinars_router() -> Router {
         .metered_route(
             "/api/v1/webinars/:id/recreate",
             post(recreate::<WebinarType>),
-        )
-        .metered_route("/api/v1/webinars/:id/events", post(create_event))
-        .metered_route(
-            "/api/v1/webinars/:id/properties/:property_id",
-            get(read_property).put(update_property),
         )
 }
 
@@ -98,14 +100,16 @@ fn p2p_router() -> Router {
             "/api/v1/audiences/:audience/p2p/:scope",
             options(read_options).get(read_by_scope::<P2PType>),
         )
+        .metered_route(
+            "/api/v1/p2p/:id/properties/:property_id",
+            options(read_options)
+                .get(read_property)
+                .put(update_property),
+        )
         .layer(CorsLayer)
         .metered_route("/api/v1/p2p", post(create_p2p))
         .metered_route("/api/v1/p2p/convert", post(convert_p2p))
         .metered_route("/api/v1/p2p/:id/events", post(create_event))
-        .metered_route(
-            "/api/v1/p2p/:id/properties/:property_id",
-            get(read_property).put(update_property),
-        )
 }
 
 fn minigroups_router() -> Router {
@@ -126,6 +130,12 @@ fn minigroups_router() -> Router {
             "/api/v1/minigroups/:id/timestamps",
             options(read_options).post(create_timestamp::<MinigroupType>),
         )
+        .metered_route(
+            "/api/v1/minigroups/:id/properties/:property_id",
+            options(read_options)
+                .get(read_property)
+                .put(update_property),
+        )
         .layer(CorsLayer)
         .metered_route(
             "/api/v1/minigroups/:id/recreate",
@@ -134,10 +144,6 @@ fn minigroups_router() -> Router {
         .metered_route("/api/v1/minigroups", post(create_minigroup))
         .metered_route("/api/v1/minigroups/:id/download", get(download_minigroup))
         .metered_route("/api/v1/minigroups/:id/events", post(create_event))
-        .metered_route(
-            "/api/v1/minigroups/:id/properties/:property_id",
-            get(read_property).put(update_property),
-        )
 }
 
 fn authz_router() -> Router {
