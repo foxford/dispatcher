@@ -166,6 +166,8 @@ pub struct Object {
     room_events_uri: Option<String>,
     host: Option<AgentId>,
     timed_out: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    original_class_id: Option<Uuid>,
 }
 
 pub fn default_locked_chat() -> bool {
@@ -240,6 +242,10 @@ impl Object {
 
     pub fn rtc_sharing_policy(&self) -> Option<RtcSharingPolicy> {
         self.kind.into()
+    }
+
+    pub fn original_class_id(&self) -> Option<Uuid> {
+        self.original_class_id
     }
 }
 
@@ -561,7 +567,8 @@ impl UpdateAdjustedRoomsQuery {
                 reserve,
                 room_events_uri,
                 host AS "host: AgentId",
-                timed_out
+                timed_out,
+                original_class_id
             "#,
             self.id,
             self.original_event_room_id,
@@ -613,7 +620,8 @@ impl EstablishQuery {
                 reserve,
                 room_events_uri,
                 host AS "host: AgentId",
-                timed_out
+                timed_out,
+                original_class_id
             "#,
             self.id,
             self.event_room_id,
@@ -669,7 +677,8 @@ impl RecreateQuery {
                 reserve,
                 room_events_uri,
                 host AS "host: AgentId",
-                timed_out
+                timed_out,
+                original_class_id
             "#,
             self.id,
             time,
@@ -753,7 +762,8 @@ impl ClassUpdateQuery {
                 reserve,
                 room_events_uri,
                 host AS "host: AgentId",
-                timed_out
+                timed_out,
+                original_class_id
             "#,
             self.id,
             time,
@@ -802,7 +812,8 @@ impl RoomCloseQuery {
                 reserve,
                 room_events_uri,
                 host AS "host: AgentId",
-                timed_out
+                timed_out,
+                original_class_id
             "#,
             self.id,
             self.timed_out

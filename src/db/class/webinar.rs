@@ -170,7 +170,8 @@ impl WebinarInsertQuery {
                 reserve,
                 room_events_uri,
                 host AS "host: AgentId",
-                timed_out
+                timed_out,
+                original_class_id
             "#,
             self.scope,
             self.audience,

@@ -1,39 +1,6 @@
 {
   "db": "PostgreSQL",
-  "16b93fe2cca41f919eecfaea8fd41b7a42e2e098fed88bdbd267f08751b96624": {
-    "describe": {
-      "columns": [],
-      "nullable": [],
-      "parameters": {
-        "Left": [
-          "Text",
-          "Uuid"
-        ]
-      }
-    },
-    "query": "\n                UPDATE class\n                SET room_events_uri = $1\n                WHERE modified_event_room_id = $2\n            "
-  },
-  "201ffb88b904a890d96af64d1ef2d5b9f98e86f4c9668f1659bbc49b0f50b863": {
-    "describe": {
-      "columns": [
-        {
-          "name": "id!: String",
-          "ordinal": 0,
-          "type_info": "Text"
-        }
-      ],
-      "nullable": [
-        null
-      ],
-      "parameters": {
-        "Left": [
-          "Uuid"
-        ]
-      }
-    },
-    "query": "\n                        SELECT\n                            class.id::text AS \"id!: String\"\n                        FROM class\n                        INNER JOIN recording r\n                        ON r.class_id = class.id\n                        WHERE rtc_id = $1\n                    "
-  },
-  "205c1d54925c213ea976f717d4b93b487de9883458c958a4738af83c1ab772ee": {
+  "13bfe323494f8a45709abcda929fd2748277c9030d27cedc7a9f540c35f2ed53": {
     "describe": {
       "columns": [
         {
@@ -163,6 +130,11 @@
           "name": "timed_out",
           "ordinal": 16,
           "type_info": "Bool"
+        },
+        {
+          "name": "original_class_id",
+          "ordinal": 17,
+          "type_info": "Uuid"
         }
       ],
       "nullable": [
@@ -182,7 +154,8 @@
         true,
         true,
         true,
-        false
+        false,
+        true
       ],
       "parameters": {
         "Left": [
@@ -213,7 +186,241 @@
         ]
       }
     },
-    "query": "\n            INSERT INTO class (\n                scope, audience, time, tags, preserve_history, kind,\n                conference_room_id, event_room_id,\n                original_event_room_id, modified_event_room_id, reserve, room_events_uri,\n                properties\n            )\n            VALUES ($1, $2, $3, $4, $5, $6::class_type, $7, $8, $9, $10, $11, $12, $13)\n            RETURNING\n                id,\n                scope,\n                kind AS \"kind!: ClassType\",\n                audience,\n                time AS \"time!: Time\",\n                tags,\n                properties AS \"properties: _\",\n                preserve_history,\n                created_at,\n                event_room_id AS \"event_room_id!: Uuid\",\n                conference_room_id AS \"conference_room_id!: Uuid\",\n                original_event_room_id,\n                modified_event_room_id,\n                reserve,\n                room_events_uri,\n                host AS \"host: AgentId\",\n                timed_out\n            "
+    "query": "\n            INSERT INTO class (\n                scope, audience, time, tags, preserve_history, kind,\n                conference_room_id, event_room_id,\n                original_event_room_id, modified_event_room_id, reserve, room_events_uri,\n                properties\n            )\n            VALUES ($1, $2, $3, $4, $5, $6::class_type, $7, $8, $9, $10, $11, $12, $13)\n            RETURNING\n                id,\n                scope,\n                kind AS \"kind!: ClassType\",\n                audience,\n                time AS \"time!: Time\",\n                tags,\n                properties AS \"properties: _\",\n                preserve_history,\n                created_at,\n                event_room_id AS \"event_room_id!: Uuid\",\n                conference_room_id AS \"conference_room_id!: Uuid\",\n                original_event_room_id,\n                modified_event_room_id,\n                reserve,\n                room_events_uri,\n                host AS \"host: AgentId\",\n                timed_out,\n                original_class_id\n            "
+  },
+  "16b93fe2cca41f919eecfaea8fd41b7a42e2e098fed88bdbd267f08751b96624": {
+    "describe": {
+      "columns": [],
+      "nullable": [],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Uuid"
+        ]
+      }
+    },
+    "query": "\n                UPDATE class\n                SET room_events_uri = $1\n                WHERE modified_event_room_id = $2\n            "
+  },
+  "1a9258c1a6dfa97fa45e97390bb4280c8ade3f8fe99b11d2a40fd4829a77d532": {
+    "describe": {
+      "columns": [
+        {
+          "name": "id",
+          "ordinal": 0,
+          "type_info": "Uuid"
+        },
+        {
+          "name": "scope",
+          "ordinal": 1,
+          "type_info": "Text"
+        },
+        {
+          "name": "kind!: ClassType",
+          "ordinal": 2,
+          "type_info": {
+            "Custom": {
+              "kind": {
+                "Enum": [
+                  "webinar",
+                  "p2p",
+                  "minigroup"
+                ]
+              },
+              "name": "class_type"
+            }
+          }
+        },
+        {
+          "name": "audience",
+          "ordinal": 3,
+          "type_info": "Text"
+        },
+        {
+          "name": "time!: Time",
+          "ordinal": 4,
+          "type_info": "TstzRange"
+        },
+        {
+          "name": "tags",
+          "ordinal": 5,
+          "type_info": "Json"
+        },
+        {
+          "name": "properties!: ClassProperties",
+          "ordinal": 6,
+          "type_info": "Jsonb"
+        },
+        {
+          "name": "preserve_history",
+          "ordinal": 7,
+          "type_info": "Bool"
+        },
+        {
+          "name": "created_at",
+          "ordinal": 8,
+          "type_info": "Timestamptz"
+        },
+        {
+          "name": "event_room_id!: Uuid",
+          "ordinal": 9,
+          "type_info": "Uuid"
+        },
+        {
+          "name": "conference_room_id!: Uuid",
+          "ordinal": 10,
+          "type_info": "Uuid"
+        },
+        {
+          "name": "original_event_room_id",
+          "ordinal": 11,
+          "type_info": "Uuid"
+        },
+        {
+          "name": "modified_event_room_id",
+          "ordinal": 12,
+          "type_info": "Uuid"
+        },
+        {
+          "name": "reserve",
+          "ordinal": 13,
+          "type_info": "Int4"
+        },
+        {
+          "name": "room_events_uri",
+          "ordinal": 14,
+          "type_info": "Text"
+        },
+        {
+          "name": "host: AgentId",
+          "ordinal": 15,
+          "type_info": {
+            "Custom": {
+              "kind": {
+                "Composite": [
+                  [
+                    "account_id",
+                    {
+                      "Custom": {
+                        "kind": {
+                          "Composite": [
+                            [
+                              "label",
+                              "Text"
+                            ],
+                            [
+                              "audience",
+                              "Text"
+                            ]
+                          ]
+                        },
+                        "name": "account_id"
+                      }
+                    }
+                  ],
+                  [
+                    "label",
+                    "Text"
+                  ]
+                ]
+              },
+              "name": "agent_id"
+            }
+          }
+        },
+        {
+          "name": "timed_out",
+          "ordinal": 16,
+          "type_info": "Bool"
+        },
+        {
+          "name": "original_class_id",
+          "ordinal": 17,
+          "type_info": "Uuid"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        false,
+        false,
+        false,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        false,
+        true
+      ],
+      "parameters": {
+        "Left": [
+          "Uuid",
+          "TstzRange",
+          "Int4",
+          {
+            "Custom": {
+              "kind": {
+                "Composite": [
+                  [
+                    "account_id",
+                    {
+                      "Custom": {
+                        "kind": {
+                          "Composite": [
+                            [
+                              "label",
+                              "Text"
+                            ],
+                            [
+                              "audience",
+                              "Text"
+                            ]
+                          ]
+                        },
+                        "name": "account_id"
+                      }
+                    }
+                  ],
+                  [
+                    "label",
+                    "Text"
+                  ]
+                ]
+              },
+              "name": "agent_id"
+            }
+          },
+          "Jsonb"
+        ]
+      }
+    },
+    "query": "\n            UPDATE class\n            SET\n                time = COALESCE($2, time),\n                reserve = COALESCE($3, reserve),\n                host = COALESCE($4, host),\n                properties = COALESCE($5, properties)\n            WHERE id = $1\n            RETURNING\n                id,\n                scope,\n                kind AS \"kind!: ClassType\",\n                audience,\n                time AS \"time!: Time\",\n                tags,\n                properties AS \"properties!: ClassProperties\",\n                preserve_history,\n                created_at,\n                event_room_id AS \"event_room_id!: Uuid\",\n                conference_room_id AS \"conference_room_id!: Uuid\",\n                original_event_room_id,\n                modified_event_room_id,\n                reserve,\n                room_events_uri,\n                host AS \"host: AgentId\",\n                timed_out,\n                original_class_id\n            "
+  },
+  "201ffb88b904a890d96af64d1ef2d5b9f98e86f4c9668f1659bbc49b0f50b863": {
+    "describe": {
+      "columns": [
+        {
+          "name": "id!: String",
+          "ordinal": 0,
+          "type_info": "Text"
+        }
+      ],
+      "nullable": [
+        null
+      ],
+      "parameters": {
+        "Left": [
+          "Uuid"
+        ]
+      }
+    },
+    "query": "\n                        SELECT\n                            class.id::text AS \"id!: String\"\n                        FROM class\n                        INNER JOIN recording r\n                        ON r.class_id = class.id\n                        WHERE rtc_id = $1\n                    "
   },
   "22965438c7ad9ab618bfcad4af298dcdf7f5d3f6c84cccc21a36fef20a897103": {
     "describe": {
@@ -257,7 +464,7 @@
     },
     "query": "\n            INSERT INTO record_timestamp (\n                class_id, account_id, position_secs\n            )\n            VALUES ($1, $2, $3)\n            ON CONFLICT (class_id, account_id)\n            DO UPDATE\n            SET position_secs = EXCLUDED.position_secs, updated_at = NOW()\n            "
   },
-  "2e93e4953e335f571f64c22f9e2d80332e0f7948c180fb55c352d18b611dd867": {
+  "31f49f8eae144fd009220ee29404cc2e54ca144a39e49792f7d316d3e54afc36": {
     "describe": {
       "columns": [
         {
@@ -387,6 +594,11 @@
           "name": "timed_out",
           "ordinal": 16,
           "type_info": "Bool"
+        },
+        {
+          "name": "original_class_id",
+          "ordinal": 17,
+          "type_info": "Uuid"
         }
       ],
       "nullable": [
@@ -406,7 +618,8 @@
         true,
         true,
         true,
-        false
+        false,
+        true
       ],
       "parameters": {
         "Left": [
@@ -416,7 +629,174 @@
         ]
       }
     },
-    "query": "\n            UPDATE class\n            SET event_room_id = $2,\n                conference_room_id = $3,\n                established = 't'\n            WHERE id = $1\n            RETURNING\n                id,\n                scope,\n                kind AS \"kind!: ClassType\",\n                audience,\n                time AS \"time!: Time\",\n                tags,\n                properties AS \"properties: _\",\n                preserve_history,\n                created_at,\n                event_room_id AS \"event_room_id!: Uuid\",\n                conference_room_id AS \"conference_room_id!: Uuid\",\n                original_event_room_id,\n                modified_event_room_id,\n                reserve,\n                room_events_uri,\n                host AS \"host: AgentId\",\n                timed_out\n            "
+    "query": "\n            UPDATE class\n            SET event_room_id = $2,\n                conference_room_id = $3,\n                established = 't'\n            WHERE id = $1\n            RETURNING\n                id,\n                scope,\n                kind AS \"kind!: ClassType\",\n                audience,\n                time AS \"time!: Time\",\n                tags,\n                properties AS \"properties: _\",\n                preserve_history,\n                created_at,\n                event_room_id AS \"event_room_id!: Uuid\",\n                conference_room_id AS \"conference_room_id!: Uuid\",\n                original_event_room_id,\n                modified_event_room_id,\n                reserve,\n                room_events_uri,\n                host AS \"host: AgentId\",\n                timed_out,\n                original_class_id\n            "
+  },
+  "33b5f05806ea6da7f99e12d21141c139cd0378fa59e6aa3346c50244cc696743": {
+    "describe": {
+      "columns": [
+        {
+          "name": "id",
+          "ordinal": 0,
+          "type_info": "Uuid"
+        },
+        {
+          "name": "scope",
+          "ordinal": 1,
+          "type_info": "Text"
+        },
+        {
+          "name": "kind!: ClassType",
+          "ordinal": 2,
+          "type_info": {
+            "Custom": {
+              "kind": {
+                "Enum": [
+                  "webinar",
+                  "p2p",
+                  "minigroup"
+                ]
+              },
+              "name": "class_type"
+            }
+          }
+        },
+        {
+          "name": "audience",
+          "ordinal": 3,
+          "type_info": "Text"
+        },
+        {
+          "name": "time!: Time",
+          "ordinal": 4,
+          "type_info": "TstzRange"
+        },
+        {
+          "name": "tags",
+          "ordinal": 5,
+          "type_info": "Json"
+        },
+        {
+          "name": "properties: _",
+          "ordinal": 6,
+          "type_info": "Jsonb"
+        },
+        {
+          "name": "preserve_history",
+          "ordinal": 7,
+          "type_info": "Bool"
+        },
+        {
+          "name": "created_at",
+          "ordinal": 8,
+          "type_info": "Timestamptz"
+        },
+        {
+          "name": "event_room_id!: Uuid",
+          "ordinal": 9,
+          "type_info": "Uuid"
+        },
+        {
+          "name": "conference_room_id!: Uuid",
+          "ordinal": 10,
+          "type_info": "Uuid"
+        },
+        {
+          "name": "original_event_room_id",
+          "ordinal": 11,
+          "type_info": "Uuid"
+        },
+        {
+          "name": "modified_event_room_id",
+          "ordinal": 12,
+          "type_info": "Uuid"
+        },
+        {
+          "name": "reserve",
+          "ordinal": 13,
+          "type_info": "Int4"
+        },
+        {
+          "name": "room_events_uri",
+          "ordinal": 14,
+          "type_info": "Text"
+        },
+        {
+          "name": "host: AgentId",
+          "ordinal": 15,
+          "type_info": {
+            "Custom": {
+              "kind": {
+                "Composite": [
+                  [
+                    "account_id",
+                    {
+                      "Custom": {
+                        "kind": {
+                          "Composite": [
+                            [
+                              "label",
+                              "Text"
+                            ],
+                            [
+                              "audience",
+                              "Text"
+                            ]
+                          ]
+                        },
+                        "name": "account_id"
+                      }
+                    }
+                  ],
+                  [
+                    "label",
+                    "Text"
+                  ]
+                ]
+              },
+              "name": "agent_id"
+            }
+          }
+        },
+        {
+          "name": "timed_out",
+          "ordinal": 16,
+          "type_info": "Bool"
+        },
+        {
+          "name": "original_class_id",
+          "ordinal": 17,
+          "type_info": "Uuid"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        false,
+        false,
+        false,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        false,
+        true
+      ],
+      "parameters": {
+        "Left": [
+          "Uuid",
+          "Uuid",
+          "Uuid"
+        ]
+      }
+    },
+    "query": "\n            UPDATE class\n            SET original_event_room_id = $2,\n                modified_event_room_id = $3\n            WHERE id = $1\n            RETURNING\n                id,\n                scope,\n                kind AS \"kind!: ClassType\",\n                audience,\n                time AS \"time!: Time\",\n                tags,\n                properties AS \"properties: _\",\n                preserve_history,\n                created_at,\n                event_room_id AS \"event_room_id!: Uuid\",\n                conference_room_id AS \"conference_room_id!: Uuid\",\n                original_event_room_id,\n                modified_event_room_id,\n                reserve,\n                room_events_uri,\n                host AS \"host: AgentId\",\n                timed_out,\n                original_class_id\n            "
   },
   "37284eda5490188734b0ee1a9877aa205948f693260376a8e326bb88b08bab85": {
     "describe": {
@@ -460,165 +840,37 @@
     },
     "query": "\n            SELECT *\n            FROM scope\n            "
   },
-  "3f6f60454c3e2ac4219a320374b4ac731622fc86e36671cb300c26d71b32223a": {
+  "392815880feea9a229e7519d683da6fa2d59f08926906d68031549b1d8b87793": {
     "describe": {
       "columns": [
         {
           "name": "id",
           "ordinal": 0,
-          "type_info": "Uuid"
+          "type_info": "Int8"
         },
         {
-          "name": "scope",
+          "name": "url",
           "ordinal": 1,
           "type_info": "Text"
         },
         {
-          "name": "kind!: ClassType",
-          "ordinal": 2,
-          "type_info": {
-            "Custom": {
-              "kind": {
-                "Enum": [
-                  "webinar",
-                  "p2p",
-                  "minigroup"
-                ]
-              },
-              "name": "class_type"
-            }
-          }
-        },
-        {
-          "name": "audience",
-          "ordinal": 3,
-          "type_info": "Text"
-        },
-        {
-          "name": "time!: Time",
-          "ordinal": 4,
-          "type_info": "TstzRange"
-        },
-        {
-          "name": "tags",
-          "ordinal": 5,
-          "type_info": "Json"
-        },
-        {
-          "name": "properties: _",
-          "ordinal": 6,
-          "type_info": "Jsonb"
-        },
-        {
-          "name": "preserve_history",
-          "ordinal": 7,
-          "type_info": "Bool"
-        },
-        {
           "name": "created_at",
-          "ordinal": 8,
+          "ordinal": 2,
           "type_info": "Timestamptz"
-        },
-        {
-          "name": "event_room_id!: Uuid",
-          "ordinal": 9,
-          "type_info": "Uuid"
-        },
-        {
-          "name": "conference_room_id!: Uuid",
-          "ordinal": 10,
-          "type_info": "Uuid"
-        },
-        {
-          "name": "original_event_room_id",
-          "ordinal": 11,
-          "type_info": "Uuid"
-        },
-        {
-          "name": "modified_event_room_id",
-          "ordinal": 12,
-          "type_info": "Uuid"
-        },
-        {
-          "name": "reserve",
-          "ordinal": 13,
-          "type_info": "Int4"
-        },
-        {
-          "name": "room_events_uri",
-          "ordinal": 14,
-          "type_info": "Text"
-        },
-        {
-          "name": "host: AgentId",
-          "ordinal": 15,
-          "type_info": {
-            "Custom": {
-              "kind": {
-                "Composite": [
-                  [
-                    "account_id",
-                    {
-                      "Custom": {
-                        "kind": {
-                          "Composite": [
-                            [
-                              "label",
-                              "Text"
-                            ],
-                            [
-                              "audience",
-                              "Text"
-                            ]
-                          ]
-                        },
-                        "name": "account_id"
-                      }
-                    }
-                  ],
-                  [
-                    "label",
-                    "Text"
-                  ]
-                ]
-              },
-              "name": "agent_id"
-            }
-          }
-        },
-        {
-          "name": "timed_out",
-          "ordinal": 16,
-          "type_info": "Bool"
         }
       ],
       "nullable": [
         false,
         false,
-        false,
-        false,
-        false,
-        true,
-        false,
-        false,
-        false,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
         false
       ],
       "parameters": {
         "Left": [
-          "Uuid",
-          "Bool"
+          "Text"
         ]
       }
     },
-    "query": "\n            UPDATE class\n            SET time = TSTZRANGE(LOWER(time), LEAST(UPPER(time), NOW())), timed_out = $2\n            WHERE id = $1\n            RETURNING\n                id,\n                scope,\n                kind AS \"kind!: ClassType\",\n                audience,\n                time AS \"time!: Time\",\n                tags,\n                properties AS \"properties: _\",\n                preserve_history,\n                created_at,\n                event_room_id AS \"event_room_id!: Uuid\",\n                conference_room_id AS \"conference_room_id!: Uuid\",\n                original_event_room_id,\n                modified_event_room_id,\n                reserve,\n                room_events_uri,\n                host AS \"host: AgentId\",\n                timed_out\n            "
+    "query": "\n            INSERT INTO frontend (url)\n            VALUES ($1)\n            RETURNING id, url, created_at\n            "
   },
   "414e7f3fc84a2d65082c9bc236aac2483ba321e41308430e2969639eaf1f3d00": {
     "describe": {
@@ -814,6 +1066,52 @@
     },
     "query": "DELETE FROM recording WHERE class_id = $1 AND rtc_id = $2"
   },
+  "61b7f8fd08937bc29a31e5656a36ae45065f41446ba65b55bc848c257a4f6087": {
+    "describe": {
+      "columns": [
+        {
+          "name": "id",
+          "ordinal": 0,
+          "type_info": "Int8"
+        },
+        {
+          "name": "scope",
+          "ordinal": 1,
+          "type_info": "Text"
+        },
+        {
+          "name": "frontend_id",
+          "ordinal": 2,
+          "type_info": "Int8"
+        },
+        {
+          "name": "created_at",
+          "ordinal": 3,
+          "type_info": "Timestamptz"
+        },
+        {
+          "name": "app",
+          "ordinal": 4,
+          "type_info": "Text"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Int8",
+          "Text"
+        ]
+      }
+    },
+    "query": "\n            INSERT INTO scope (scope, frontend_id, app)\n            VALUES ($1, $2, $3)\n            RETURNING id, scope, frontend_id, created_at, app\n            "
+  },
   "621790bd7e88b551bbb9ae747ef12b76645f7ce17148adfb0f1b8005086fe198": {
     "describe": {
       "columns": [
@@ -867,6 +1165,174 @@
       }
     },
     "query": "\n                        SELECT\n                            id::text AS \"id!: String\"\n                        FROM class\n                        WHERE audience = $1\n                        AND scope = $2\n                    "
+  },
+  "668ccfaed7fbb01b6a4c7a62a3236f251ae2f93780116f231d48f4ed4e7bdf54": {
+    "describe": {
+      "columns": [
+        {
+          "name": "id",
+          "ordinal": 0,
+          "type_info": "Uuid"
+        },
+        {
+          "name": "scope",
+          "ordinal": 1,
+          "type_info": "Text"
+        },
+        {
+          "name": "kind!: ClassType",
+          "ordinal": 2,
+          "type_info": {
+            "Custom": {
+              "kind": {
+                "Enum": [
+                  "webinar",
+                  "p2p",
+                  "minigroup"
+                ]
+              },
+              "name": "class_type"
+            }
+          }
+        },
+        {
+          "name": "audience",
+          "ordinal": 3,
+          "type_info": "Text"
+        },
+        {
+          "name": "time!: Time",
+          "ordinal": 4,
+          "type_info": "TstzRange"
+        },
+        {
+          "name": "tags",
+          "ordinal": 5,
+          "type_info": "Json"
+        },
+        {
+          "name": "properties: _",
+          "ordinal": 6,
+          "type_info": "Jsonb"
+        },
+        {
+          "name": "preserve_history",
+          "ordinal": 7,
+          "type_info": "Bool"
+        },
+        {
+          "name": "created_at",
+          "ordinal": 8,
+          "type_info": "Timestamptz"
+        },
+        {
+          "name": "event_room_id!: Uuid",
+          "ordinal": 9,
+          "type_info": "Uuid"
+        },
+        {
+          "name": "conference_room_id!: Uuid",
+          "ordinal": 10,
+          "type_info": "Uuid"
+        },
+        {
+          "name": "original_event_room_id",
+          "ordinal": 11,
+          "type_info": "Uuid"
+        },
+        {
+          "name": "modified_event_room_id",
+          "ordinal": 12,
+          "type_info": "Uuid"
+        },
+        {
+          "name": "reserve",
+          "ordinal": 13,
+          "type_info": "Int4"
+        },
+        {
+          "name": "room_events_uri",
+          "ordinal": 14,
+          "type_info": "Text"
+        },
+        {
+          "name": "host: AgentId",
+          "ordinal": 15,
+          "type_info": {
+            "Custom": {
+              "kind": {
+                "Composite": [
+                  [
+                    "account_id",
+                    {
+                      "Custom": {
+                        "kind": {
+                          "Composite": [
+                            [
+                              "label",
+                              "Text"
+                            ],
+                            [
+                              "audience",
+                              "Text"
+                            ]
+                          ]
+                        },
+                        "name": "account_id"
+                      }
+                    }
+                  ],
+                  [
+                    "label",
+                    "Text"
+                  ]
+                ]
+              },
+              "name": "agent_id"
+            }
+          }
+        },
+        {
+          "name": "timed_out",
+          "ordinal": 16,
+          "type_info": "Bool"
+        },
+        {
+          "name": "original_class_id",
+          "ordinal": 17,
+          "type_info": "Uuid"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        false,
+        false,
+        false,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        false,
+        true
+      ],
+      "parameters": {
+        "Left": [
+          "Uuid",
+          "TstzRange",
+          "Uuid",
+          "Uuid"
+        ]
+      }
+    },
+    "query": "\n            UPDATE class\n            SET time = $2, event_room_id = $3, conference_room_id = $4, original_event_room_id = NULL, modified_event_room_id = NULL\n            WHERE id = $1\n            RETURNING\n                id,\n                scope,\n                kind AS \"kind!: ClassType\",\n                audience,\n                time AS \"time!: Time\",\n                tags,\n                properties AS \"properties: _\",\n                preserve_history,\n                created_at,\n                event_room_id AS \"event_room_id!: Uuid\",\n                conference_room_id AS \"conference_room_id!: Uuid\",\n                original_event_room_id,\n                modified_event_room_id,\n                reserve,\n                room_events_uri,\n                host AS \"host: AgentId\",\n                timed_out,\n                original_class_id\n            "
   },
   "66bbecb368c83ee1c233162c07c8bad167d202f7cf9fc85ee73057573fd18787": {
     "describe": {
@@ -1126,362 +1592,6 @@
     },
     "query": "\n                        SELECT\n                            id::text AS \"id!: String\"\n                        FROM class\n                        WHERE conference_room_id = $1\n                    "
   },
-  "8eb7199debd4313f966f1f853d14bdf4192cb276e507fcb98bb7f16353f8c9f7": {
-    "describe": {
-      "columns": [
-        {
-          "name": "id",
-          "ordinal": 0,
-          "type_info": "Uuid"
-        },
-        {
-          "name": "scope",
-          "ordinal": 1,
-          "type_info": "Text"
-        },
-        {
-          "name": "kind!: ClassType",
-          "ordinal": 2,
-          "type_info": {
-            "Custom": {
-              "kind": {
-                "Enum": [
-                  "webinar",
-                  "p2p",
-                  "minigroup"
-                ]
-              },
-              "name": "class_type"
-            }
-          }
-        },
-        {
-          "name": "audience",
-          "ordinal": 3,
-          "type_info": "Text"
-        },
-        {
-          "name": "time!: Time",
-          "ordinal": 4,
-          "type_info": "TstzRange"
-        },
-        {
-          "name": "tags",
-          "ordinal": 5,
-          "type_info": "Json"
-        },
-        {
-          "name": "properties: _",
-          "ordinal": 6,
-          "type_info": "Jsonb"
-        },
-        {
-          "name": "preserve_history",
-          "ordinal": 7,
-          "type_info": "Bool"
-        },
-        {
-          "name": "created_at",
-          "ordinal": 8,
-          "type_info": "Timestamptz"
-        },
-        {
-          "name": "event_room_id!: Uuid",
-          "ordinal": 9,
-          "type_info": "Uuid"
-        },
-        {
-          "name": "conference_room_id!: Uuid",
-          "ordinal": 10,
-          "type_info": "Uuid"
-        },
-        {
-          "name": "original_event_room_id",
-          "ordinal": 11,
-          "type_info": "Uuid"
-        },
-        {
-          "name": "modified_event_room_id",
-          "ordinal": 12,
-          "type_info": "Uuid"
-        },
-        {
-          "name": "reserve",
-          "ordinal": 13,
-          "type_info": "Int4"
-        },
-        {
-          "name": "room_events_uri",
-          "ordinal": 14,
-          "type_info": "Text"
-        },
-        {
-          "name": "host: AgentId",
-          "ordinal": 15,
-          "type_info": {
-            "Custom": {
-              "kind": {
-                "Composite": [
-                  [
-                    "account_id",
-                    {
-                      "Custom": {
-                        "kind": {
-                          "Composite": [
-                            [
-                              "label",
-                              "Text"
-                            ],
-                            [
-                              "audience",
-                              "Text"
-                            ]
-                          ]
-                        },
-                        "name": "account_id"
-                      }
-                    }
-                  ],
-                  [
-                    "label",
-                    "Text"
-                  ]
-                ]
-              },
-              "name": "agent_id"
-            }
-          }
-        },
-        {
-          "name": "timed_out",
-          "ordinal": 16,
-          "type_info": "Bool"
-        }
-      ],
-      "nullable": [
-        false,
-        false,
-        false,
-        false,
-        false,
-        true,
-        false,
-        false,
-        false,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        false
-      ],
-      "parameters": {
-        "Left": [
-          "Uuid",
-          "Uuid",
-          "Uuid"
-        ]
-      }
-    },
-    "query": "\n            UPDATE class\n            SET original_event_room_id = $2,\n                modified_event_room_id = $3\n            WHERE id = $1\n            RETURNING\n                id,\n                scope,\n                kind AS \"kind!: ClassType\",\n                audience,\n                time AS \"time!: Time\",\n                tags,\n                properties AS \"properties: _\",\n                preserve_history,\n                created_at,\n                event_room_id AS \"event_room_id!: Uuid\",\n                conference_room_id AS \"conference_room_id!: Uuid\",\n                original_event_room_id,\n                modified_event_room_id,\n                reserve,\n                room_events_uri,\n                host AS \"host: AgentId\",\n                timed_out\n            "
-  },
-  "9224bb852340cac23e7e3dc16f6821ae9bd47a030e338e572e1ee5704d365288": {
-    "describe": {
-      "columns": [
-        {
-          "name": "id",
-          "ordinal": 0,
-          "type_info": "Uuid"
-        },
-        {
-          "name": "scope",
-          "ordinal": 1,
-          "type_info": "Text"
-        },
-        {
-          "name": "kind!: ClassType",
-          "ordinal": 2,
-          "type_info": {
-            "Custom": {
-              "kind": {
-                "Enum": [
-                  "webinar",
-                  "p2p",
-                  "minigroup"
-                ]
-              },
-              "name": "class_type"
-            }
-          }
-        },
-        {
-          "name": "audience",
-          "ordinal": 3,
-          "type_info": "Text"
-        },
-        {
-          "name": "time!: Time",
-          "ordinal": 4,
-          "type_info": "TstzRange"
-        },
-        {
-          "name": "tags",
-          "ordinal": 5,
-          "type_info": "Json"
-        },
-        {
-          "name": "properties!: ClassProperties",
-          "ordinal": 6,
-          "type_info": "Jsonb"
-        },
-        {
-          "name": "preserve_history",
-          "ordinal": 7,
-          "type_info": "Bool"
-        },
-        {
-          "name": "created_at",
-          "ordinal": 8,
-          "type_info": "Timestamptz"
-        },
-        {
-          "name": "event_room_id!: Uuid",
-          "ordinal": 9,
-          "type_info": "Uuid"
-        },
-        {
-          "name": "conference_room_id!: Uuid",
-          "ordinal": 10,
-          "type_info": "Uuid"
-        },
-        {
-          "name": "original_event_room_id",
-          "ordinal": 11,
-          "type_info": "Uuid"
-        },
-        {
-          "name": "modified_event_room_id",
-          "ordinal": 12,
-          "type_info": "Uuid"
-        },
-        {
-          "name": "reserve",
-          "ordinal": 13,
-          "type_info": "Int4"
-        },
-        {
-          "name": "room_events_uri",
-          "ordinal": 14,
-          "type_info": "Text"
-        },
-        {
-          "name": "host: AgentId",
-          "ordinal": 15,
-          "type_info": {
-            "Custom": {
-              "kind": {
-                "Composite": [
-                  [
-                    "account_id",
-                    {
-                      "Custom": {
-                        "kind": {
-                          "Composite": [
-                            [
-                              "label",
-                              "Text"
-                            ],
-                            [
-                              "audience",
-                              "Text"
-                            ]
-                          ]
-                        },
-                        "name": "account_id"
-                      }
-                    }
-                  ],
-                  [
-                    "label",
-                    "Text"
-                  ]
-                ]
-              },
-              "name": "agent_id"
-            }
-          }
-        },
-        {
-          "name": "timed_out",
-          "ordinal": 16,
-          "type_info": "Bool"
-        }
-      ],
-      "nullable": [
-        false,
-        false,
-        false,
-        false,
-        false,
-        true,
-        false,
-        false,
-        false,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        false
-      ],
-      "parameters": {
-        "Left": [
-          "Uuid",
-          "TstzRange",
-          "Int4",
-          {
-            "Custom": {
-              "kind": {
-                "Composite": [
-                  [
-                    "account_id",
-                    {
-                      "Custom": {
-                        "kind": {
-                          "Composite": [
-                            [
-                              "label",
-                              "Text"
-                            ],
-                            [
-                              "audience",
-                              "Text"
-                            ]
-                          ]
-                        },
-                        "name": "account_id"
-                      }
-                    }
-                  ],
-                  [
-                    "label",
-                    "Text"
-                  ]
-                ]
-              },
-              "name": "agent_id"
-            }
-          },
-          "Jsonb"
-        ]
-      }
-    },
-    "query": "\n            UPDATE class\n            SET\n                time = COALESCE($2, time),\n                reserve = COALESCE($3, reserve),\n                host = COALESCE($4, host),\n                properties = COALESCE($5, properties)\n            WHERE id = $1\n            RETURNING\n                id,\n                scope,\n                kind AS \"kind!: ClassType\",\n                audience,\n                time AS \"time!: Time\",\n                tags,\n                properties AS \"properties!: ClassProperties\",\n                preserve_history,\n                created_at,\n                event_room_id AS \"event_room_id!: Uuid\",\n                conference_room_id AS \"conference_room_id!: Uuid\",\n                original_event_room_id,\n                modified_event_room_id,\n                reserve,\n                room_events_uri,\n                host AS \"host: AgentId\",\n                timed_out\n            "
-  },
   "ac4ac9431173165543dbc459bb3b2b9b4461f7016aa6d6967cc9f5f832f208bb": {
     "describe": {
       "columns": [
@@ -1636,115 +1746,6 @@
       }
     },
     "query": "\n            INSERT INTO recording (class_id, rtc_id, segments, modified_segments, stream_uri, started_at, adjusted_at, transcoded_at, created_by)\n            VALUES ($1, $2, $3, $4, $5, NOW(), NOW(), NOW(), $6)\n            RETURNING\n                id,\n                class_id,\n                rtc_id,\n                stream_uri,\n                segments AS \"segments!: Option<Segments>\",\n                started_at,\n                modified_segments AS \"modified_segments!: Option<Segments>\",\n                created_at,\n                adjusted_at,\n                transcoded_at,\n                created_by AS \"created_by: AgentId\",\n                deleted_at\n            "
-  },
-  "b59dc8714b1b15423d31fddebdd642479087ea95054b4a81b9b321f6764a3463": {
-    "describe": {
-      "columns": [
-        {
-          "name": "id",
-          "ordinal": 0,
-          "type_info": "Uuid"
-        },
-        {
-          "name": "kind!: ClassType",
-          "ordinal": 1,
-          "type_info": {
-            "Custom": {
-              "kind": {
-                "Enum": [
-                  "webinar",
-                  "p2p",
-                  "minigroup"
-                ]
-              },
-              "name": "class_type"
-            }
-          }
-        },
-        {
-          "name": "scope",
-          "ordinal": 2,
-          "type_info": "Text"
-        },
-        {
-          "name": "time!: Time",
-          "ordinal": 3,
-          "type_info": "TstzRange"
-        },
-        {
-          "name": "audience",
-          "ordinal": 4,
-          "type_info": "Text"
-        },
-        {
-          "name": "created_at",
-          "ordinal": 5,
-          "type_info": "Timestamptz"
-        },
-        {
-          "name": "tags",
-          "ordinal": 6,
-          "type_info": "Json"
-        },
-        {
-          "name": "preserve_history",
-          "ordinal": 7,
-          "type_info": "Bool"
-        },
-        {
-          "name": "reserve",
-          "ordinal": 8,
-          "type_info": "Int4"
-        },
-        {
-          "name": "properties: _",
-          "ordinal": 9,
-          "type_info": "Jsonb"
-        }
-      ],
-      "nullable": [
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        true,
-        false,
-        true,
-        false
-      ],
-      "parameters": {
-        "Left": [
-          "Text",
-          "Text",
-          "TstzRange",
-          "Json",
-          "Bool",
-          {
-            "Custom": {
-              "kind": {
-                "Enum": [
-                  "webinar",
-                  "p2p",
-                  "minigroup"
-                ]
-              },
-              "name": "class_type"
-            }
-          },
-          "Uuid",
-          "Uuid",
-          "Uuid",
-          "Uuid",
-          "Int4",
-          "Text",
-          "Bool",
-          "Jsonb"
-        ]
-      }
-    },
-    "query": "\n            INSERT INTO class (\n                scope, audience, time, tags, preserve_history, kind,\n                conference_room_id, event_room_id,\n                original_event_room_id, modified_event_room_id, reserve, room_events_uri,\n                established, properties\n            )\n            VALUES ($1, $2, $3, $4, $5, $6::class_type, $7, $8, $9, $10, $11, $12, $13, $14)\n            ON CONFLICT (scope, audience)\n            DO UPDATE\n            SET time = EXCLUDED.time,\n                tags = EXCLUDED.tags,\n                preserve_history = EXCLUDED.preserve_history,\n                reserve = EXCLUDED.reserve,\n                properties = EXCLUDED.properties\n            WHERE class.established = 'f'\n            RETURNING\n                id,\n                kind AS \"kind!: ClassType\",\n                scope,\n                time AS \"time!: Time\",\n                audience,\n                created_at,\n                tags,\n                preserve_history,\n                reserve,\n                properties AS \"properties: _\"\n            "
   },
   "c7386d4717720730d7762fbcf2d24c5d0f508b246e987f4666684bf37b27ddc2": {
     "describe": {
@@ -1904,6 +1905,165 @@
     },
     "query": "\n            INSERT INTO recording (\n                class_id, rtc_id, stream_uri, segments, modified_segments, started_at, adjusted_at,\n                transcoded_at, created_by\n            )\n            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)\n            ON CONFLICT (class_id, created_by)\n            WHERE deleted_at IS NULL\n            DO UPDATE\n            SET (rtc_id, stream_uri, segments, modified_segments,\n                    started_at, adjusted_at, transcoded_at, created_by, created_at) =\n                (EXCLUDED.rtc_id, EXCLUDED.stream_uri, EXCLUDED.segments, EXCLUDED.modified_segments, EXCLUDED.started_at, EXCLUDED.adjusted_at,\n                        EXCLUDED.transcoded_at, EXCLUDED.created_by, NOW())\n            RETURNING\n                id,\n                class_id,\n                rtc_id,\n                stream_uri,\n                segments AS \"segments!: Option<Segments>\",\n                started_at,\n                modified_segments AS \"modified_segments!: Option<Segments>\",\n                created_at,\n                adjusted_at,\n                transcoded_at,\n                created_by AS \"created_by: AgentId\",\n                deleted_at\n            "
   },
+  "d3ed34bd532c17f337d328f4ea0cdb1aaf8fab448fd7e5f64474ccb495bd8e03": {
+    "describe": {
+      "columns": [
+        {
+          "name": "id",
+          "ordinal": 0,
+          "type_info": "Uuid"
+        },
+        {
+          "name": "class_id",
+          "ordinal": 1,
+          "type_info": "Uuid"
+        },
+        {
+          "name": "rtc_id",
+          "ordinal": 2,
+          "type_info": "Uuid"
+        },
+        {
+          "name": "stream_uri",
+          "ordinal": 3,
+          "type_info": "Text"
+        },
+        {
+          "name": "segments!: Option<Segments>",
+          "ordinal": 4,
+          "type_info": "Int8RangeArray"
+        },
+        {
+          "name": "started_at",
+          "ordinal": 5,
+          "type_info": "Timestamptz"
+        },
+        {
+          "name": "modified_segments!: Option<Segments>",
+          "ordinal": 6,
+          "type_info": "Int8RangeArray"
+        },
+        {
+          "name": "created_at",
+          "ordinal": 7,
+          "type_info": "Timestamptz"
+        },
+        {
+          "name": "adjusted_at",
+          "ordinal": 8,
+          "type_info": "Timestamptz"
+        },
+        {
+          "name": "transcoded_at",
+          "ordinal": 9,
+          "type_info": "Timestamptz"
+        },
+        {
+          "name": "created_by: AgentId",
+          "ordinal": 10,
+          "type_info": {
+            "Custom": {
+              "kind": {
+                "Composite": [
+                  [
+                    "account_id",
+                    {
+                      "Custom": {
+                        "kind": {
+                          "Composite": [
+                            [
+                              "label",
+                              "Text"
+                            ],
+                            [
+                              "audience",
+                              "Text"
+                            ]
+                          ]
+                        },
+                        "name": "account_id"
+                      }
+                    }
+                  ],
+                  [
+                    "label",
+                    "Text"
+                  ]
+                ]
+              },
+              "name": "agent_id"
+            }
+          }
+        },
+        {
+          "name": "deleted_at",
+          "ordinal": 11,
+          "type_info": "Timestamptz"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false,
+        true,
+        true,
+        true,
+        true,
+        false,
+        true,
+        true,
+        false,
+        true
+      ],
+      "parameters": {
+        "Left": [
+          "Uuid",
+          "Uuid",
+          "Text",
+          "Int8RangeArray",
+          "Int8RangeArray",
+          "Timestamptz",
+          "Timestamptz",
+          "Timestamptz",
+          {
+            "Custom": {
+              "kind": {
+                "Composite": [
+                  [
+                    "account_id",
+                    {
+                      "Custom": {
+                        "kind": {
+                          "Composite": [
+                            [
+                              "label",
+                              "Text"
+                            ],
+                            [
+                              "audience",
+                              "Text"
+                            ]
+                          ]
+                        },
+                        "name": "account_id"
+                      }
+                    }
+                  ],
+                  [
+                    "label",
+                    "Text"
+                  ]
+                ]
+              },
+              "name": "agent_id"
+            }
+          },
+          "Timestamptz"
+        ]
+      }
+    },
+    "query": "\n                INSERT INTO recording (\n                    class_id, rtc_id, stream_uri, segments, modified_segments, started_at, adjusted_at,\n                    transcoded_at, created_by, deleted_at\n                )\n                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)\n                RETURNING\n                    id,\n                    class_id,\n                    rtc_id,\n                    stream_uri,\n                    segments AS \"segments!: Option<Segments>\",\n                    started_at,\n                    modified_segments AS \"modified_segments!: Option<Segments>\",\n                    created_at,\n                    adjusted_at,\n                    transcoded_at,\n                    created_by AS \"created_by: AgentId\",\n                    deleted_at\n                "
+  },
   "d3f1fe030f85e10f87c22ac77e9523f0c27bc4e75fac33c7a7e34674c2629bff": {
     "describe": {
       "columns": [],
@@ -2038,7 +2198,7 @@
     },
     "query": "\n            UPDATE recording\n            SET segments = $3,\n                stream_uri = $4,\n                started_at = $5\n            WHERE class_id = $1  AND rtc_id = $2 AND deleted_at IS NULL\n            RETURNING\n                id,\n                class_id,\n                rtc_id,\n                stream_uri,\n                segments AS \"segments!: Option<Segments>\",\n                started_at,\n                modified_segments AS \"modified_segments!: Option<Segments>\",\n                created_at,\n                adjusted_at,\n                transcoded_at,\n                created_by AS \"created_by: AgentId\",\n                deleted_at\n            "
   },
-  "dc2c0ab0996ec825c696f5fdb314ad2081c8939f9ce0230054ff5bbba6dd6e04": {
+  "d9a4208ff2f184bd35b92f4358d356d5c9a77e89f6a8da7b8530be279c988585": {
     "describe": {
       "columns": [
         {
@@ -2168,6 +2328,11 @@
           "name": "timed_out",
           "ordinal": 16,
           "type_info": "Bool"
+        },
+        {
+          "name": "original_class_id",
+          "ordinal": 17,
+          "type_info": "Uuid"
         }
       ],
       "nullable": [
@@ -2187,7 +2352,100 @@
         true,
         true,
         true,
-        false
+        false,
+        true
+      ],
+      "parameters": {
+        "Left": [
+          "Uuid",
+          "Bool"
+        ]
+      }
+    },
+    "query": "\n            UPDATE class\n            SET time = TSTZRANGE(LOWER(time), LEAST(UPPER(time), NOW())), timed_out = $2\n            WHERE id = $1\n            RETURNING\n                id,\n                scope,\n                kind AS \"kind!: ClassType\",\n                audience,\n                time AS \"time!: Time\",\n                tags,\n                properties AS \"properties: _\",\n                preserve_history,\n                created_at,\n                event_room_id AS \"event_room_id!: Uuid\",\n                conference_room_id AS \"conference_room_id!: Uuid\",\n                original_event_room_id,\n                modified_event_room_id,\n                reserve,\n                room_events_uri,\n                host AS \"host: AgentId\",\n                timed_out,\n                original_class_id\n            "
+  },
+  "dfa8dce2fde4881ac675306180e5b1e75b5e85b1b92eb4dd3722665b30aa798f": {
+    "describe": {
+      "columns": [
+        {
+          "name": "id",
+          "ordinal": 0,
+          "type_info": "Uuid"
+        },
+        {
+          "name": "kind!: ClassType",
+          "ordinal": 1,
+          "type_info": {
+            "Custom": {
+              "kind": {
+                "Enum": [
+                  "webinar",
+                  "p2p",
+                  "minigroup"
+                ]
+              },
+              "name": "class_type"
+            }
+          }
+        },
+        {
+          "name": "scope",
+          "ordinal": 2,
+          "type_info": "Text"
+        },
+        {
+          "name": "time!: Time",
+          "ordinal": 3,
+          "type_info": "TstzRange"
+        },
+        {
+          "name": "audience",
+          "ordinal": 4,
+          "type_info": "Text"
+        },
+        {
+          "name": "created_at",
+          "ordinal": 5,
+          "type_info": "Timestamptz"
+        },
+        {
+          "name": "tags",
+          "ordinal": 6,
+          "type_info": "Json"
+        },
+        {
+          "name": "preserve_history",
+          "ordinal": 7,
+          "type_info": "Bool"
+        },
+        {
+          "name": "reserve",
+          "ordinal": 8,
+          "type_info": "Int4"
+        },
+        {
+          "name": "properties: _",
+          "ordinal": 9,
+          "type_info": "Jsonb"
+        },
+        {
+          "name": "original_class_id",
+          "ordinal": 10,
+          "type_info": "Uuid"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        false,
+        true,
+        false,
+        true
       ],
       "parameters": {
         "Left": [
@@ -2210,11 +2468,17 @@
           },
           "Uuid",
           "Uuid",
-          "Jsonb"
+          "Uuid",
+          "Uuid",
+          "Int4",
+          "Text",
+          "Bool",
+          "Jsonb",
+          "Uuid"
         ]
       }
     },
-    "query": "\n            INSERT INTO class (\n                scope, audience, time, tags, preserve_history, kind,\n                conference_room_id, event_room_id, properties\n            )\n            VALUES ($1, $2, $3, $4, $5, $6::class_type, $7, $8, $9)\n            RETURNING\n                id,\n                scope,\n                kind AS \"kind!: ClassType\",\n                audience,\n                time AS \"time!: Time\",\n                tags,\n                properties AS \"properties: _\",\n                preserve_history,\n                created_at,\n                event_room_id AS \"event_room_id!: Uuid\",\n                conference_room_id AS \"conference_room_id!: Uuid\",\n                original_event_room_id,\n                modified_event_room_id,\n                reserve,\n                room_events_uri,\n                host AS \"host: AgentId\",\n                timed_out\n            "
+    "query": "\n            INSERT INTO class (\n                scope, audience, time, tags, preserve_history, kind,\n                conference_room_id, event_room_id,\n                original_event_room_id, modified_event_room_id, reserve, room_events_uri,\n                established, properties, original_class_id\n            )\n            VALUES ($1, $2, $3, $4, $5, $6::class_type, $7, $8, $9, $10, $11, $12, $13, $14, $15)\n            ON CONFLICT (scope, audience)\n            DO UPDATE\n            SET time = EXCLUDED.time,\n                tags = EXCLUDED.tags,\n                preserve_history = EXCLUDED.preserve_history,\n                reserve = EXCLUDED.reserve,\n                properties = EXCLUDED.properties\n            WHERE class.established = 'f'\n            RETURNING\n                id,\n                kind AS \"kind!: ClassType\",\n                scope,\n                time AS \"time!: Time\",\n                audience,\n                created_at,\n                tags,\n                preserve_history,\n                reserve,\n                properties AS \"properties: _\",\n                original_class_id\n            "
   },
   "e330ee1e0a4a4b28fa386649dbc6315f1d97593430f7ab0fb1499439c45cddaa": {
     "describe": {
@@ -2334,48 +2598,7 @@
     },
     "query": "\n            UPDATE recording\n            SET transcoded_at = NOW()\n            WHERE class_id = $1 AND deleted_at IS NULL\n            RETURNING\n                id,\n                class_id,\n                rtc_id,\n                stream_uri,\n                segments AS \"segments!: Option<Segments>\",\n                started_at,\n                modified_segments AS \"modified_segments!: Option<Segments>\",\n                created_at,\n                adjusted_at,\n                transcoded_at,\n                created_by AS \"created_by: AgentId\",\n                deleted_at\n            "
   },
-  "e8540174fb5a6ce3accad1c9717d5145c02813cf0b61f086b68e8c38ebde0497": {
-    "describe": {
-      "columns": [
-        {
-          "name": "position_secs",
-          "ordinal": 0,
-          "type_info": "Int4"
-        }
-      ],
-      "nullable": [
-        false
-      ],
-      "parameters": {
-        "Left": [
-          "Uuid",
-          "Record"
-        ]
-      }
-    },
-    "query": "\n            SELECT position_secs\n            FROM record_timestamp\n            WHERE class_id = $1\n            AND account_id = $2\n            LIMIT 1;\n            "
-  },
-  "ff7358bd832ec43d76b0fd06e97d672aa4329e0454394928e8bbfd9e8d77801d": {
-    "describe": {
-      "columns": [
-        {
-          "name": "id!: String",
-          "ordinal": 0,
-          "type_info": "Text"
-        }
-      ],
-      "nullable": [
-        null
-      ],
-      "parameters": {
-        "Left": [
-          "Uuid"
-        ]
-      }
-    },
-    "query": "\n                        SELECT\n                            id::text AS \"id!: String\"\n                        FROM class\n                        WHERE event_room_id = $1\n                            OR original_event_room_id = $1\n                            OR modified_event_room_id = $1\n                    "
-  },
-  "ffc8de1ce1b4fe77b7b17deed67ca81b7ebbb42afba10e61250f6bdc5734f0fb": {
+  "e49fe90ef94155d3ca50a6e4198c8c11a54c8f594b4f604c2343642f79544bd4": {
     "describe": {
       "columns": [
         {
@@ -2505,6 +2728,11 @@
           "name": "timed_out",
           "ordinal": 16,
           "type_info": "Bool"
+        },
+        {
+          "name": "original_class_id",
+          "ordinal": 17,
+          "type_info": "Uuid"
         }
       ],
       "nullable": [
@@ -2524,17 +2752,262 @@
         true,
         true,
         true,
+        false,
+        true
+      ],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Text",
+          "TstzRange",
+          "Json",
+          "Bool",
+          {
+            "Custom": {
+              "kind": {
+                "Enum": [
+                  "webinar",
+                  "p2p",
+                  "minigroup"
+                ]
+              },
+              "name": "class_type"
+            }
+          },
+          "Uuid",
+          "Uuid",
+          "Jsonb"
+        ]
+      }
+    },
+    "query": "\n            INSERT INTO class (\n                scope, audience, time, tags, preserve_history, kind,\n                conference_room_id, event_room_id, properties\n            )\n            VALUES ($1, $2, $3, $4, $5, $6::class_type, $7, $8, $9)\n            RETURNING\n                id,\n                scope,\n                kind AS \"kind!: ClassType\",\n                audience,\n                time AS \"time!: Time\",\n                tags,\n                properties AS \"properties: _\",\n                preserve_history,\n                created_at,\n                event_room_id AS \"event_room_id!: Uuid\",\n                conference_room_id AS \"conference_room_id!: Uuid\",\n                original_event_room_id,\n                modified_event_room_id,\n                reserve,\n                room_events_uri,\n                host AS \"host: AgentId\",\n                timed_out,\n                original_class_id\n            "
+  },
+  "e8540174fb5a6ce3accad1c9717d5145c02813cf0b61f086b68e8c38ebde0497": {
+    "describe": {
+      "columns": [
+        {
+          "name": "position_secs",
+          "ordinal": 0,
+          "type_info": "Int4"
+        }
+      ],
+      "nullable": [
         false
       ],
       "parameters": {
         "Left": [
           "Uuid",
+          "Record"
+        ]
+      }
+    },
+    "query": "\n            SELECT position_secs\n            FROM record_timestamp\n            WHERE class_id = $1\n            AND account_id = $2\n            LIMIT 1;\n            "
+  },
+  "f35ea484fa501fe9ee9f4608c2ef5ff6992eb43c47f0a7ff25997bf40b6bafe6": {
+    "describe": {
+      "columns": [
+        {
+          "name": "id",
+          "ordinal": 0,
+          "type_info": "Uuid"
+        },
+        {
+          "name": "scope",
+          "ordinal": 1,
+          "type_info": "Text"
+        },
+        {
+          "name": "kind!: ClassType",
+          "ordinal": 2,
+          "type_info": {
+            "Custom": {
+              "kind": {
+                "Enum": [
+                  "webinar",
+                  "p2p",
+                  "minigroup"
+                ]
+              },
+              "name": "class_type"
+            }
+          }
+        },
+        {
+          "name": "audience",
+          "ordinal": 3,
+          "type_info": "Text"
+        },
+        {
+          "name": "time!: Time",
+          "ordinal": 4,
+          "type_info": "TstzRange"
+        },
+        {
+          "name": "tags",
+          "ordinal": 5,
+          "type_info": "Json"
+        },
+        {
+          "name": "preserve_history",
+          "ordinal": 6,
+          "type_info": "Bool"
+        },
+        {
+          "name": "created_at",
+          "ordinal": 7,
+          "type_info": "Timestamptz"
+        },
+        {
+          "name": "event_room_id!: Uuid",
+          "ordinal": 8,
+          "type_info": "Uuid"
+        },
+        {
+          "name": "conference_room_id!: Uuid",
+          "ordinal": 9,
+          "type_info": "Uuid"
+        },
+        {
+          "name": "original_event_room_id",
+          "ordinal": 10,
+          "type_info": "Uuid"
+        },
+        {
+          "name": "modified_event_room_id",
+          "ordinal": 11,
+          "type_info": "Uuid"
+        },
+        {
+          "name": "reserve",
+          "ordinal": 12,
+          "type_info": "Int4"
+        },
+        {
+          "name": "room_events_uri",
+          "ordinal": 13,
+          "type_info": "Text"
+        },
+        {
+          "name": "host: AgentId",
+          "ordinal": 14,
+          "type_info": {
+            "Custom": {
+              "kind": {
+                "Composite": [
+                  [
+                    "account_id",
+                    {
+                      "Custom": {
+                        "kind": {
+                          "Composite": [
+                            [
+                              "label",
+                              "Text"
+                            ],
+                            [
+                              "audience",
+                              "Text"
+                            ]
+                          ]
+                        },
+                        "name": "account_id"
+                      }
+                    }
+                  ],
+                  [
+                    "label",
+                    "Text"
+                  ]
+                ]
+              },
+              "name": "agent_id"
+            }
+          }
+        },
+        {
+          "name": "timed_out",
+          "ordinal": 15,
+          "type_info": "Bool"
+        },
+        {
+          "name": "properties: _",
+          "ordinal": 16,
+          "type_info": "Jsonb"
+        },
+        {
+          "name": "original_class_id",
+          "ordinal": 17,
+          "type_info": "Uuid"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        false,
+        false,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        false,
+        false,
+        true
+      ],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Text",
           "TstzRange",
+          "Json",
+          "Bool",
+          {
+            "Custom": {
+              "kind": {
+                "Enum": [
+                  "webinar",
+                  "p2p",
+                  "minigroup"
+                ]
+              },
+              "name": "class_type"
+            }
+          },
           "Uuid",
+          "Uuid",
+          "Uuid",
+          "Uuid",
+          "Int4",
+          "Jsonb"
+        ]
+      }
+    },
+    "query": "\n            INSERT INTO class (\n                scope, audience, time, tags, preserve_history, kind, conference_room_id,\n                event_room_id, original_event_room_id, modified_event_room_id, reserve,\n                properties\n            )\n            VALUES ($1, $2, $3, $4, $5, $6::class_type, $7, $8, $9, $10, $11, $12)\n            RETURNING\n                id,\n                scope,\n                kind AS \"kind!: ClassType\",\n                audience,\n                time AS \"time!: Time\",\n                tags,\n                preserve_history,\n                created_at,\n                event_room_id AS \"event_room_id!: Uuid\",\n                conference_room_id AS \"conference_room_id!: Uuid\",\n                original_event_room_id,\n                modified_event_room_id,\n                reserve,\n                room_events_uri,\n                host AS \"host: AgentId\",\n                timed_out,\n                properties AS \"properties: _\",\n                original_class_id\n            "
+  },
+  "ff7358bd832ec43d76b0fd06e97d672aa4329e0454394928e8bbfd9e8d77801d": {
+    "describe": {
+      "columns": [
+        {
+          "name": "id!: String",
+          "ordinal": 0,
+          "type_info": "Text"
+        }
+      ],
+      "nullable": [
+        null
+      ],
+      "parameters": {
+        "Left": [
           "Uuid"
         ]
       }
     },
-    "query": "\n            UPDATE class\n            SET time = $2, event_room_id = $3, conference_room_id = $4, original_event_room_id = NULL, modified_event_room_id = NULL\n            WHERE id = $1\n            RETURNING\n                id,\n                scope,\n                kind AS \"kind!: ClassType\",\n                audience,\n                time AS \"time!: Time\",\n                tags,\n                properties AS \"properties: _\",\n                preserve_history,\n                created_at,\n                event_room_id AS \"event_room_id!: Uuid\",\n                conference_room_id AS \"conference_room_id!: Uuid\",\n                original_event_room_id,\n                modified_event_room_id,\n                reserve,\n                room_events_uri,\n                host AS \"host: AgentId\",\n                timed_out\n            "
+    "query": "\n                        SELECT\n                            id::text AS \"id!: String\"\n                        FROM class\n                        WHERE event_room_id = $1\n                            OR original_event_room_id = $1\n                            OR modified_event_room_id = $1\n                    "
   }
 }

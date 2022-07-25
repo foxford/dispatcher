@@ -1,8 +1,9 @@
 use std::sync::Arc;
 
-use axum::routing::Router;
-use axum::routing::{get, options, post};
-use axum::AddExtensionLayer;
+use axum::{
+    extract::Extension,
+    routing::{get, options, post, Router},
+};
 use svc_utils::middleware::{CorsLayer, LogLayer, MeteredRoute};
 
 use super::api::v1::authz::proxy as proxy_authz;
@@ -13,7 +14,7 @@ use super::api::v1::class::{
 use super::api::v1::minigroup::{create as create_minigroup, download as download_minigroup};
 use super::api::v1::p2p::{convert as convert_p2p, create as create_p2p};
 use super::api::v1::webinar::{
-    convert as convert_webinar, create as create_webinar, download as download_webinar,
+    convert_webinar, create_webinar, create_webinar_replica, download_webinar,
     options as read_options,
 };
 use super::api::{
@@ -34,8 +35,8 @@ pub fn router(ctx: Arc<dyn AppContext>, authn: svc_authn::jose::ConfigMap) -> Ro
         .merge(utils_router());
 
     router
-        .layer(AddExtensionLayer::new(Arc::new(authn)))
-        .layer(AddExtensionLayer::new(ctx))
+        .layer(Extension(Arc::new(authn)))
+        .layer(Extension(ctx))
         .layer(LogLayer::new())
 }
 
@@ -82,6 +83,10 @@ fn webinars_router() -> Router {
         )
         .layer(CorsLayer)
         .metered_route("/api/v1/webinars", post(create_webinar))
+        .metered_route(
+            "/api/v1/webinars/:id/replicas",
+            post(create_webinar_replica),
+        )
         .metered_route("/api/v1/webinars/convert", post(convert_webinar))
         .metered_route("/api/v1/webinars/:id/download", get(download_webinar))
         .metered_route(

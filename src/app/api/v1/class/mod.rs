@@ -54,7 +54,7 @@ impl ClassResponseBody {
 
     pub fn new(obj: &class::Object, turn_host: TurnHost) -> Self {
         Self {
-            class_id: obj.id(),
+            class_id: obj.original_class_id().unwrap_or_else(|| obj.id()),
             id: obj.scope().to_owned(),
             real_time: RealTimeObject {
                 conference_room_id: obj.conference_room_id(),

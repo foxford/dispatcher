@@ -8,6 +8,7 @@ Route                                           | Method | Short description
 /api/v1/webinars/:webinar_id                    | GET    | [Reads](#read-webinar) webinar.
 /api/v1/audiences/:audience/webinars/:scope     | GET    | [Reads](#read-webinar) webinar.
 /api/v1/webinars                                | POST   | [Creates](#create-webinar) webinar and required rooms in other services.
+/api/v1/webinars/:webinar_id/replicas           | POST   | [Creates](#create-webinar-replica) a replica of webinar and a room in the `conference` service (the `event` room is taken from the original webinar).
 /api/v1/webinars/:webinar_id                    | PUT    | [Updates](#update-webinar) webinar.
 /api/v1/webinars/convert                        | POST   | [Creates](#convert-webinar) webinar with already existing event and conference rooms.
 /api/v1/webinars/:webinar_id/download           | GET    | [Downloads](#download-webinar) webinar source file.
@@ -34,6 +35,18 @@ locked_chat            | bool        | +        | Lock chat in created event roo
 
 Response: status 201 and webinar object as payload.
 
+### Create webinar replica
+
+Request parameters:
+
+| Attribute | Type   | Optional | Description |
+|-----------|--------|----------|-------------|
+| class_id  | uuid   |          | Webinar id  |
+| scope     | string |          | Scope       |
+| audience  | string |          | Audience    |
+
+Response: status 201 and webinar object as payload.
+
 ### Read webinar
 
 Parameters either
@@ -53,7 +66,7 @@ Response:
 
 Attribute              | Type        | Optional | Description
 ---------------------- | ----------- | -------- | ---------------------------------------------------------
-class_id               | uuid        |          | Webinar id
+class_id               | uuid        |          | Webinar id (or original webinar id, if it exists)
 id                     | string      |          | Webinar scope
 real_time              | json object | +        | `event_room_id` and `conference_room_id` fields
 on_demand              | json array  | +        | Array with original and modified stream versions. Modified stream contains `room_events_uri` with s3 link to dumped events.

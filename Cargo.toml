@@ -10,7 +10,7 @@ edition = "2018"
 [dependencies]
 anyhow = "1.0"
 async-trait = "0.1"
-axum = { version = "0.4", features = ["headers"] }
+axum = { version = "0.5.14", features = ["headers"] }
 chrono = { version = "0.4", features = ["serde"] }
 config = { version = "0.12", default-features = false, features = ["toml"] }
 futures = "0.3"
@@ -54,7 +54,7 @@ svc-error = { version = "0.4", features = [
     "sentry-extension",
     "sqlx",
 ] }
-svc-utils = { version = "0.2", features = ["log-middleware", "metrics-middleware", "cors-middleware", "authn-extractor"] }
+svc-utils = { version = "0.3.0", features = ["log-middleware", "metrics-middleware", "cors-middleware", "authn-extractor"] }
 tokio = { version = "1.17", features = ["full"] }
 tower = { version = "0.4", features = [ "timeout" ] }
 tracing = "0.1"
@@ -71,6 +71,10 @@ vec1 = { version = "1.8.0", features = ["serde"] }
 [dev-dependencies]
 lazy_static = "1.4"
 mockall = "0.9.1"
+
+[dependencies.dotenv]
+version = "0.15"
+optional = true
 
 [profile.release]
 debug = true

@@ -78,7 +78,7 @@ async fn do_create(
     let dummy = insert_p2p_dummy(state, &body).await?;
 
     let time = (Bound::Unbounded, Bound::Unbounded);
-    let result = services::create_event_and_conference(state, &dummy, &time).await;
+    let result = services::create_event_and_conference_rooms(state, &dummy, &time).await;
     let mut conn = state
         .get_conn()
         .await

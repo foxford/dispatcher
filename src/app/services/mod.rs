@@ -43,11 +43,29 @@ pub async fn update_classroom_id(
     result.context("Services requests updating classroom_id failed")
 }
 
-pub async fn create_event_and_conference(
+pub async fn create_event_room(
+    state: &dyn AppContext,
+    webinar: &impl Creatable,
+) -> Result<Uuid, AppError> {
+    state
+        .event_client()
+        .create_room(
+            (Bound::Included(Utc::now()), Bound::Unbounded),
+            webinar.audience().to_owned(),
+            Some(true),
+            webinar.tags().map(ToOwned::to_owned),
+            Some(webinar.id()),
+        )
+        .await
+        .context("Request to event")
+        .error(AppErrorKind::MqttRequestFailed)
+}
+
+pub async fn create_conference_room(
     state: &dyn AppContext,
     webinar: &impl Creatable,
     time: &BoundedDateTimeTuple,
-) -> Result<(Uuid, Uuid), AppError> {
+) -> Result<Uuid, AppError> {
     let conference_time = match time.0 {
         Bound::Included(t) | Bound::Excluded(t) => (Bound::Included(t), Bound::Unbounded),
         Bound::Unbounded => (Bound::Included(Utc::now()), Bound::Unbounded),
@@ -58,27 +76,28 @@ pub async fn create_event_and_conference(
         .as_ref()
         .map(ToString::to_string);
 
-    let conference_fut = state.conference_client().create_room(
-        conference_time,
-        webinar.audience().to_owned(),
-        policy,
-        webinar.reserve(),
-        webinar.tags().map(ToOwned::to_owned),
-        Some(webinar.id()),
-    );
+    state
+        .conference_client()
+        .create_room(
+            conference_time,
+            webinar.audience().to_owned(),
+            policy,
+            webinar.reserve(),
+            webinar.tags().map(ToOwned::to_owned),
+            Some(webinar.id()),
+        )
+        .await
+        .context("Request to conference")
+        .error(AppErrorKind::MqttRequestFailed)
+}
 
-    let event_time = (Bound::Included(Utc::now()), Bound::Unbounded);
-    let event_fut = state.event_client().create_room(
-        event_time,
-        webinar.audience().to_owned(),
-        Some(true),
-        webinar.tags().map(ToOwned::to_owned),
-        Some(webinar.id()),
-    );
-
-    let (event_room_id, conference_room_id) = tokio::try_join!(event_fut, conference_fut)
-        .context("Services requests")
-        .error(AppErrorKind::MqttRequestFailed)?;
+pub async fn create_event_and_conference_rooms(
+    state: &dyn AppContext,
+    webinar: &impl Creatable,
+    time: &BoundedDateTimeTuple,
+) -> Result<(Uuid, Uuid), AppError> {
+    let event_room_id = create_event_room(state, webinar).await?;
+    let conference_room_id = create_conference_room(state, webinar, time).await?;
 
     Ok((event_room_id, conference_room_id))
 }

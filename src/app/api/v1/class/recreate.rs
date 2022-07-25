@@ -64,7 +64,7 @@ async fn do_recreate<T: AsClassType>(
         .measure()?;
 
     let (event_room_id, conference_room_id) =
-        crate::app::services::create_event_and_conference(state, &webinar, &time).await?;
+        crate::app::services::create_event_and_conference_rooms(state, &webinar, &time).await?;
 
     let query = crate::db::class::RecreateQuery::new(
         webinar.id(),
