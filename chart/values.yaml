@@ -6,7 +6,7 @@ replicaCount: 2
 
 app:
   image:
-    repository: foxford/dispatcher
+    repository: cr.yandex/crp1of6bddata8ain3q5/dispatcher
     tag: ""
 
   resources:
@@ -67,7 +67,7 @@ app:
 
 migrations:
   image:
-    repository: foxford/dispatcher-migration
+    repository: cr.yandex/crp1of6bddata8ain3q5/dispatcher-migration
     tag: ""
 
   resources:
