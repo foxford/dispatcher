@@ -319,13 +319,15 @@ fn transform_storage_authz_request(authz_req: &mut AuthzRequest) {
 
 fn transform_nats_gatekeeper_authz_request(authz_req: &mut AuthzRequest) {
     let act = &mut authz_req.action;
+    let authz_object: Option<&str> = authz_req.object.value.get(0).map(|s| s.as_ref());
 
-    // only transform scopes/* objects
-    if authz_req.object.value.get(0).map(|s| s.as_ref()) != Some("scopes") {
+    // only transform scopes/* and classrooms/* objects
+    if authz_object != Some("scopes") || authz_object != Some("classrooms") {
         return;
     }
 
-    // ["scopes", SCOPE, "nats"]::connect       => ["scopes", SCOPE]::read
+    // ["scopes", SCOPE, "nats"]::connect               => ["scopes", SCOPE]::read
+    // ["classrooms", CLASSROOM_ID, "nats"]::connect    => ["classrooms", CLASSROOM_ID]::read
     match authz_req.object.value.get_mut(0..) {
         None => {}
         Some([_scopes, _scope, v]) if act == "connect" && v == "nats" => {
@@ -346,7 +348,7 @@ async fn substitute_class(
     q: impl FnOnce(&str) -> Result<AuthzReadQuery, anyhow::Error>,
 ) -> Result<(), AppError> {
     match authz_req.object.value.get_mut(0..2) {
-        Some([ref mut obj, ref mut set_id]) if obj == "sets" => {
+        Some([obj, set_id]) if obj == "sets" => {
             let query = match q(set_id) {
                 Ok(query) => query,
                 Err(_e) => {
@@ -366,16 +368,19 @@ async fn substitute_class(
                 .error(AppErrorKind::DbQueryFailed)?
             {
                 None => Ok(()),
-                Some(AuthzClass { id }) => {
+                Some(AuthzClass {
+                    id,
+                    original_class_id,
+                }) => {
                     *obj = "classrooms".into();
-                    *set_id = id;
+                    *set_id = original_class_id.unwrap_or(id);
                     authz_req.object.namespace = state.agent_id().as_account_id().to_string();
 
                     Ok(())
                 }
             }
         }
-        Some([ref mut obj, ref mut room_id]) if obj == "rooms" => {
+        Some([obj, room_id]) if obj == "rooms" => {
             let query = match q(room_id) {
                 Ok(query) => query,
                 Err(_) => {
@@ -395,7 +400,7 @@ async fn substitute_class(
                 .error(AppErrorKind::DbQueryFailed)?
             {
                 None => Ok(()),
-                Some(AuthzClass { id }) => {
+                Some(AuthzClass { id, .. }) => {
                     *obj = "classrooms".into();
                     *room_id = id;
                     authz_req.object.namespace = state.agent_id().as_account_id().to_string();
@@ -404,11 +409,35 @@ async fn substitute_class(
                 }
             }
         }
-        Some([obj, ..]) if obj == "classrooms" => {
-            authz_req.object.namespace = state.agent_id().as_account_id().to_string();
-            Ok(())
+        Some([obj, classroom_id]) if obj == "classrooms" => {
+            let id = Uuid::from_str(classroom_id)
+                .context("Failed to parse uuid from string")
+                .error(AppErrorKind::SerializationFailed)?;
+
+            let mut conn = state
+                .get_conn()
+                .await
+                .error(AppErrorKind::DbConnAcquisitionFailed)?;
+
+            match AuthzReadQuery::by_id(id)
+                .execute(&mut conn)
+                .await
+                .context("Failed to find classroom")
+                .error(AppErrorKind::DbQueryFailed)?
+            {
+                None => Ok(()),
+                Some(AuthzClass {
+                    id,
+                    original_class_id,
+                }) => {
+                    *classroom_id = original_class_id.unwrap_or(id);
+                    authz_req.object.namespace = state.agent_id().as_account_id().to_string();
+
+                    Ok(())
+                }
+            }
         }
-        Some([ref mut obj, ref mut scope]) if obj == "scopes" => {
+        Some([obj, scope]) if obj == "scopes" => {
             let query = match q(scope) {
                 Ok(query) => query,
                 Err(_e) => {
@@ -428,7 +457,7 @@ async fn substitute_class(
                 .error(AppErrorKind::DbQueryFailed)?
             {
                 None => Ok(()),
-                Some(AuthzClass { id }) => {
+                Some(AuthzClass { id, .. }) => {
                     *obj = "classrooms".into();
                     *scope = id;
                     authz_req.object.namespace = state.agent_id().as_account_id().to_string();
