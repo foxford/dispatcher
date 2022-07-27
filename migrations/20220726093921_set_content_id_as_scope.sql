@@ -1,1 +1,1 @@
-UPDATE class SET content_id = scope
+UPDATE class SET content_id = scope;
