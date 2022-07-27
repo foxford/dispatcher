@@ -168,6 +168,7 @@ pub struct Object {
     timed_out: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     original_class_id: Option<Uuid>,
+    content_id: String,
 }
 
 pub fn default_locked_chat() -> bool {
@@ -246,6 +247,10 @@ impl Object {
 
     pub fn original_class_id(&self) -> Option<Uuid> {
         self.original_class_id
+    }
+
+    pub fn content_id(&self) -> &str {
+        &self.content_id
     }
 }
 
@@ -568,7 +573,8 @@ impl UpdateAdjustedRoomsQuery {
                 room_events_uri,
                 host AS "host: AgentId",
                 timed_out,
-                original_class_id
+                original_class_id,
+                content_id
             "#,
             self.id,
             self.original_event_room_id,
@@ -583,14 +589,16 @@ pub struct EstablishQuery {
     id: Uuid,
     event_room_id: Uuid,
     conference_room_id: Uuid,
+    content_id: Uuid,
 }
 
 impl EstablishQuery {
-    pub fn new(id: Uuid, event_room_id: Uuid, conference_room_id: Uuid) -> Self {
+    pub fn new(id: Uuid, event_room_id: Uuid, conference_room_id: Uuid, content_id: Uuid) -> Self {
         Self {
             id,
             event_room_id,
             conference_room_id,
+            content_id,
         }
     }
 
@@ -601,7 +609,8 @@ impl EstablishQuery {
             UPDATE class
             SET event_room_id = $2,
                 conference_room_id = $3,
-                established = 't'
+                established = 't',
+                content_id = $4
             WHERE id = $1
             RETURNING
                 id,
@@ -621,11 +630,13 @@ impl EstablishQuery {
                 room_events_uri,
                 host AS "host: AgentId",
                 timed_out,
-                original_class_id
+                original_class_id,
+                content_id
             "#,
             self.id,
             self.event_room_id,
             self.conference_room_id,
+            self.content_id.to_string()
         )
         .fetch_one(conn)
         .await
@@ -678,7 +689,8 @@ impl RecreateQuery {
                 room_events_uri,
                 host AS "host: AgentId",
                 timed_out,
-                original_class_id
+                original_class_id,
+                content_id
             "#,
             self.id,
             time,
@@ -763,7 +775,8 @@ impl ClassUpdateQuery {
                 room_events_uri,
                 host AS "host: AgentId",
                 timed_out,
-                original_class_id
+                original_class_id,
+                content_id
             "#,
             self.id,
             time,
@@ -813,7 +826,8 @@ impl RoomCloseQuery {
                 room_events_uri,
                 host AS "host: AgentId",
                 timed_out,
-                original_class_id
+                original_class_id,
+                content_id
             "#,
             self.id,
             self.timed_out
@@ -872,6 +886,33 @@ pub(crate) mod serde {
             let time = ts_seconds_bound_tuple::deserialize(d)?;
             Ok(Time::from(time))
         }
+    }
+}
+
+pub struct UpdateContentIdQuery {
+    id: Uuid,
+    content_id: String,
+}
+
+impl UpdateContentIdQuery {
+    pub fn new(id: Uuid, content_id: String) -> Self {
+        Self { id, content_id }
+    }
+
+    pub async fn execute(self, conn: &mut PgConnection) -> sqlx::Result<()> {
+        sqlx::query!(
+            r"
+                UPDATE class
+                SET content_id = $2
+                WHERE id = $1
+            ",
+            self.id,
+            self.content_id,
+        )
+        .execute(conn)
+        .await?;
+
+        Ok(())
     }
 }
 

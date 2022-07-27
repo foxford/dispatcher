@@ -14,6 +14,7 @@ pub struct P2PInsertQuery {
     properties: Option<ClassProperties>,
     conference_room_id: Uuid,
     event_room_id: Uuid,
+    content_id: String,
 }
 
 impl P2PInsertQuery {
@@ -24,12 +25,13 @@ impl P2PInsertQuery {
         event_room_id: Uuid,
     ) -> Self {
         Self {
-            scope,
+            scope: scope.clone(),
             audience,
             tags: None,
             properties: None,
             conference_room_id,
             event_room_id,
+            content_id: scope,
         }
     }
 
@@ -55,9 +57,9 @@ impl P2PInsertQuery {
             r#"
             INSERT INTO class (
                 scope, audience, time, tags, preserve_history, kind,
-                conference_room_id, event_room_id, properties
+                conference_room_id, event_room_id, properties, content_id
             )
-            VALUES ($1, $2, $3, $4, $5, $6::class_type, $7, $8, $9)
+            VALUES ($1, $2, $3, $4, $5, $6::class_type, $7, $8, $9, $10)
             RETURNING
                 id,
                 scope,
@@ -76,7 +78,8 @@ impl P2PInsertQuery {
                 room_events_uri,
                 host AS "host: AgentId",
                 timed_out,
-                original_class_id
+                original_class_id,
+                content_id
             "#,
             self.scope,
             self.audience,
@@ -87,6 +90,7 @@ impl P2PInsertQuery {
             self.conference_room_id,
             self.event_room_id,
             self.properties.unwrap_or_default() as ClassProperties,
+            self.content_id
         )
         .fetch_one(conn)
         .await

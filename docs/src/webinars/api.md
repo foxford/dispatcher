@@ -73,6 +73,7 @@ on_demand              | json array  | +        | Array with original and modifi
 status                 | string      | +        | Webinar state, possible values: `transcoded`, `adjusted`, `finished`, `real-time`, `closed`
 position               | int         | +        | Previously saved viewership position
 turn_host              | string      | +        | TURN host to connect to if needed
+content_id             | string      |          | Webinar id or scope
 
 Response: status 200 and webinar object as payload.
 

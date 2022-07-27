@@ -33,6 +33,7 @@ struct ClassResponseBody {
     #[serde(skip_serializing_if = "Option::is_none")]
     position: Option<i32>,
     turn_host: TurnHost,
+    content_id: String,
 }
 
 impl ClassResponseBody {
@@ -67,6 +68,7 @@ impl ClassResponseBody {
             timed_out: obj.timed_out(),
             position: None,
             turn_host,
+            content_id: obj.content_id().to_owned(),
         }
     }
 }

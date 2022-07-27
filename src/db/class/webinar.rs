@@ -78,6 +78,7 @@ pub struct WebinarInsertQuery {
     modified_event_room_id: Option<Uuid>,
     reserve: Option<i32>,
     room_events_uri: Option<String>,
+    content_id: String,
 }
 
 impl WebinarInsertQuery {
@@ -89,7 +90,7 @@ impl WebinarInsertQuery {
         event_room_id: Uuid,
     ) -> Self {
         Self {
-            scope,
+            scope: scope.clone(),
             audience,
             time,
             tags: None,
@@ -101,6 +102,7 @@ impl WebinarInsertQuery {
             modified_event_room_id: None,
             reserve: None,
             room_events_uri: None,
+            content_id: scope,
         }
     }
 
@@ -150,9 +152,9 @@ impl WebinarInsertQuery {
                 scope, audience, time, tags, preserve_history, kind,
                 conference_room_id, event_room_id,
                 original_event_room_id, modified_event_room_id, reserve, room_events_uri,
-                properties
+                properties, content_id
             )
-            VALUES ($1, $2, $3, $4, $5, $6::class_type, $7, $8, $9, $10, $11, $12, $13)
+            VALUES ($1, $2, $3, $4, $5, $6::class_type, $7, $8, $9, $10, $11, $12, $13, $14)
             RETURNING
                 id,
                 scope,
@@ -171,7 +173,8 @@ impl WebinarInsertQuery {
                 room_events_uri,
                 host AS "host: AgentId",
                 timed_out,
-                original_class_id
+                original_class_id,
+                content_id
             "#,
             self.scope,
             self.audience,
@@ -186,6 +189,7 @@ impl WebinarInsertQuery {
             self.reserve,
             self.room_events_uri,
             self.properties.unwrap_or_default() as ClassProperties,
+            self.content_id
         )
         .fetch_one(conn)
         .await

@@ -87,7 +87,7 @@ async fn do_create(
         Ok((event_id, conference_id)) => {
             info!(?event_id, ?conference_id, "Created rooms",);
 
-            class::EstablishQuery::new(dummy.id(), event_id, conference_id)
+            class::EstablishQuery::new(dummy.id(), event_id, conference_id, dummy.id())
                 .execute(&mut conn)
                 .await
                 .context("Failed to establish webinar dummy")

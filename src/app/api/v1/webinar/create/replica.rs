@@ -88,6 +88,7 @@ async fn do_create(
                 replica_class.id(),
                 original_class.event_room_id(),
                 conference_room_id,
+                original_class.id(),
             )
             .execute(&mut conn)
             .await
