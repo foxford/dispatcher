@@ -101,9 +101,10 @@ fn make_finder(account_id: &AccountId, request_audience: String) -> Result<Finde
         "storage" => Box::new(|id: &str| {
             if id.starts_with("content.") {
                 match extract_audience_and_scope(id) {
-                    Some(AudienceScope { audience, scope }) => {
-                        Ok(AuthzReadQuery::by_scope(audience, scope))
-                    }
+                    Some(AudienceScope { audience, scope }) => match Uuid::from_str(&scope) {
+                        Ok(id) => Ok(AuthzReadQuery::by_id(id)),
+                        Err(_) => Ok(AuthzReadQuery::by_scope(audience, scope)),
+                    },
                     None => Err(anyhow!("Access to set {:?} isnt proxied", id)),
                 }
             } else if id.starts_with("eventsdump.") {
@@ -319,13 +320,15 @@ fn transform_storage_authz_request(authz_req: &mut AuthzRequest) {
 
 fn transform_nats_gatekeeper_authz_request(authz_req: &mut AuthzRequest) {
     let act = &mut authz_req.action;
+    let authz_object: Option<&str> = authz_req.object.value.get(0).map(|s| s.as_ref());
 
-    // only transform scopes/* objects
-    if authz_req.object.value.get(0).map(|s| s.as_ref()) != Some("scopes") {
+    // only transform scopes/* and classrooms/* objects
+    if authz_object != Some("scopes") || authz_object != Some("classrooms") {
         return;
     }
 
-    // ["scopes", SCOPE, "nats"]::connect       => ["scopes", SCOPE]::read
+    // ["scopes", SCOPE, "nats"]::connect               => ["scopes", SCOPE]::read
+    // ["classrooms", CLASSROOM_ID, "nats"]::connect    => ["classrooms", CLASSROOM_ID]::read
     match authz_req.object.value.get_mut(0..) {
         None => {}
         Some([_scopes, _scope, v]) if act == "connect" && v == "nats" => {
@@ -346,7 +349,7 @@ async fn substitute_class(
     q: impl FnOnce(&str) -> Result<AuthzReadQuery, anyhow::Error>,
 ) -> Result<(), AppError> {
     match authz_req.object.value.get_mut(0..2) {
-        Some([ref mut obj, ref mut set_id]) if obj == "sets" => {
+        Some([obj, set_id]) if obj == "sets" => {
             let query = match q(set_id) {
                 Ok(query) => query,
                 Err(_e) => {
@@ -375,7 +378,7 @@ async fn substitute_class(
                 }
             }
         }
-        Some([ref mut obj, ref mut room_id]) if obj == "rooms" => {
+        Some([obj, room_id]) if obj == "rooms" => {
             let query = match q(room_id) {
                 Ok(query) => query,
                 Err(_) => {
@@ -408,7 +411,7 @@ async fn substitute_class(
             authz_req.object.namespace = state.agent_id().as_account_id().to_string();
             Ok(())
         }
-        Some([ref mut obj, ref mut scope]) if obj == "scopes" => {
+        Some([obj, scope]) if obj == "scopes" => {
             let query = match q(scope) {
                 Ok(query) => query,
                 Err(_e) => {

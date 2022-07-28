@@ -164,7 +164,9 @@ impl MinigroupInsertQuery {
                 room_events_uri,
                 host AS "host: AgentId",
                 timed_out,
-                properties AS "properties: _"
+                properties AS "properties: _",
+                original_class_id,
+                content_id
             "#,
             self.scope,
             self.audience,

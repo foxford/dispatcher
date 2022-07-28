@@ -12,6 +12,9 @@ pub struct TestDb {
 
 impl TestDb {
     pub async fn new() -> Self {
+        #[cfg(feature = "dotenv")]
+        dotenv::dotenv().ok();
+
         let url = var("DATABASE_URL").expect("DATABASE_URL must be specified");
 
         let pool = PgPoolOptions::new()

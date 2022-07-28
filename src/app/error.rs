@@ -33,6 +33,7 @@ pub enum ErrorKind {
     TranscodingFlowFailed,
     EditionFailed,
     ClassPropertyNotFound,
+    AudienceDoesNotMatch,
 }
 
 impl ErrorKind {
@@ -140,6 +141,12 @@ impl From<ErrorKind> for ErrorKindProperties {
                 status: ResponseStatus::NOT_FOUND,
                 kind: "class_property_not_found",
                 title: "Class property not found",
+                is_notify_sentry: false,
+            },
+            ErrorKind::AudienceDoesNotMatch => ErrorKindProperties {
+                status: ResponseStatus::UNPROCESSABLE_ENTITY,
+                kind: "audience_does_not_match",
+                title: "Audience does not match",
                 is_notify_sentry: false,
             },
         }

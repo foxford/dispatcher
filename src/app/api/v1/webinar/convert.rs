@@ -56,6 +56,7 @@ pub async fn convert(
 ) -> AppResult {
     do_convert(ctx.as_ref(), agent_id.as_account_id(), payload).await
 }
+
 async fn do_convert(
     state: &dyn AppContext,
     account_id: &AccountId,
@@ -138,6 +139,7 @@ async fn do_convert(
             .await
             .context("Failed to acquire transaction")
             .error(AppErrorKind::DbQueryFailed)?;
+
         let webinar = query
             .execute(&mut txn)
             .await
@@ -162,6 +164,7 @@ async fn do_convert(
         let event_id = webinar
             .modified_event_room_id()
             .unwrap_or_else(|| webinar.event_room_id());
+
         crate::app::services::update_classroom_id(
             state,
             webinar.id(),

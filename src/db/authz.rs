@@ -13,6 +13,7 @@ enum AuthzClassQueryState {
 pub struct AuthzClass {
     pub id: String,
 }
+
 pub struct AuthzReadQuery {
     state: AuthzClassQueryState,
 }

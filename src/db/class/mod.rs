@@ -166,6 +166,10 @@ pub struct Object {
     room_events_uri: Option<String>,
     host: Option<AgentId>,
     timed_out: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    original_class_id: Option<Uuid>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    content_id: Option<String>,
 }
 
 pub fn default_locked_chat() -> bool {
@@ -240,6 +244,14 @@ impl Object {
 
     pub fn rtc_sharing_policy(&self) -> Option<RtcSharingPolicy> {
         self.kind.into()
+    }
+
+    pub fn original_class_id(&self) -> Option<Uuid> {
+        self.original_class_id
+    }
+
+    pub fn content_id(&self) -> Option<&String> {
+        self.content_id.as_ref()
     }
 }
 
@@ -561,7 +573,9 @@ impl UpdateAdjustedRoomsQuery {
                 reserve,
                 room_events_uri,
                 host AS "host: AgentId",
-                timed_out
+                timed_out,
+                original_class_id,
+                content_id
             "#,
             self.id,
             self.original_event_room_id,
@@ -613,7 +627,9 @@ impl EstablishQuery {
                 reserve,
                 room_events_uri,
                 host AS "host: AgentId",
-                timed_out
+                timed_out,
+                original_class_id,
+                content_id
             "#,
             self.id,
             self.event_room_id,
@@ -650,7 +666,11 @@ impl RecreateQuery {
             Object,
             r#"
             UPDATE class
-            SET time = $2, event_room_id = $3, conference_room_id = $4, original_event_room_id = NULL, modified_event_room_id = NULL
+            SET time = $2,
+                event_room_id = $3,
+                conference_room_id = $4,
+                original_event_room_id = NULL,
+                modified_event_room_id = NULL
             WHERE id = $1
             RETURNING
                 id,
@@ -669,7 +689,9 @@ impl RecreateQuery {
                 reserve,
                 room_events_uri,
                 host AS "host: AgentId",
-                timed_out
+                timed_out,
+                original_class_id,
+                content_id
             "#,
             self.id,
             time,
@@ -753,7 +775,9 @@ impl ClassUpdateQuery {
                 reserve,
                 room_events_uri,
                 host AS "host: AgentId",
-                timed_out
+                timed_out,
+                original_class_id,
+                content_id
             "#,
             self.id,
             time,
@@ -783,7 +807,9 @@ impl RoomCloseQuery {
             Object,
             r#"
             UPDATE class
-            SET time = TSTZRANGE(LOWER(time), LEAST(UPPER(time), NOW())), timed_out = $2
+            SET time = TSTZRANGE(LOWER(time),
+                LEAST(UPPER(time), NOW())),
+                timed_out = $2
             WHERE id = $1
             RETURNING
                 id,
@@ -802,7 +828,9 @@ impl RoomCloseQuery {
                 reserve,
                 room_events_uri,
                 host AS "host: AgentId",
-                timed_out
+                timed_out,
+                original_class_id,
+                content_id
             "#,
             self.id,
             self.timed_out

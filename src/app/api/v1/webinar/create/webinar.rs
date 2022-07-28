@@ -1,16 +1,14 @@
-use std::ops::Bound;
-use std::sync::Arc;
+use std::{ops::Bound, sync::Arc};
 
 use anyhow::Context;
 use axum::extract::{Extension, Json};
 use hyper::{Body, Response};
 use serde_derive::Deserialize;
-use svc_agent::AccountId;
-use svc_agent::Authenticable;
+use svc_agent::{AccountId, Authenticable};
 use svc_utils::extractors::AuthnExtractor;
 use tracing::{error, info, instrument};
 
-use crate::app::api::v1::AppError;
+use crate::app::api::v1::{AppError, AppResult};
 use crate::app::error::ErrorExt;
 use crate::app::error::ErrorKind as AppErrorKind;
 use crate::app::services;
@@ -18,8 +16,6 @@ use crate::app::AppContext;
 use crate::app::{authz::AuthzObject, metrics::AuthorizeMetrics};
 use crate::db::class::ClassProperties;
 use crate::db::class::{self, BoundedDateTimeTuple, ClassType};
-
-use super::AppResult;
 
 #[derive(Deserialize)]
 pub struct WebinarCreatePayload {
@@ -78,14 +74,14 @@ async fn do_create(
     let dummy = insert_webinar_dummy(state, &body).await?;
 
     let time = body.time.unwrap_or((Bound::Unbounded, Bound::Unbounded));
-    let result = services::create_event_and_conference(state, &dummy, &time).await;
+    let result = services::create_event_and_conference_rooms(state, &dummy, &time).await;
     let mut conn = state
         .get_conn()
         .await
         .error(AppErrorKind::DbConnAcquisitionFailed)?;
     let event_room_id = match result {
         Ok((event_id, conference_id)) => {
-            info!(?event_id, ?conference_id, "Created rooms",);
+            info!(?event_id, ?conference_id, "Created rooms");
 
             class::EstablishQuery::new(dummy.id(), event_id, conference_id)
                 .execute(&mut conn)
@@ -128,7 +124,7 @@ async fn insert_webinar_dummy(
     state: &dyn AppContext,
     body: &WebinarCreatePayload,
 ) -> Result<class::Dummy, AppError> {
-    let query = class::InsertQuery::new(
+    let mut query = class::InsertQuery::new(
         ClassType::Webinar,
         body.scope.clone(),
         body.audience.clone(),
@@ -139,17 +135,13 @@ async fn insert_webinar_dummy(
     .properties(body.properties.clone())
     .preserve_history(true);
 
-    let query = if let Some(ref tags) = body.tags {
-        query.tags(tags.clone())
-    } else {
-        query
-    };
+    if let Some(ref tags) = body.tags {
+        query = query.tags(tags.clone())
+    }
 
-    let query = if let Some(reserve) = body.reserve {
-        query.reserve(reserve)
-    } else {
-        query
-    };
+    if let Some(reserve) = body.reserve {
+        query = query.reserve(reserve)
+    }
 
     let mut conn = state
         .get_conn()
@@ -208,7 +200,7 @@ mod tests {
             .expect("Failed to fetch webinar")
             .expect("Webinar not found");
 
-        assert_eq!(new_webinar.reserve(), Some(10),);
+        assert_eq!(new_webinar.reserve(), Some(10));
     }
 
     #[tokio::test]
@@ -255,7 +247,7 @@ mod tests {
             .expect("Failed to fetch webinar")
             .expect("Webinar not found");
 
-        assert_eq!(new_webinar.reserve(), Some(10),);
+        assert_eq!(new_webinar.reserve(), Some(10));
     }
 
     #[tokio::test]

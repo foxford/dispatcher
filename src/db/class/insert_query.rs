@@ -16,6 +16,10 @@ pub struct Dummy {
     properties: ClassProperties,
     preserve_history: bool,
     reserve: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    original_class_id: Option<Uuid>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    content_id: Option<String>,
 }
 
 impl Dummy {
@@ -42,6 +46,10 @@ impl Dummy {
 
     pub fn rtc_sharing_policy(&self) -> Option<RtcSharingPolicy> {
         self.kind.into()
+    }
+
+    pub fn time(&self) -> Time {
+        self.time.clone()
     }
 }
 
@@ -79,6 +87,7 @@ pub struct InsertQuery {
     reserve: Option<i32>,
     room_events_uri: Option<String>,
     established: bool,
+    original_class_id: Option<Uuid>,
 }
 
 impl InsertQuery {
@@ -98,6 +107,7 @@ impl InsertQuery {
             reserve: None,
             room_events_uri: None,
             established: false,
+            original_class_id: None,
         }
     }
 
@@ -129,6 +139,13 @@ impl InsertQuery {
         }
     }
 
+    pub fn original_class_id(self, class_id: Uuid) -> Self {
+        Self {
+            original_class_id: Some(class_id),
+            ..self
+        }
+    }
+
     pub async fn execute(self, conn: &mut PgConnection) -> sqlx::Result<Dummy> {
         let time: PgRange<DateTime<Utc>> = self.time.into();
 
@@ -139,9 +156,9 @@ impl InsertQuery {
                 scope, audience, time, tags, preserve_history, kind,
                 conference_room_id, event_room_id,
                 original_event_room_id, modified_event_room_id, reserve, room_events_uri,
-                established, properties
+                established, properties, original_class_id
             )
-            VALUES ($1, $2, $3, $4, $5, $6::class_type, $7, $8, $9, $10, $11, $12, $13, $14)
+            VALUES ($1, $2, $3, $4, $5, $6::class_type, $7, $8, $9, $10, $11, $12, $13, $14, $15)
             ON CONFLICT (scope, audience)
             DO UPDATE
             SET time = EXCLUDED.time,
@@ -160,7 +177,9 @@ impl InsertQuery {
                 tags,
                 preserve_history,
                 reserve,
-                properties AS "properties: _"
+                properties AS "properties: _",
+                original_class_id,
+                content_id
             "#,
             self.scope,
             self.audience,
@@ -176,6 +195,7 @@ impl InsertQuery {
             self.room_events_uri,
             self.established,
             self.properties.unwrap_or_default() as ClassProperties,
+            self.original_class_id,
         )
         .fetch_one(conn)
         .await
