@@ -18,7 +18,8 @@ pub struct Dummy {
     reserve: Option<i32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     original_class_id: Option<Uuid>,
-    content_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    content_id: Option<String>,
 }
 
 impl Dummy {
@@ -87,14 +88,13 @@ pub struct InsertQuery {
     room_events_uri: Option<String>,
     established: bool,
     original_class_id: Option<Uuid>,
-    content_id: String,
 }
 
 impl InsertQuery {
     pub fn new(kind: ClassType, scope: String, audience: String, time: Time) -> Self {
         Self {
             kind,
-            scope: scope.clone(),
+            scope,
             audience,
             time,
             tags: None,
@@ -108,7 +108,6 @@ impl InsertQuery {
             room_events_uri: None,
             established: false,
             original_class_id: None,
-            content_id: scope,
         }
     }
 
@@ -157,9 +156,9 @@ impl InsertQuery {
                 scope, audience, time, tags, preserve_history, kind,
                 conference_room_id, event_room_id,
                 original_event_room_id, modified_event_room_id, reserve, room_events_uri,
-                established, properties, original_class_id, content_id
+                established, properties, original_class_id
             )
-            VALUES ($1, $2, $3, $4, $5, $6::class_type, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+            VALUES ($1, $2, $3, $4, $5, $6::class_type, $7, $8, $9, $10, $11, $12, $13, $14, $15)
             ON CONFLICT (scope, audience)
             DO UPDATE
             SET time = EXCLUDED.time,
@@ -197,7 +196,6 @@ impl InsertQuery {
             self.established,
             self.properties.unwrap_or_default() as ClassProperties,
             self.original_class_id,
-            self.content_id
         )
         .fetch_one(conn)
         .await

@@ -39,11 +39,11 @@ Response: status 201 and webinar object as payload.
 
 Request parameters:
 
-| Attribute | Type   | Optional | Description |
-|-----------|--------|----------|-------------|
-| class_id  | uuid   |          | Webinar id  |
-| scope     | string |          | Scope       |
-| audience  | string |          | Audience    |
+| Attribute         | Type   | Optional | Description |
+|-------------------|--------|----------|-------------|
+| original_class_id | uuid   |          | Webinar id  |
+| scope             | string |          | Scope       |
+| audience          | string |          | Audience    |
 
 Response: status 201 and webinar object as payload.
 

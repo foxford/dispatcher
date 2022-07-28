@@ -168,7 +168,8 @@ pub struct Object {
     timed_out: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     original_class_id: Option<Uuid>,
-    content_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    content_id: Option<String>,
 }
 
 pub fn default_locked_chat() -> bool {
@@ -249,8 +250,8 @@ impl Object {
         self.original_class_id
     }
 
-    pub fn content_id(&self) -> &str {
-        &self.content_id
+    pub fn content_id(&self) -> Option<&String> {
+        self.content_id.as_ref()
     }
 }
 
@@ -589,16 +590,14 @@ pub struct EstablishQuery {
     id: Uuid,
     event_room_id: Uuid,
     conference_room_id: Uuid,
-    content_id: Uuid,
 }
 
 impl EstablishQuery {
-    pub fn new(id: Uuid, event_room_id: Uuid, conference_room_id: Uuid, content_id: Uuid) -> Self {
+    pub fn new(id: Uuid, event_room_id: Uuid, conference_room_id: Uuid) -> Self {
         Self {
             id,
             event_room_id,
             conference_room_id,
-            content_id,
         }
     }
 
@@ -609,8 +608,7 @@ impl EstablishQuery {
             UPDATE class
             SET event_room_id = $2,
                 conference_room_id = $3,
-                established = 't',
-                content_id = $4
+                established = 't'
             WHERE id = $1
             RETURNING
                 id,
@@ -636,7 +634,6 @@ impl EstablishQuery {
             self.id,
             self.event_room_id,
             self.conference_room_id,
-            self.content_id.to_string()
         )
         .fetch_one(conn)
         .await
@@ -669,7 +666,11 @@ impl RecreateQuery {
             Object,
             r#"
             UPDATE class
-            SET time = $2, event_room_id = $3, conference_room_id = $4, original_event_room_id = NULL, modified_event_room_id = NULL
+            SET time = $2,
+                event_room_id = $3,
+                conference_room_id = $4,
+                original_event_room_id = NULL,
+                modified_event_room_id = NULL
             WHERE id = $1
             RETURNING
                 id,
@@ -806,7 +807,9 @@ impl RoomCloseQuery {
             Object,
             r#"
             UPDATE class
-            SET time = TSTZRANGE(LOWER(time), LEAST(UPPER(time), NOW())), timed_out = $2
+            SET time = TSTZRANGE(LOWER(time),
+                LEAST(UPPER(time), NOW())),
+                timed_out = $2
             WHERE id = $1
             RETURNING
                 id,
@@ -886,33 +889,6 @@ pub(crate) mod serde {
             let time = ts_seconds_bound_tuple::deserialize(d)?;
             Ok(Time::from(time))
         }
-    }
-}
-
-pub struct UpdateContentIdQuery {
-    id: Uuid,
-    content_id: String,
-}
-
-impl UpdateContentIdQuery {
-    pub fn new(id: Uuid, content_id: String) -> Self {
-        Self { id, content_id }
-    }
-
-    pub async fn execute(self, conn: &mut PgConnection) -> sqlx::Result<()> {
-        sqlx::query!(
-            r"
-                UPDATE class
-                SET content_id = $2
-                WHERE id = $1
-            ",
-            self.id,
-            self.content_id,
-        )
-        .execute(conn)
-        .await?;
-
-        Ok(())
     }
 }
 

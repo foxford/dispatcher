@@ -12,7 +12,6 @@ enum AuthzClassQueryState {
 #[derive(Clone, Debug, sqlx::FromRow)]
 pub struct AuthzClass {
     pub id: String,
-    pub original_class_id: Option<String>,
 }
 
 pub struct AuthzReadQuery {
@@ -57,8 +56,7 @@ impl AuthzReadQuery {
                     AuthzClass,
                     r#"
                         SELECT
-                            id::text AS "id!: String",
-                            original_class_id::text AS "original_class_id: String"
+                            id::text AS "id!: String"
                         FROM class
                         WHERE event_room_id = $1
                             OR original_event_room_id = $1
@@ -74,8 +72,7 @@ impl AuthzReadQuery {
                     AuthzClass,
                     r#"
                         SELECT
-                            id::text AS "id!: String",
-                            original_class_id::text AS "original_class_id: String"
+                            id::text AS "id!: String"
                         FROM class
                         WHERE conference_room_id = $1
                     "#,
@@ -89,8 +86,7 @@ impl AuthzReadQuery {
                     AuthzClass,
                     r#"
                         SELECT
-                            class.id::text AS "id!: String",
-                            original_class_id::text AS "original_class_id: String"
+                            class.id::text AS "id!: String"
                         FROM class
                         INNER JOIN recording r
                         ON r.class_id = class.id
@@ -106,8 +102,7 @@ impl AuthzReadQuery {
                     AuthzClass,
                     r#"
                         SELECT
-                            id::text AS "id!: String",
-                            original_class_id::text AS "original_class_id: String"
+                            id::text AS "id!: String"
                         FROM class
                         WHERE audience = $1
                         AND scope = $2
@@ -123,8 +118,7 @@ impl AuthzReadQuery {
                     AuthzClass,
                     r#"
                         SELECT
-                            id::text AS "id!: String",
-                            original_class_id::text AS "original_class_id: String"
+                            id::text AS "id!: String"
                         FROM class
                         WHERE id = $1
                     "#,

@@ -81,7 +81,6 @@ pub struct MinigroupInsertQuery {
     original_event_room_id: Option<Uuid>,
     modified_event_room_id: Option<Uuid>,
     reserve: Option<i32>,
-    content_id: String,
 }
 
 #[cfg(test)]
@@ -94,7 +93,7 @@ impl MinigroupInsertQuery {
         event_room_id: Uuid,
     ) -> Self {
         Self {
-            scope: scope.clone(),
+            scope,
             audience,
             time,
             tags: None,
@@ -105,7 +104,6 @@ impl MinigroupInsertQuery {
             original_event_room_id: None,
             modified_event_room_id: None,
             reserve: None,
-            content_id: scope,
         }
     }
 
@@ -146,9 +144,9 @@ impl MinigroupInsertQuery {
             INSERT INTO class (
                 scope, audience, time, tags, preserve_history, kind, conference_room_id,
                 event_room_id, original_event_room_id, modified_event_room_id, reserve,
-                properties, content_id
+                properties
             )
-            VALUES ($1, $2, $3, $4, $5, $6::class_type, $7, $8, $9, $10, $11, $12, $13)
+            VALUES ($1, $2, $3, $4, $5, $6::class_type, $7, $8, $9, $10, $11, $12)
             RETURNING
                 id,
                 scope,
@@ -182,7 +180,6 @@ impl MinigroupInsertQuery {
             self.modified_event_room_id,
             self.reserve,
             self.properties.unwrap_or_default() as ClassProperties,
-            self.content_id
         )
         .fetch_one(conn)
         .await

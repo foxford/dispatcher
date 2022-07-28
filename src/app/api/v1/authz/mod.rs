@@ -101,9 +101,10 @@ fn make_finder(account_id: &AccountId, request_audience: String) -> Result<Finde
         "storage" => Box::new(|id: &str| {
             if id.starts_with("content.") {
                 match extract_audience_and_scope(id) {
-                    Some(AudienceScope { audience, scope }) => {
-                        Ok(AuthzReadQuery::by_scope(audience, scope))
-                    }
+                    Some(AudienceScope { audience, scope }) => match Uuid::from_str(&scope) {
+                        Ok(id) => Ok(AuthzReadQuery::by_id(id)),
+                        Err(_) => Ok(AuthzReadQuery::by_scope(audience, scope)),
+                    },
                     None => Err(anyhow!("Access to set {:?} isnt proxied", id)),
                 }
             } else if id.starts_with("eventsdump.") {
@@ -368,12 +369,9 @@ async fn substitute_class(
                 .error(AppErrorKind::DbQueryFailed)?
             {
                 None => Ok(()),
-                Some(AuthzClass {
-                    id,
-                    original_class_id,
-                }) => {
+                Some(AuthzClass { id }) => {
                     *obj = "classrooms".into();
-                    *set_id = original_class_id.unwrap_or(id);
+                    *set_id = id;
                     authz_req.object.namespace = state.agent_id().as_account_id().to_string();
 
                     Ok(())
@@ -400,7 +398,7 @@ async fn substitute_class(
                 .error(AppErrorKind::DbQueryFailed)?
             {
                 None => Ok(()),
-                Some(AuthzClass { id, .. }) => {
+                Some(AuthzClass { id }) => {
                     *obj = "classrooms".into();
                     *room_id = id;
                     authz_req.object.namespace = state.agent_id().as_account_id().to_string();
@@ -409,33 +407,9 @@ async fn substitute_class(
                 }
             }
         }
-        Some([obj, classroom_id]) if obj == "classrooms" => {
-            let id = Uuid::from_str(classroom_id)
-                .context("Failed to parse uuid from string")
-                .error(AppErrorKind::SerializationFailed)?;
-
-            let mut conn = state
-                .get_conn()
-                .await
-                .error(AppErrorKind::DbConnAcquisitionFailed)?;
-
-            match AuthzReadQuery::by_id(id)
-                .execute(&mut conn)
-                .await
-                .context("Failed to find classroom")
-                .error(AppErrorKind::DbQueryFailed)?
-            {
-                None => Ok(()),
-                Some(AuthzClass {
-                    id,
-                    original_class_id,
-                }) => {
-                    *classroom_id = original_class_id.unwrap_or(id);
-                    authz_req.object.namespace = state.agent_id().as_account_id().to_string();
-
-                    Ok(())
-                }
-            }
+        Some([obj, ..]) if obj == "classrooms" => {
+            authz_req.object.namespace = state.agent_id().as_account_id().to_string();
+            Ok(())
         }
         Some([obj, scope]) if obj == "scopes" => {
             let query = match q(scope) {
@@ -457,7 +431,7 @@ async fn substitute_class(
                 .error(AppErrorKind::DbQueryFailed)?
             {
                 None => Ok(()),
-                Some(AuthzClass { id, .. }) => {
+                Some(AuthzClass { id }) => {
                     *obj = "classrooms".into();
                     *scope = id;
                     authz_req.object.namespace = state.agent_id().as_account_id().to_string();

@@ -146,12 +146,6 @@ async fn do_convert(
             .context("Failed to find recording")
             .error(AppErrorKind::DbQueryFailed)?;
 
-        crate::db::class::UpdateContentIdQuery::new(webinar.id(), webinar.id().to_string())
-            .execute(&mut txn)
-            .await
-            .context("Failed to update content_id")
-            .error(AppErrorKind::DbQueryFailed)?;
-
         if let Some(recording) = body.recording {
             crate::db::recording::RecordingConvertInsertQuery::new(
                 webinar.id(),

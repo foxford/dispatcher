@@ -54,8 +54,10 @@ impl ClassResponseBody {
     }
 
     pub fn new(obj: &class::Object, turn_host: TurnHost) -> Self {
+        let class_id = obj.original_class_id().unwrap_or_else(|| obj.id());
+
         Self {
-            class_id: obj.original_class_id().unwrap_or_else(|| obj.id()),
+            class_id,
             id: obj.scope().to_owned(),
             real_time: RealTimeObject {
                 conference_room_id: obj.conference_room_id(),
@@ -68,7 +70,7 @@ impl ClassResponseBody {
             timed_out: obj.timed_out(),
             position: None,
             turn_host,
-            content_id: obj.content_id().to_owned(),
+            content_id: obj.content_id().unwrap_or(&class_id.to_string()).to_owned(),
         }
     }
 }

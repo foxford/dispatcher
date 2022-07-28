@@ -11,6 +11,7 @@ use crate::db::class::{self, BoundedDateTimeTuple, ClassType};
 use std::sync::Arc;
 
 use crate::app::api::v1::find_class;
+use crate::app::error::Error;
 use crate::db::class::Object;
 use anyhow::Context;
 use axum::extract::{Extension, Json, Path};
@@ -72,6 +73,14 @@ async fn do_create(
     let original_class = find_class(state, class_id)
         .await
         .error(AppErrorKind::ClassNotFound)?;
+
+    if original_class.audience() != body.audience {
+        return Err(Error::new(
+            AppErrorKind::AudienceDoesNotMatch,
+            anyhow!("original class audience and request audience do not match"),
+        ));
+    }
+
     let replica_class = insert_replica_dummy(state, body.scope, &original_class).await?;
 
     let time: BoundedDateTimeTuple = replica_class.time().into();
@@ -88,7 +97,6 @@ async fn do_create(
                 replica_class.id(),
                 original_class.event_room_id(),
                 conference_room_id,
-                original_class.id(),
             )
             .execute(&mut conn)
             .await
