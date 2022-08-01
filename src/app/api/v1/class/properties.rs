@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use axum::extract::{Extension, Json, Path};
-use hyper::{Body, Response};
 use svc_agent::Authenticable;
 use svc_authn::AccountId;
 use svc_utils::extractors::AuthnExtractor;
@@ -10,12 +9,13 @@ use uuid::Uuid;
 
 use super::*;
 use crate::app::api::v1::find_class;
+use crate::app::api::IntoJsonResponse;
 use crate::app::error::Error;
 use crate::app::error::ErrorExt;
 use crate::app::error::ErrorKind as AppErrorKind;
 use crate::app::AppContext;
 use crate::app::{authz::AuthzObject, metrics::AuthorizeMetrics};
-use crate::db::class::ClassProperties;
+use crate::db::class::KeyValueProperties;
 
 pub async fn read_property(
     Extension(ctx): Extension<Arc<dyn AppContext>>,
@@ -30,7 +30,9 @@ pub async fn read_property(
     }
     .run()
     .await
-    .and_then(|prop| prop.into_response_body("Failed to serialize class property"))
+    .and_then(|prop| {
+        prop.into_json_response("Failed to serialize class property", http::StatusCode::OK)
+    })
 }
 
 struct ReadProperty<'a> {
@@ -81,7 +83,9 @@ pub async fn update_property(
     }
     .run()
     .await
-    .and_then(|props| props.into_response_body("Failed to serialize class properties"))
+    .and_then(|props| {
+        props.into_json_response("Failed to serialize class properties", http::StatusCode::OK)
+    })
 }
 
 struct UpdateProperty<'a> {
@@ -93,7 +97,7 @@ struct UpdateProperty<'a> {
 }
 
 impl UpdateProperty<'_> {
-    async fn run(self) -> Result<ClassProperties, Error> {
+    async fn run(self) -> Result<KeyValueProperties, Error> {
         let class = find_class(self.state, self.class_id)
             .await
             .error(AppErrorKind::ClassNotFound)?;
@@ -150,26 +154,6 @@ impl ClassAction<'_> {
             .measure()?;
 
         Ok(())
-    }
-}
-
-trait IntoResponseBody
-where
-    Self: Sized,
-{
-    fn into_response_body(self, ctx: &'static str) -> AppResult;
-}
-
-impl<T> IntoResponseBody for T
-where
-    T: Serialize,
-{
-    fn into_response_body(self, ctx: &'static str) -> AppResult {
-        let body = serde_json::to_string(&self)
-            .context(ctx)
-            .error(AppErrorKind::SerializationFailed)?;
-        let response = Response::builder().body(Body::from(body)).unwrap();
-        Ok(response)
     }
 }
 
@@ -373,7 +357,7 @@ mod tests {
             .expect("Failed to fetch webinar")
             .expect("Webinar not found");
 
-        let should_be_props: ClassProperties = serde_json::json!({
+        let should_be_props: KeyValueProperties = serde_json::json!({
             "test1": "test3"
         })
         .as_object()

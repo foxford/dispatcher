@@ -4,7 +4,7 @@ use sqlx::postgres::PgConnection;
 use svc_agent::AgentId;
 use uuid::Uuid;
 
-use crate::db::{self, class::ClassProperties, recording::Segments};
+use crate::db::{self, class::KeyValueProperties, recording::Segments};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -15,7 +15,7 @@ pub struct P2P {
     conference_room_id: Uuid,
     event_room_id: Uuid,
     tags: Option<JsonValue>,
-    properties: Option<ClassProperties>,
+    properties: Option<KeyValueProperties>,
 }
 
 impl P2P {
@@ -65,7 +65,7 @@ pub struct Minigroup {
     conference_room_id: Uuid,
     event_room_id: Uuid,
     tags: Option<JsonValue>,
-    properties: Option<ClassProperties>,
+    properties: Option<KeyValueProperties>,
     original_event_room_id: Option<Uuid>,
     modified_event_room_id: Option<Uuid>,
 }
@@ -154,7 +154,7 @@ pub struct Webinar {
     original_event_room_id: Option<Uuid>,
     modified_event_room_id: Option<Uuid>,
     reserve: Option<usize>,
-    properties: Option<ClassProperties>,
+    properties: Option<KeyValueProperties>,
 }
 
 impl Webinar {
@@ -186,7 +186,7 @@ impl Webinar {
         }
     }
 
-    pub fn properties(self, properties: ClassProperties) -> Self {
+    pub fn properties(self, properties: KeyValueProperties) -> Self {
         Self {
             properties: Some(properties),
             ..self

@@ -1,6 +1,9 @@
 use uuid::Uuid;
 
-use crate::{app::turn_host::TurnHost, db::class};
+use crate::{
+    app::turn_host::TurnHost,
+    db::class::{self, KeyValueProperties},
+};
 
 use super::{find, find_by_scope, find_class_by_scope, AppResult};
 
@@ -34,6 +37,8 @@ struct ClassResponseBody {
     position: Option<i32>,
     turn_host: TurnHost,
     content_id: String,
+    properties: KeyValueProperties,
+    account_properties: KeyValueProperties,
 }
 
 impl ClassResponseBody {
@@ -71,6 +76,10 @@ impl ClassResponseBody {
             position: None,
             turn_host,
             content_id: obj.content_id().unwrap_or(&class_id.to_string()).to_owned(),
+            // TODO: filter
+            properties: obj.properties().clone(),
+            // TODO: read and filter
+            account_properties: KeyValueProperties::new(),
         }
     }
 }

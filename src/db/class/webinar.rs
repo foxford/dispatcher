@@ -5,7 +5,7 @@ use serde_json::Value as JsonValue;
 use sqlx::postgres::{types::PgRange, PgConnection};
 use uuid::Uuid;
 
-use super::{AgentId, ClassProperties, ClassType, Object, Time, WrongKind};
+use super::{AgentId, KeyValueProperties, ClassType, Object, Time, WrongKind};
 #[cfg(test)]
 use super::{GenericReadQuery, WebinarType};
 
@@ -23,7 +23,7 @@ pub struct Webinar {
     created_at: DateTime<Utc>,
     #[serde(skip_serializing_if = "Option::is_none")]
     tags: Option<JsonValue>,
-    properties: ClassProperties,
+    properties: KeyValueProperties,
     conference_room_id: Uuid,
     event_room_id: Uuid,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -70,7 +70,7 @@ pub struct WebinarInsertQuery {
     audience: String,
     time: Time,
     tags: Option<JsonValue>,
-    properties: Option<ClassProperties>,
+    properties: Option<KeyValueProperties>,
     preserve_history: bool,
     conference_room_id: Uuid,
     event_room_id: Uuid,
@@ -111,7 +111,7 @@ impl WebinarInsertQuery {
         }
     }
 
-    pub fn properties(self, properties: ClassProperties) -> Self {
+    pub fn properties(self, properties: KeyValueProperties) -> Self {
         Self {
             properties: Some(properties),
             ..self
@@ -186,7 +186,7 @@ impl WebinarInsertQuery {
             self.modified_event_room_id,
             self.reserve,
             self.room_events_uri,
-            self.properties.unwrap_or_default() as ClassProperties,
+            self.properties.unwrap_or_default() as KeyValueProperties,
         )
         .fetch_one(conn)
         .await

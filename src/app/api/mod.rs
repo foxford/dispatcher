@@ -1,7 +1,8 @@
 use std::sync::Arc;
 
+use anyhow::Context;
 use axum::extract::{Extension, Path, Query};
-use http::Uri;
+use http::{StatusCode, Uri};
 use hyper::{Body, Request, Response};
 use percent_encoding::{percent_encode, NON_ALPHANUMERIC};
 use serde_derive::Deserialize;
@@ -183,6 +184,30 @@ fn build_back_url<B>(request: &Request<B>) -> Result<Uri, AppError> {
         .error(AppErrorKind::InvalidParameter)?;
 
     Ok(absolute_uri)
+}
+
+trait IntoJsonResponse
+where
+    Self: Sized,
+{
+    fn into_json_response(self, ctx: &'static str, status_code: StatusCode) -> AppResult;
+}
+
+impl<T> IntoJsonResponse for T
+where
+    T: serde::Serialize,
+{
+    fn into_json_response(self, ctx: &'static str, status_code: StatusCode) -> AppResult {
+        let body = serde_json::to_string(&self)
+            .context(ctx)
+            .error(AppErrorKind::SerializationFailed)?;
+        let response = Response::builder()
+            .status(status_code)
+            .header(http::header::CONTENT_TYPE, "application/json")
+            .body(Body::from(body))
+            .unwrap();
+        Ok(response)
+    }
 }
 
 pub mod v1;

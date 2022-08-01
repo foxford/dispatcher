@@ -198,3 +198,4 @@ pub mod p2p;
 #[cfg(test)]
 mod tests;
 pub mod webinar;
+pub mod account;

@@ -6,6 +6,7 @@ use axum::{
 };
 use svc_utils::middleware::{CorsLayer, LogLayer, MeteredRoute};
 
+use super::api::v1::account;
 use super::api::v1::authz::proxy as proxy_authz;
 use super::api::v1::class::{
     commit_edition, create_timestamp, read, read_by_scope, read_property, recreate, update,
@@ -160,6 +161,12 @@ fn utils_router() -> Router {
         .metered_route(
             "/api/v1/audiences/:audience/classes/:scope/editions/:id",
             options(read_options).post(commit_edition),
+        )
+        .metered_route(
+            "/api/v1/account/properties/:property_id",
+            options(read_options)
+                .get(account::read_property)
+                .put(account::update_property),
         )
         .layer(CorsLayer)
 }

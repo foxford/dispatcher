@@ -34,6 +34,8 @@ pub enum ErrorKind {
     EditionFailed,
     ClassPropertyNotFound,
     AudienceDoesNotMatch,
+    AccountNotFound,
+    AccountPropertyNotFound,
 }
 
 impl ErrorKind {
@@ -147,6 +149,18 @@ impl From<ErrorKind> for ErrorKindProperties {
                 status: ResponseStatus::UNPROCESSABLE_ENTITY,
                 kind: "audience_does_not_match",
                 title: "Audience does not match",
+                is_notify_sentry: false,
+            },
+            ErrorKind::AccountNotFound => ErrorKindProperties {
+                status: ResponseStatus::NOT_FOUND,
+                kind: "account_not_found",
+                title: "Account not found",
+                is_notify_sentry: false,
+            },
+            ErrorKind::AccountPropertyNotFound => ErrorKindProperties {
+                status: ResponseStatus::NOT_FOUND,
+                kind: "account_property_not_found",
+                title: "Account property not found",
                 is_notify_sentry: false,
             },
         }

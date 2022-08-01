@@ -18,7 +18,7 @@ use crate::app::AppContext;
 use crate::app::{authz::AuthzObject, metrics::AuthorizeMetrics};
 use crate::clients::{conference::ConferenceRoomResponse, event::EventRoomResponse};
 use crate::db::class::BoundedDateTimeTuple;
-use crate::db::class::ClassProperties;
+use crate::db::class::KeyValueProperties;
 use crate::db::recording::Segments;
 
 use super::AppResult;
@@ -33,7 +33,7 @@ pub struct WebinarConvertObject {
     time: Option<BoundedDateTimeTuple>,
     tags: Option<serde_json::Value>,
     #[serde(default)]
-    properties: ClassProperties,
+    properties: KeyValueProperties,
     original_event_room_id: Option<Uuid>,
     modified_event_room_id: Option<Uuid>,
     recording: Option<RecordingConvertObject>,
@@ -256,7 +256,7 @@ mod tests {
             audience: USR_AUDIENCE.to_string(),
             time: None,
             tags: None,
-            properties: ClassProperties::default(),
+            properties: KeyValueProperties::default(),
             event_room_id,
             conference_room_id,
             original_event_room_id: None,
@@ -289,7 +289,7 @@ mod tests {
             audience: USR_AUDIENCE.to_string(),
             time: Some((Bound::Unbounded, Bound::Unbounded)),
             tags: Some(json!({"scope": "whatever"})),
-            properties: ClassProperties::default(),
+            properties: KeyValueProperties::default(),
             event_room_id,
             conference_room_id,
             original_event_room_id: None,
@@ -333,7 +333,7 @@ mod tests {
             audience: USR_AUDIENCE.to_string(),
             time: Some((Bound::Unbounded, Bound::Unbounded)),
             tags: Some(json!({"scope": "whatever"})),
-            properties: ClassProperties::default(),
+            properties: KeyValueProperties::default(),
             event_room_id,
             conference_room_id,
             original_event_room_id: None,
@@ -385,7 +385,7 @@ mod tests {
             audience: USR_AUDIENCE.to_string(),
             time: None,
             tags: None,
-            properties: ClassProperties::default(),
+            properties: KeyValueProperties::default(),
             event_room_id,
             conference_room_id,
             original_event_room_id: None,

@@ -18,7 +18,7 @@ use crate::app::metrics::AuthorizeMetrics;
 use crate::app::services;
 use crate::app::AppContext;
 use crate::db::class;
-use crate::db::class::ClassProperties;
+use crate::db::class::KeyValueProperties;
 use crate::db::class::ClassType;
 
 use super::AppError;
@@ -30,7 +30,7 @@ pub struct P2PCreatePayload {
     audience: String,
     tags: Option<serde_json::Value>,
     #[serde(default)]
-    properties: ClassProperties,
+    properties: KeyValueProperties,
     #[serde(default = "class::default_whiteboard")]
     whiteboard: bool,
 }
@@ -165,7 +165,7 @@ pub struct P2PConvertObject {
     conference_room_id: Uuid,
     tags: Option<serde_json::Value>,
     #[serde(default)]
-    properties: ClassProperties,
+    properties: KeyValueProperties,
 }
 
 pub async fn convert(
@@ -263,7 +263,7 @@ mod tests {
             scope: scope.clone(),
             audience: USR_AUDIENCE.to_string(),
             tags: None,
-            properties: ClassProperties::default(),
+            properties: KeyValueProperties::default(),
             whiteboard: true,
         };
 
@@ -293,7 +293,7 @@ mod tests {
             scope: scope.clone(),
             audience: USR_AUDIENCE.to_string(),
             tags: None,
-            properties: ClassProperties::default(),
+            properties: KeyValueProperties::default(),
             whiteboard: true,
         };
 
@@ -317,7 +317,7 @@ mod tests {
 
         let scope = random_string();
 
-        let mut properties: ClassProperties = serde_json::Map::new().into();
+        let mut properties: KeyValueProperties = serde_json::Map::new().into();
         properties.insert("is_adult".into(), true.into());
 
         let state = Arc::new(state);

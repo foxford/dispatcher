@@ -25,3 +25,4 @@ pub(crate) mod frontend;
 pub(crate) mod record_timestamp;
 pub(crate) mod recording;
 pub(crate) mod scope;
+pub(crate) mod account;

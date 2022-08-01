@@ -14,7 +14,7 @@ use crate::app::error::ErrorKind as AppErrorKind;
 use crate::app::services;
 use crate::app::AppContext;
 use crate::app::{authz::AuthzObject, metrics::AuthorizeMetrics};
-use crate::db::class::ClassProperties;
+use crate::db::class::KeyValueProperties;
 use crate::db::class::{self, BoundedDateTimeTuple, ClassType};
 
 #[derive(Deserialize)]
@@ -25,7 +25,7 @@ pub struct WebinarCreatePayload {
     time: Option<BoundedDateTimeTuple>,
     tags: Option<serde_json::Value>,
     #[serde(default)]
-    properties: ClassProperties,
+    properties: KeyValueProperties,
     reserve: Option<i32>,
     #[serde(default = "class::default_locked_chat")]
     locked_chat: bool,
@@ -183,7 +183,7 @@ mod tests {
             audience: USR_AUDIENCE.to_string(),
             time: None,
             tags: None,
-            properties: ClassProperties::default(),
+            properties: KeyValueProperties::default(),
             reserve: Some(10),
             locked_chat: true,
         };
@@ -230,7 +230,7 @@ mod tests {
             audience: USR_AUDIENCE.to_string(),
             time: Some(time),
             tags: None,
-            properties: ClassProperties::default(),
+            properties: KeyValueProperties::default(),
             reserve: Some(10),
             locked_chat: true,
         };
@@ -264,7 +264,7 @@ mod tests {
             audience: USR_AUDIENCE.to_string(),
             time: None,
             tags: None,
-            properties: ClassProperties::default(),
+            properties: KeyValueProperties::default(),
             reserve: Some(10),
             locked_chat: true,
         };
@@ -289,7 +289,7 @@ mod tests {
 
         let scope = random_string();
 
-        let mut properties: ClassProperties = serde_json::Map::new().into();
+        let mut properties: KeyValueProperties = serde_json::Map::new().into();
         properties.insert("is_adult".into(), true.into());
 
         let state = Arc::new(state);
