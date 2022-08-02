@@ -28,14 +28,14 @@ pub struct PropertyFilters {
 pub async fn read<T: AsClassType>(
     ctx: Extension<Arc<dyn AppContext>>,
     Path(id): Path<Uuid>,
-    Query(property_filters): Query<PropertyFilters>,
+    property_filters: Option<Query<PropertyFilters>>,
     AuthnExtractor(agent_id): AuthnExtractor,
 ) -> AppResult {
     do_read::<T>(
         ctx.0.as_ref(),
         agent_id.as_account_id(),
         id,
-        property_filters,
+        property_filters.map(|pf| pf.0).unwrap_or_default(),
     )
     .await
 }
@@ -56,7 +56,7 @@ async fn do_read<T: AsClassType>(
 pub async fn read_by_scope<T: AsClassType>(
     ctx: Extension<Arc<dyn AppContext>>,
     Path((audience, scope)): Path<(String, String)>,
-    Query(property_filters): Query<PropertyFilters>,
+    property_filters: Option<Query<PropertyFilters>>,
     AuthnExtractor(agent_id): AuthnExtractor,
 ) -> AppResult {
     do_read_by_scope::<T>(
@@ -64,7 +64,7 @@ pub async fn read_by_scope<T: AsClassType>(
         agent_id.as_account_id(),
         &audience,
         &scope,
-        property_filters,
+        property_filters.map(|pf| pf.0).unwrap_or_default(),
     )
     .await
 }
