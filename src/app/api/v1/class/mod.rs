@@ -58,6 +58,32 @@ impl ClassResponseBody {
         self.position = Some(position_secs);
     }
 
+    pub fn filter_class_properties(&mut self, keys: &Vec<String>) {
+        let mut props = KeyValueProperties::new();
+
+        for key in keys {
+            if let Some((key, value)) = self.properties.remove_entry(key) {
+                props.insert(key, value);
+            }
+        }
+
+        self.properties = props;
+    }
+
+    pub fn set_account_properties(
+        &mut self,
+        mut account_properties: KeyValueProperties,
+        keys: &Vec<String>,
+    ) {
+        self.account_properties.clear();
+
+        for key in keys {
+            if let Some((key, value)) = account_properties.remove_entry(key) {
+                self.account_properties.insert(key, value);
+            }
+        }
+    }
+
     pub fn new(obj: &class::Object, turn_host: TurnHost) -> Self {
         let class_id = obj.original_class_id().unwrap_or_else(|| obj.id());
 
@@ -76,9 +102,7 @@ impl ClassResponseBody {
             position: None,
             turn_host,
             content_id: obj.content_id().unwrap_or(&class_id.to_string()).to_owned(),
-            // TODO: filter
             properties: obj.properties().clone(),
-            // TODO: read and filter
             account_properties: KeyValueProperties::new(),
         }
     }

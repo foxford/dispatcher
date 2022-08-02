@@ -1,9 +1,11 @@
 use std::sync::Arc;
 
 use anyhow::Context;
+use axum::extract::Query;
 use axum::extract::{Extension, Path};
 use chrono::Utc;
 use hyper::{Body, Response};
+use serde::Deserialize;
 use svc_agent::Authenticable;
 use svc_authn::AccountId;
 use svc_utils::extractors::AuthnExtractor;
@@ -17,32 +19,54 @@ use crate::app::AppContext;
 use crate::app::{authz::AuthzObject, metrics::AuthorizeMetrics};
 use crate::db::class::{AsClassType, Object as Class};
 
+#[derive(Deserialize, Default)]
+pub struct PropertyFilters {
+    class_keys: Vec<String>,
+    account_keys: Vec<String>,
+}
+
 pub async fn read<T: AsClassType>(
     ctx: Extension<Arc<dyn AppContext>>,
     Path(id): Path<Uuid>,
+    Query(property_filters): Query<PropertyFilters>,
     AuthnExtractor(agent_id): AuthnExtractor,
 ) -> AppResult {
-    do_read::<T>(ctx.0.as_ref(), agent_id.as_account_id(), id).await
+    do_read::<T>(
+        ctx.0.as_ref(),
+        agent_id.as_account_id(),
+        id,
+        property_filters,
+    )
+    .await
 }
 
 async fn do_read<T: AsClassType>(
     state: &dyn AppContext,
     account_id: &AccountId,
     id: Uuid,
+    property_filters: PropertyFilters,
 ) -> AppResult {
     let class = find::<T>(state, id)
         .await
         .error(AppErrorKind::ClassNotFound)?;
 
-    do_read_inner::<T>(state, account_id, class).await
+    do_read_inner::<T>(state, account_id, class, property_filters).await
 }
 
 pub async fn read_by_scope<T: AsClassType>(
     ctx: Extension<Arc<dyn AppContext>>,
     Path((audience, scope)): Path<(String, String)>,
+    Query(property_filters): Query<PropertyFilters>,
     AuthnExtractor(agent_id): AuthnExtractor,
 ) -> AppResult {
-    do_read_by_scope::<T>(ctx.0.as_ref(), agent_id.as_account_id(), &audience, &scope).await
+    do_read_by_scope::<T>(
+        ctx.0.as_ref(),
+        agent_id.as_account_id(),
+        &audience,
+        &scope,
+        property_filters,
+    )
+    .await
 }
 
 async fn do_read_by_scope<T: AsClassType>(
@@ -50,6 +74,7 @@ async fn do_read_by_scope<T: AsClassType>(
     account_id: &AccountId,
     audience: &str,
     scope: &str,
+    property_filters: PropertyFilters,
 ) -> AppResult {
     let class = match find_by_scope::<T>(state, audience, scope).await {
         Ok(class) => class,
@@ -62,13 +87,14 @@ async fn do_read_by_scope<T: AsClassType>(
         }
     };
 
-    do_read_inner::<T>(state, account_id, class).await
+    do_read_inner::<T>(state, account_id, class, property_filters).await
 }
 
 async fn do_read_inner<T: AsClassType>(
     state: &dyn AppContext,
     account_id: &AccountId,
     class: Class,
+    property_filters: PropertyFilters,
 ) -> AppResult {
     let object = AuthzObject::new(&["classrooms", &class.id().to_string()]).into();
     state
@@ -94,6 +120,24 @@ async fn do_read_inner<T: AsClassType>(
     };
 
     let mut class_body = ClassResponseBody::new(&class, state.turn_host_selector().get(&class));
+    class_body.filter_class_properties(&property_filters.class_keys);
+
+    let account = {
+        let mut conn = state
+            .get_conn()
+            .await
+            .error(AppErrorKind::DbConnAcquisitionFailed)?;
+        crate::db::account::ReadQuery::by_id(account_id)
+            .execute(&mut conn)
+            .await
+            .context("Failed to fetch account")
+            .error(AppErrorKind::DbQueryFailed)?
+    };
+
+    if let Some(account) = account {
+        class_body
+            .set_account_properties(account.into_properties(), &property_filters.account_keys);
+    }
 
     let class_end = class.time().end();
     if let Some(recording) = recordings.first() {
@@ -164,7 +208,10 @@ mod tests {
 
     use super::*;
     use crate::{
-        db::class::{P2PType, WebinarType},
+        db::{
+            account::UpsertQuery,
+            class::{P2PType, WebinarType},
+        },
         test_helpers::prelude::*,
     };
     use serde_json::Value;
@@ -177,9 +224,14 @@ mod tests {
 
         let state = Arc::new(state);
 
-        do_read::<WebinarType>(state.as_ref(), agent.account_id(), Uuid::new_v4())
-            .await
-            .expect_err("Unexpectedly succeeded");
+        do_read::<WebinarType>(
+            state.as_ref(),
+            agent.account_id(),
+            Uuid::new_v4(),
+            PropertyFilters::default(),
+        )
+        .await
+        .expect_err("Unexpectedly succeeded");
     }
 
     #[tokio::test]
@@ -213,9 +265,14 @@ mod tests {
         state.set_turn_hosts(&["turn0"]);
         let state = Arc::new(state);
 
-        let r = do_read::<WebinarType>(state.as_ref(), agent.account_id(), webinar.id())
-            .await
-            .expect("Failed to read webinar");
+        let r = do_read::<WebinarType>(
+            state.as_ref(),
+            agent.account_id(),
+            webinar.id(),
+            PropertyFilters::default(),
+        )
+        .await
+        .expect("Failed to read webinar");
 
         let r = hyper::body::to_bytes(r.into_body()).await.unwrap();
         let v = serde_json::from_slice::<Value>(&r[..]).expect("Failed to parse json");
@@ -254,9 +311,14 @@ mod tests {
 
         let mut turns = vec![];
         for _ in 0..5 {
-            let r = do_read::<P2PType>(state.as_ref(), agent.account_id(), p2p.id())
-                .await
-                .expect("Failed to read p2p");
+            let r = do_read::<P2PType>(
+                state.as_ref(),
+                agent.account_id(),
+                p2p.id(),
+                PropertyFilters::default(),
+            )
+            .await
+            .expect("Failed to read p2p");
 
             let r = hyper::body::to_bytes(r.into_body()).await.unwrap();
             let v = serde_json::from_slice::<Value>(&r[..]).expect("Failed to parse json");
@@ -264,5 +326,174 @@ mod tests {
         }
 
         assert_eq!(turns.into_iter().collect::<HashSet<_>>().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn read_class_properties() {
+        let agent = TestAgent::new("web", "user1", USR_AUDIENCE);
+        let db_pool = TestDb::new().await;
+
+        let mut properties = KeyValueProperties::new();
+        properties.insert("test".to_owned(), serde_json::json!("test"));
+
+        let webinar = {
+            let mut conn = db_pool.get_conn().await;
+            let webinar = factory::Webinar::new(
+                random_string(),
+                USR_AUDIENCE.to_string(),
+                (Bound::Unbounded, Bound::Unbounded).into(),
+                Uuid::new_v4(),
+                Uuid::new_v4(),
+            )
+            .properties(properties)
+            .insert(&mut conn)
+            .await;
+
+            webinar
+        };
+
+        let mut authz = TestAuthz::new();
+        authz.allow(
+            agent.account_id(),
+            vec!["classrooms", &webinar.id().to_string()],
+            "read",
+        );
+
+        let mut state = TestState::new_with_pool(db_pool, authz);
+        state.set_turn_hosts(&["turn0"]);
+        let state = Arc::new(state);
+
+        let r = do_read::<WebinarType>(
+            state.as_ref(),
+            agent.account_id(),
+            webinar.id(),
+            PropertyFilters {
+                class_keys: vec!["test".to_owned()],
+                account_keys: Vec::new(),
+            },
+        )
+        .await
+        .expect("Failed to read webinar");
+
+        let r = hyper::body::to_bytes(r.into_body()).await.unwrap();
+        let v = serde_json::from_slice::<Value>(&r[..]).expect("Failed to parse json");
+        assert_eq!(
+            v.get("properties").unwrap().as_object(),
+            serde_json::json!({"test": "test"}).as_object()
+        );
+        assert_eq!(
+            v.get("account_properties").unwrap().as_object(),
+            serde_json::json!({}).as_object()
+        );
+
+        let r = do_read::<WebinarType>(
+            state.as_ref(),
+            agent.account_id(),
+            webinar.id(),
+            PropertyFilters {
+                class_keys: vec![],
+                account_keys: vec![],
+            },
+        )
+        .await
+        .expect("Failed to read webinar");
+
+        let r = hyper::body::to_bytes(r.into_body()).await.unwrap();
+        let v = serde_json::from_slice::<Value>(&r[..]).expect("Failed to parse json");
+        assert_eq!(
+            v.get("properties").unwrap().as_object(),
+            serde_json::json!({}).as_object()
+        );
+        assert_eq!(
+            v.get("account_properties").unwrap().as_object(),
+            serde_json::json!({}).as_object()
+        )
+    }
+
+    #[tokio::test]
+    async fn read_account_properties() {
+        let agent = TestAgent::new("web", "user1", USR_AUDIENCE);
+        let db_pool = TestDb::new().await;
+
+        let mut properties = KeyValueProperties::new();
+        properties.insert("test".to_owned(), serde_json::json!("test"));
+
+        let webinar = {
+            let mut conn = db_pool.get_conn().await;
+            let webinar = factory::Webinar::new(
+                random_string(),
+                USR_AUDIENCE.to_string(),
+                (Bound::Unbounded, Bound::Unbounded).into(),
+                Uuid::new_v4(),
+                Uuid::new_v4(),
+            )
+            .properties(properties.clone())
+            .insert(&mut conn)
+            .await;
+
+            UpsertQuery::new(agent.account_id(), properties)
+                .execute(&mut conn)
+                .await
+                .expect("Failed to set account properties");
+
+            webinar
+        };
+
+        let mut authz = TestAuthz::new();
+        authz.allow(
+            agent.account_id(),
+            vec!["classrooms", &webinar.id().to_string()],
+            "read",
+        );
+
+        let mut state = TestState::new_with_pool(db_pool, authz);
+        state.set_turn_hosts(&["turn0"]);
+        let state = Arc::new(state);
+
+        let r = do_read::<WebinarType>(
+            state.as_ref(),
+            agent.account_id(),
+            webinar.id(),
+            PropertyFilters {
+                class_keys: vec!["test".to_owned()],
+                account_keys: vec!["test".to_owned()],
+            },
+        )
+        .await
+        .expect("Failed to read webinar");
+
+        let r = hyper::body::to_bytes(r.into_body()).await.unwrap();
+        let v = serde_json::from_slice::<Value>(&r[..]).expect("Failed to parse json");
+        assert_eq!(
+            v.get("properties").unwrap().as_object(),
+            serde_json::json!({"test": "test"}).as_object()
+        );
+        assert_eq!(
+            v.get("account_properties").unwrap().as_object(),
+            serde_json::json!({"test": "test"}).as_object()
+        );
+
+        let r = do_read::<WebinarType>(
+            state.as_ref(),
+            agent.account_id(),
+            webinar.id(),
+            PropertyFilters {
+                class_keys: vec!["test".to_owned()],
+                account_keys: vec![],
+            },
+        )
+        .await
+        .expect("Failed to read webinar");
+
+        let r = hyper::body::to_bytes(r.into_body()).await.unwrap();
+        let v = serde_json::from_slice::<Value>(&r[..]).expect("Failed to parse json");
+        assert_eq!(
+            v.get("properties").unwrap().as_object(),
+            serde_json::json!({"test": "test"}).as_object()
+        );
+        assert_eq!(
+            v.get("account_properties").unwrap().as_object(),
+            serde_json::json!({}).as_object()
+        );
     }
 }

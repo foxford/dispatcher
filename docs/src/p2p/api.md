@@ -42,6 +42,11 @@ Attribute            | Type        | Optional | Description
 audience             | string      |          | P2p audience
 scope                | string      |          | P2p scope
 
+Query parameter        | Type        | Optional | Description
+---------------------- | ----------- | -------- | --------------
+class_keys             | [string]    | +        | List of classroom properties to fetch
+account_keys           | [string]    | +        | List of account properties to fetch
+
 Response:
 
 Attribute              | Type        | Optional | Description

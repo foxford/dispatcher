@@ -49,6 +49,11 @@ Attribute            | Type        | Optional | Description
 audience             | string      |          | Minigroup audience
 scope                | string      |          | Minigroup scope
 
+Query parameter        | Type        | Optional | Description
+---------------------- | ----------- | -------- | --------------
+class_keys             | [string]    | +        | List of minigroup properties to fetch
+account_keys           | [string]    | +        | List of account properties to fetch
+
 Response:
 
 Attribute              | Type        | Optional | Description
