@@ -323,7 +323,7 @@ fn transform_nats_gatekeeper_authz_request(authz_req: &mut AuthzRequest) {
     let authz_object: Option<&str> = authz_req.object.value.get(0).map(|s| s.as_ref());
 
     // only transform scopes/* and classrooms/* objects
-    if authz_object != Some("scopes") || authz_object != Some("classrooms") {
+    if authz_object != Some("scopes") && authz_object != Some("classrooms") {
         return;
     }
 
@@ -487,7 +487,7 @@ fn test_extract_rtc_id() {
 
 #[test]
 fn test_transform_event_authz_request() {
-    //  ["rooms", ROOM_ID, "agents"]::list
+    // ["rooms", ROOM_ID, "agents"]::list
     // becomes ["rooms", ROOM_ID]::read
     let mut authz_req: AuthzRequest = serde_json::from_str(
         r#"
@@ -507,7 +507,7 @@ fn test_transform_event_authz_request() {
 
 #[test]
 fn test_transform_event_authz_request_2() {
-    //  ["rooms", ROOM_ID, "events", "draw_lock", "authors", account_id]::create
+    // ["rooms", ROOM_ID, "events", "draw_lock", "authors", account_id]::create
     // becomes ["rooms", ROOM_ID, "events", "draw", "authors", account_id]::create
     let mut authz_req: AuthzRequest = serde_json::from_str(
         r#"
@@ -530,7 +530,7 @@ fn test_transform_event_authz_request_2() {
 
 #[test]
 fn test_transform_event_authz_request_3() {
-    //  ["classrooms", ROOM_ID, "events", "draw_lock", "authors", account_id]::create
+    // ["classrooms", ROOM_ID, "events", "draw_lock", "authors", account_id]::create
     // becomes ["classrooms", ROOM_ID, "events", "draw", "authors", account_id]::create
     let mut authz_req: AuthzRequest = serde_json::from_str(
         r#"
@@ -555,5 +555,49 @@ fn test_transform_event_authz_request_3() {
             "authors",
             "account_id"
         ]
+    );
+}
+
+#[test]
+fn test_transform_nats_gatekeeper_authz_request() {
+    // ["scopes", SCOPE, "nats"]::connect
+    // ["classrooms", CLASSROOM_ID, "nats"]::connect
+    // becomes
+    // ["scopes", SCOPE]::read
+    // ["classrooms", CLASSROOM_ID]::read
+    let mut authz_req: AuthzRequest = serde_json::from_str(
+        r#"
+        {
+            "subject": {"namespace": "foobar", "value": "barbaz"},
+            "object": {"namespace": "foobar", "value": [ "scopes", "Z2lkOi8vc3RvZWdlL1VsbXM6OlJvb21zOjpQMlAvNTgwNg", "nats"]},
+            "action": "connect"
+        }
+    "#,
+    )
+    .unwrap();
+    transform_nats_gatekeeper_authz_request(&mut authz_req);
+
+    assert_eq!(authz_req.action, "read");
+    assert_eq!(
+        authz_req.object.value,
+        ["scopes", "Z2lkOi8vc3RvZWdlL1VsbXM6OlJvb21zOjpQMlAvNTgwNg"]
+    );
+
+    let mut authz_req: AuthzRequest = serde_json::from_str(
+        r#"
+        {
+            "subject": {"namespace": "foobar", "value": "barbaz"},
+            "object": {"namespace": "foobar", "value": [ "classrooms", "f793a4da-c726-4a55-b069-f5b19c13597d", "nats"]},
+            "action": "connect"
+        }
+    "#,
+    )
+        .unwrap();
+    transform_nats_gatekeeper_authz_request(&mut authz_req);
+
+    assert_eq!(authz_req.action, "read");
+    assert_eq!(
+        authz_req.object.value,
+        ["classrooms", "f793a4da-c726-4a55-b069-f5b19c13597d"]
     );
 }
