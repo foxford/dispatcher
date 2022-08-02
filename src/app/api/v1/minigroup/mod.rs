@@ -16,8 +16,8 @@ use crate::app::error::ErrorKind as AppErrorKind;
 use crate::app::metrics::AuthorizeMetrics;
 use crate::app::services;
 use crate::app::AppContext;
-use crate::db::class::KeyValueProperties;
 use crate::db::class::ClassType;
+use crate::db::class::KeyValueProperties;
 use crate::db::class::{self, BoundedDateTimeTuple};
 
 use super::AppError;

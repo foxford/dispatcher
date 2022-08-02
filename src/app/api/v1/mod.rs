@@ -191,6 +191,7 @@ async fn find_by_scope<T: AsClassType>(
     Ok(webinar)
 }
 
+pub mod account;
 pub mod authz;
 pub mod class;
 pub mod minigroup;
@@ -198,4 +199,3 @@ pub mod p2p;
 #[cfg(test)]
 mod tests;
 pub mod webinar;
-pub mod account;

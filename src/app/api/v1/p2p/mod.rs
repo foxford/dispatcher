@@ -18,8 +18,8 @@ use crate::app::metrics::AuthorizeMetrics;
 use crate::app::services;
 use crate::app::AppContext;
 use crate::db::class;
-use crate::db::class::KeyValueProperties;
 use crate::db::class::ClassType;
+use crate::db::class::KeyValueProperties;
 
 use super::AppError;
 use super::AppResult;

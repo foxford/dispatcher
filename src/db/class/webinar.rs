@@ -5,7 +5,7 @@ use serde_json::Value as JsonValue;
 use sqlx::postgres::{types::PgRange, PgConnection};
 use uuid::Uuid;
 
-use super::{AgentId, KeyValueProperties, ClassType, Object, Time, WrongKind};
+use super::{AgentId, ClassType, KeyValueProperties, Object, Time, WrongKind};
 #[cfg(test)]
 use super::{GenericReadQuery, WebinarType};
 

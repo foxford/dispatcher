@@ -63,7 +63,7 @@ impl std::convert::TryFrom<Object> for Minigroup {
 }
 
 #[cfg(test)]
-use super::{KeyValueProperties, GenericReadQuery, MinigroupType};
+use super::{GenericReadQuery, KeyValueProperties, MinigroupType};
 
 #[cfg(test)]
 pub type MinigroupReadQuery = GenericReadQuery<MinigroupType>;
