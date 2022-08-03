@@ -19,23 +19,53 @@ use crate::app::AppContext;
 use crate::app::{authz::AuthzObject, metrics::AuthorizeMetrics};
 use crate::db::class::{AsClassType, Object as Class};
 
-#[derive(Deserialize, Default)]
+#[derive(Default, Debug, PartialEq)]
 pub struct PropertyFilters {
     class_keys: Vec<String>,
     account_keys: Vec<String>,
 }
 
+fn group_same_keys(pairs: &[(&str, &str)], key: &str) -> Vec<String> {
+    pairs
+        .iter()
+        .filter_map(|(k, value)| {
+            if *k == key {
+                Some(value.to_string())
+            } else {
+                None
+            }
+        })
+        .collect()
+}
+
+impl<'de> Deserialize<'de> for PropertyFilters {
+    fn deserialize<D>(de: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let parsed = Vec::deserialize(de)?;
+
+        let class_keys = group_same_keys(&parsed, "class_keys");
+        let account_keys = group_same_keys(&parsed, "account_keys");
+
+        Ok(Self {
+            class_keys,
+            account_keys,
+        })
+    }
+}
+
 pub async fn read<T: AsClassType>(
     ctx: Extension<Arc<dyn AppContext>>,
     Path(id): Path<Uuid>,
-    property_filters: Option<Query<PropertyFilters>>,
+    Query(property_filters): Query<PropertyFilters>,
     AuthnExtractor(agent_id): AuthnExtractor,
 ) -> AppResult {
     do_read::<T>(
         ctx.0.as_ref(),
         agent_id.as_account_id(),
         id,
-        property_filters.map(|pf| pf.0).unwrap_or_default(),
+        property_filters,
     )
     .await
 }
@@ -56,7 +86,7 @@ async fn do_read<T: AsClassType>(
 pub async fn read_by_scope<T: AsClassType>(
     ctx: Extension<Arc<dyn AppContext>>,
     Path((audience, scope)): Path<(String, String)>,
-    property_filters: Option<Query<PropertyFilters>>,
+    Query(property_filters): Query<PropertyFilters>,
     AuthnExtractor(agent_id): AuthnExtractor,
 ) -> AppResult {
     do_read_by_scope::<T>(
@@ -64,7 +94,7 @@ pub async fn read_by_scope<T: AsClassType>(
         agent_id.as_account_id(),
         &audience,
         &scope,
-        property_filters.map(|pf| pf.0).unwrap_or_default(),
+        property_filters,
     )
     .await
 }
@@ -214,6 +244,7 @@ mod tests {
         },
         test_helpers::prelude::*,
     };
+    use axum::extract::FromRequest;
     use serde_json::Value;
 
     #[tokio::test]
@@ -495,5 +526,54 @@ mod tests {
             v.get("account_properties").unwrap().as_object(),
             serde_json::json!({}).as_object()
         );
+    }
+
+    #[tokio::test]
+    async fn property_filters_query_params_parser() {
+        async fn check<T: serde::de::DeserializeOwned + PartialEq + std::fmt::Debug>(
+            uri: impl AsRef<str>,
+            value: T,
+        ) {
+            let mut req = axum::extract::RequestParts::new(
+                http::Request::builder().uri(uri.as_ref()).body(()).unwrap(),
+            );
+            assert_eq!(Query::<T>::from_request(&mut req).await.unwrap().0, value);
+        }
+
+        check(
+            "http://example.com/test",
+            PropertyFilters {
+                class_keys: vec![],
+                account_keys: vec![],
+            },
+        )
+        .await;
+
+        check(
+            "http://example.com/test?class_keys=is_adult",
+            PropertyFilters {
+                class_keys: vec!["is_adult".to_owned()],
+                account_keys: vec![],
+            },
+        )
+        .await;
+
+        check(
+            "http://example.com/test?account_keys=onboarding",
+            PropertyFilters {
+                class_keys: vec![],
+                account_keys: vec!["onboarding".to_owned()],
+            },
+        )
+        .await;
+
+        check(
+            "http://example.com/test?class_keys=is_adult&account_keys=onboarding",
+            PropertyFilters {
+                class_keys: vec!["is_adult".to_owned()],
+                account_keys: vec!["onboarding".to_owned()],
+            },
+        )
+        .await;
     }
 }

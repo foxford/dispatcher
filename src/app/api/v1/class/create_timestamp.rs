@@ -170,7 +170,7 @@ mod create_timestamp_tests {
         let response = super::super::read::<WebinarType>(
             Extension(state),
             Path(webinar.id()),
-            None,
+            Query(PropertyFilters::default()),
             AuthnExtractor(agent.agent_id().to_owned()),
         )
         .await
