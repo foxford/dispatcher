@@ -193,6 +193,11 @@ impl MessageHandler {
             }
         };
 
+        // Do not run transcoding for replicas
+        if class.original_class_id().is_some() {
+            return Ok(());
+        }
+
         postprocessing_strategy::get(self.ctx.clone(), class)?
             .handle_mjr_dumps_upload(room_upload.rtcs)
             .await
@@ -222,6 +227,11 @@ impl MessageHandler {
             self.get_class_from_tags(&audience, room_adjust.tags())
                 .await?
         };
+
+        // Do not run adjust for replicas
+        if class.original_class_id().is_some() {
+            return Ok(());
+        }
 
         postprocessing_strategy::get(self.ctx.clone(), class)?
             .handle_adjust(room_adjust.into())
