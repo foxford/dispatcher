@@ -12,7 +12,7 @@ anyhow = "1.0"
 async-trait = "0.1"
 axum = { version = "0.5.14", features = ["headers"] }
 chrono = { version = "0.4", features = ["serde"] }
-config = { version = "0.12", default-features = false, features = ["toml"] }
+config = { version = "0.13", default-features = false, features = ["toml"] }
 futures = "0.3"
 futures-channel = "0.3"
 hashring = "0.3.0"
