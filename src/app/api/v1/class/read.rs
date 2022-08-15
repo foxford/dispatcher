@@ -44,8 +44,8 @@ impl<'de> Deserialize<'de> for PropertyFilters {
     {
         let parsed = Vec::deserialize(de)?;
 
-        let class_keys = group_same_keys(&parsed, "class_keys");
-        let account_keys = group_same_keys(&parsed, "account_keys");
+        let class_keys = group_same_keys(&parsed, "class_keys[]");
+        let account_keys = group_same_keys(&parsed, "account_keys[]");
 
         Ok(Self {
             class_keys,
@@ -543,7 +543,7 @@ mod tests {
         .await;
 
         check(
-            "http://example.com/test?class_keys=is_adult",
+            "http://example.com/test?class_keys[]=is_adult",
             PropertyFilters {
                 class_keys: vec!["is_adult".to_owned()],
                 account_keys: vec![],
@@ -552,7 +552,7 @@ mod tests {
         .await;
 
         check(
-            "http://example.com/test?account_keys=onboarding",
+            "http://example.com/test?account_keys[]=onboarding",
             PropertyFilters {
                 class_keys: vec![],
                 account_keys: vec!["onboarding".to_owned()],
@@ -561,7 +561,7 @@ mod tests {
         .await;
 
         check(
-            "http://example.com/test?class_keys=is_adult&account_keys=onboarding",
+            "http://example.com/test?class_keys[]=is_adult&account_keys[]=onboarding",
             PropertyFilters {
                 class_keys: vec!["is_adult".to_owned()],
                 account_keys: vec!["onboarding".to_owned()],
