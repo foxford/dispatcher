@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use axum::{
     extract::Extension,
-    routing::{get, options, post, Router},
+    routing::{get, post, Router},
 };
 use svc_utils::middleware::{CorsLayer, LogLayer, MeteredRoute};
 
@@ -16,7 +16,6 @@ use super::api::v1::minigroup::{create as create_minigroup, download as download
 use super::api::v1::p2p::{convert as convert_p2p, create as create_p2p};
 use super::api::v1::webinar::{
     convert_webinar, create_webinar, create_webinar_replica, download_webinar,
-    options as read_options,
 };
 use super::api::{
     redirect_to_frontend, rollback, v1::create_event, v1::healthz,
@@ -63,24 +62,20 @@ fn webinars_router() -> Router {
     Router::new()
         .metered_route(
             "/api/v1/webinars/:id",
-            options(read_options)
-                .get(read::<WebinarType>)
-                .put(update::<WebinarType>),
+            get(read::<WebinarType>).put(update::<WebinarType>),
         )
         .metered_route(
             "/api/v1/audiences/:audience/webinars/:scope",
-            options(read_options).get(read_by_scope::<WebinarType>),
+            get(read_by_scope::<WebinarType>),
         )
         .metered_route(
             "/api/v1/webinars/:id/timestamps",
-            options(read_options).post(create_timestamp::<WebinarType>),
+            post(create_timestamp::<WebinarType>),
         )
         .metered_route("/api/v1/webinars/:id/events", post(create_event))
         .metered_route(
             "/api/v1/webinars/:id/properties/:property_id",
-            options(read_options)
-                .get(read_property)
-                .put(update_property),
+            get(read_property).put(update_property),
         )
         .layer(CorsLayer)
         .metered_route("/api/v1/webinars", post(create_webinar))
@@ -98,19 +93,14 @@ fn webinars_router() -> Router {
 
 fn p2p_router() -> Router {
     Router::new()
-        .metered_route(
-            "/api/v1/p2p/:id",
-            options(read_options).get(read::<P2PType>),
-        )
+        .metered_route("/api/v1/p2p/:id", get(read::<P2PType>))
         .metered_route(
             "/api/v1/audiences/:audience/p2p/:scope",
-            options(read_options).get(read_by_scope::<P2PType>),
+            get(read_by_scope::<P2PType>),
         )
         .metered_route(
             "/api/v1/p2p/:id/properties/:property_id",
-            options(read_options)
-                .get(read_property)
-                .put(update_property),
+            get(read_property).put(update_property),
         )
         .layer(CorsLayer)
         .metered_route("/api/v1/p2p", post(create_p2p))
@@ -122,25 +112,19 @@ fn minigroups_router() -> Router {
     Router::new()
         .metered_route(
             "/api/v1/minigroups/:id",
-            options(read_options)
-                .get(read::<MinigroupType>)
-                .put(update::<MinigroupType>),
+            get(read::<MinigroupType>).put(update::<MinigroupType>),
         )
         .metered_route(
             "/api/v1/audiences/:audience/minigroups/:scope",
-            options(read_options)
-                .get(read_by_scope::<MinigroupType>)
-                .put(update_by_scope::<MinigroupType>),
+            get(read_by_scope::<MinigroupType>).put(update_by_scope::<MinigroupType>),
         )
         .metered_route(
             "/api/v1/minigroups/:id/timestamps",
-            options(read_options).post(create_timestamp::<MinigroupType>),
+            post(create_timestamp::<MinigroupType>),
         )
         .metered_route(
             "/api/v1/minigroups/:id/properties/:property_id",
-            options(read_options)
-                .get(read_property)
-                .put(update_property),
+            get(read_property).put(update_property),
         )
         .layer(CorsLayer)
         .metered_route(
@@ -160,13 +144,11 @@ fn utils_router() -> Router {
     Router::new()
         .metered_route(
             "/api/v1/audiences/:audience/classes/:scope/editions/:id",
-            options(read_options).post(commit_edition),
+            post(commit_edition),
         )
         .metered_route(
             "/api/v1/account/properties/:property_id",
-            options(read_options)
-                .get(account::read_property)
-                .put(account::update_property),
+            get(account::read_property).put(account::update_property),
         )
         .layer(CorsLayer)
 }
