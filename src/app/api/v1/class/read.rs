@@ -37,6 +37,8 @@ fn group_same_keys(pairs: &[(&str, &str)], key: &str) -> Vec<String> {
         .collect()
 }
 
+// `serde_qs` doesn't work so well with optional vec param
+// so went with custom deserialize impl
 impl<'de> Deserialize<'de> for PropertyFilters {
     fn deserialize<D>(de: D) -> Result<Self, D::Error>
     where
