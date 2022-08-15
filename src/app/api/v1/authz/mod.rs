@@ -57,7 +57,7 @@ pub async fn proxy(
 
     validate_client(account_id, ctx.as_ref())?;
 
-    let q = make_finder(account_id, request_audience.clone())?;
+    let q = make_finder(account_id)?;
 
     info!("Authz proxy: raw request {:?}", authz_req);
     let old_action = authz_req.action.clone();
@@ -88,7 +88,7 @@ fn validate_client(account_id: &AccountId, state: &dyn AppContext) -> Result<(),
     Ok(())
 }
 
-fn make_finder(account_id: &AccountId, request_audience: String) -> Result<Finder, AppError> {
+fn make_finder(account_id: &AccountId) -> Result<Finder, AppError> {
     let q = match account_id.label() {
         "event" => Box::new(|id: &str| {
             let id = Uuid::from_str(id)?;
@@ -135,10 +135,10 @@ fn make_finder(account_id: &AccountId, request_audience: String) -> Result<Finde
                 Err(anyhow!("Access to bucket {:?} isnt proxied", id))
             }
         }) as Finder,
-        "nats-gatekeeper" => {
-            Box::new(|id: &str| Ok(AuthzReadQuery::by_scope(request_audience, id.to_string())))
-                as Finder
-        }
+        "nats-gatekeeper" => Box::new(|id: &str| {
+            let id = Uuid::from_str(id)?;
+            Ok(AuthzReadQuery::by_id(id))
+        }) as Finder,
         "presence" => Box::new(|id: &str| {
             let id = Uuid::from_str(id)?;
             Ok(AuthzReadQuery::by_id(id))
@@ -320,14 +320,12 @@ fn transform_storage_authz_request(authz_req: &mut AuthzRequest) {
 
 fn transform_nats_gatekeeper_authz_request(authz_req: &mut AuthzRequest) {
     let act = &mut authz_req.action;
-    let authz_object: Option<&str> = authz_req.object.value.get(0).map(|s| s.as_ref());
 
-    // only transform scopes/* and classrooms/* objects
-    if authz_object != Some("scopes") && authz_object != Some("classrooms") {
+    // only transform classrooms/* objects
+    if authz_req.object.value.get(0).map(|s| s.as_ref()) != Some("classrooms") {
         return;
     }
 
-    // ["scopes", SCOPE, "nats"]::connect               => ["scopes", SCOPE]::read
     // ["classrooms", CLASSROOM_ID, "nats"]::connect    => ["classrooms", CLASSROOM_ID]::read
     match authz_req.object.value.get_mut(0..) {
         None => {}
@@ -560,29 +558,9 @@ fn test_transform_event_authz_request_3() {
 
 #[test]
 fn test_transform_nats_gatekeeper_authz_request() {
-    // ["scopes", SCOPE, "nats"]::connect
     // ["classrooms", CLASSROOM_ID, "nats"]::connect
     // becomes
-    // ["scopes", SCOPE]::read
     // ["classrooms", CLASSROOM_ID]::read
-    let mut authz_req: AuthzRequest = serde_json::from_str(
-        r#"
-        {
-            "subject": {"namespace": "foobar", "value": "barbaz"},
-            "object": {"namespace": "foobar", "value": [ "scopes", "Z2lkOi8vc3RvZWdlL1VsbXM6OlJvb21zOjpQMlAvNTgwNg", "nats"]},
-            "action": "connect"
-        }
-    "#,
-    )
-    .unwrap();
-    transform_nats_gatekeeper_authz_request(&mut authz_req);
-
-    assert_eq!(authz_req.action, "read");
-    assert_eq!(
-        authz_req.object.value,
-        ["scopes", "Z2lkOi8vc3RvZWdlL1VsbXM6OlJvb21zOjpQMlAvNTgwNg"]
-    );
-
     let mut authz_req: AuthzRequest = serde_json::from_str(
         r#"
         {
