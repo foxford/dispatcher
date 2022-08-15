@@ -4,8 +4,8 @@ use anyhow::Context;
 use axum::extract::{Extension, Json};
 use hyper::{Body, Response};
 use serde_derive::Deserialize;
-use svc_agent::{AccountId, Authenticable};
-use svc_utils::extractors::AuthnExtractor;
+use svc_agent::AccountId;
+use svc_utils::extractors::AccountIdExtractor;
 use tracing::{error, info, instrument};
 
 use crate::app::api::v1::{AppError, AppResult};
@@ -40,11 +40,11 @@ pub struct WebinarCreatePayload {
 )]
 pub async fn create(
     ctx: Extension<Arc<dyn AppContext>>,
-    AuthnExtractor(agent_id): AuthnExtractor,
+    AccountIdExtractor(account_id): AccountIdExtractor,
     Json(payload): Json<WebinarCreatePayload>,
 ) -> AppResult {
     info!("Creating webinar");
-    let r = do_create(ctx.as_ref(), agent_id.as_account_id(), payload).await;
+    let r = do_create(ctx.as_ref(), &account_id, payload).await;
     if let Err(e) = &r {
         error!(error = ?e, "Failed to create webinar");
     }

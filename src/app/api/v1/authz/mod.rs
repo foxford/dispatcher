@@ -7,7 +7,7 @@ use hyper::{Body, Response};
 use serde_derive::{Deserialize, Serialize};
 use serde_json::json;
 use svc_authn::{AccountId, Authenticable};
-use svc_utils::extractors::AuthnExtractor;
+use svc_utils::extractors::AccountIdExtractor;
 use tracing::info;
 use uuid::Uuid;
 
@@ -50,19 +50,17 @@ type Finder = Box<dyn FnOnce(&str) -> Result<AuthzReadQuery, anyhow::Error> + Se
 pub async fn proxy(
     Extension(ctx): Extension<Arc<dyn AppContext>>,
     Path(request_audience): Path<String>,
-    AuthnExtractor(agent_id): AuthnExtractor,
+    AccountIdExtractor(account_id): AccountIdExtractor,
     Json(mut authz_req): Json<AuthzRequest>,
 ) -> AppResult {
-    let account_id = agent_id.as_account_id();
+    validate_client(&account_id, ctx.as_ref())?;
 
-    validate_client(account_id, ctx.as_ref())?;
-
-    let q = make_finder(account_id)?;
+    let q = make_finder(&account_id)?;
 
     info!("Authz proxy: raw request {:?}", authz_req);
     let old_action = authz_req.action.clone();
 
-    transform_authz_request(&mut authz_req, account_id);
+    transform_authz_request(&mut authz_req, &account_id);
 
     substitute_class(&mut authz_req, ctx.as_ref(), q).await?;
 

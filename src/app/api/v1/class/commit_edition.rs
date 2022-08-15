@@ -3,8 +3,8 @@ use std::sync::Arc;
 use anyhow::Context;
 use axum::extract::{Extension, Path};
 use hyper::{Body, Response};
-use svc_authn::{AccountId, Authenticable};
-use svc_utils::extractors::AuthnExtractor;
+use svc_authn::AccountId;
+use svc_utils::extractors::AccountIdExtractor;
 use tracing::error;
 use uuid::Uuid;
 
@@ -17,16 +17,9 @@ use crate::app::{authz::AuthzObject, metrics::AuthorizeMetrics};
 pub async fn commit_edition(
     ctx: Extension<Arc<dyn AppContext>>,
     Path((audience, scope, edition_id)): Path<(String, String, Uuid)>,
-    AuthnExtractor(agent_id): AuthnExtractor,
+    AccountIdExtractor(account_id): AccountIdExtractor,
 ) -> AppResult {
-    do_commit_edition(
-        ctx.0.as_ref(),
-        agent_id.as_account_id(),
-        &audience,
-        &scope,
-        edition_id,
-    )
-    .await
+    do_commit_edition(ctx.0.as_ref(), &account_id, &audience, &scope, edition_id).await
 }
 
 async fn do_commit_edition(

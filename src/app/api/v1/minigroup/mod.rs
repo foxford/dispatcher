@@ -6,8 +6,7 @@ use axum::extract::{Extension, Json};
 use hyper::{Body, Response};
 use serde_derive::Deserialize;
 use svc_agent::AccountId;
-use svc_agent::Authenticable;
-use svc_utils::extractors::AuthnExtractor;
+use svc_utils::extractors::AccountIdExtractor;
 use tracing::{error, info, instrument};
 
 use crate::app::authz::AuthzObject;
@@ -46,11 +45,11 @@ pub struct MinigroupCreatePayload {
 )]
 pub async fn create(
     Extension(ctx): Extension<Arc<dyn AppContext>>,
-    AuthnExtractor(agent_id): AuthnExtractor,
+    AccountIdExtractor(account_id): AccountIdExtractor,
     Json(body): Json<MinigroupCreatePayload>,
 ) -> AppResult {
     info!("Creating minigroup");
-    let r = do_create(ctx.as_ref(), agent_id.as_account_id(), body).await;
+    let r = do_create(ctx.as_ref(), &account_id, body).await;
     if let Err(e) = &r {
         error!(error = ?e, "Failed to create minigroup");
     }

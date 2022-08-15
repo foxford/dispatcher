@@ -12,7 +12,7 @@ use svc_agent::{
     },
     Authenticable,
 };
-use svc_utils::extractors::AuthnExtractor;
+use svc_utils::extractors::AccountIdExtractor;
 use tracing::error;
 use url::Url;
 
@@ -93,9 +93,8 @@ pub async fn redirect_to_frontend(
 pub async fn rollback(
     ctx: Extension<Arc<dyn AppContext>>,
     Path(scope): Path<String>,
-    AuthnExtractor(agent_id): AuthnExtractor,
+    AccountIdExtractor(account_id): AccountIdExtractor,
 ) -> Response<Body> {
-    let account_id = agent_id.as_account_id();
     let object = AuthzObject::new(&["scopes"]).into();
 
     if let Err(err) = ctx

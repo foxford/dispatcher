@@ -6,9 +6,8 @@ use axum::extract::{Extension, Path};
 use chrono::Utc;
 use hyper::{Body, Response};
 use serde::Deserialize;
-use svc_agent::Authenticable;
 use svc_authn::AccountId;
-use svc_utils::extractors::AuthnExtractor;
+use svc_utils::extractors::AccountIdExtractor;
 use tracing::error;
 use uuid::Uuid;
 
@@ -19,7 +18,7 @@ use crate::app::AppContext;
 use crate::app::{authz::AuthzObject, metrics::AuthorizeMetrics};
 use crate::db::class::{AsClassType, Object as Class};
 
-#[derive(Default, Debug, PartialEq)]
+#[derive(Default, Debug, PartialEq, Eq)]
 pub struct PropertyFilters {
     class_keys: Vec<String>,
     account_keys: Vec<String>,
@@ -59,15 +58,9 @@ pub async fn read<T: AsClassType>(
     ctx: Extension<Arc<dyn AppContext>>,
     Path(id): Path<Uuid>,
     Query(property_filters): Query<PropertyFilters>,
-    AuthnExtractor(agent_id): AuthnExtractor,
+    AccountIdExtractor(account_id): AccountIdExtractor,
 ) -> AppResult {
-    do_read::<T>(
-        ctx.0.as_ref(),
-        agent_id.as_account_id(),
-        id,
-        property_filters,
-    )
-    .await
+    do_read::<T>(ctx.0.as_ref(), &account_id, id, property_filters).await
 }
 
 async fn do_read<T: AsClassType>(
@@ -87,11 +80,11 @@ pub async fn read_by_scope<T: AsClassType>(
     ctx: Extension<Arc<dyn AppContext>>,
     Path((audience, scope)): Path<(String, String)>,
     Query(property_filters): Query<PropertyFilters>,
-    AuthnExtractor(agent_id): AuthnExtractor,
+    AccountIdExtractor(account_id): AccountIdExtractor,
 ) -> AppResult {
     do_read_by_scope::<T>(
         ctx.0.as_ref(),
-        agent_id.as_account_id(),
+        &account_id,
         &audience,
         &scope,
         property_filters,

@@ -6,9 +6,8 @@ use axum::extract::{Extension, Json, Path};
 use hyper::{Body, Response};
 use serde_derive::Deserialize;
 use sqlx::Acquire;
-use svc_agent::Authenticable;
 use svc_authn::AccountId;
-use svc_utils::extractors::AuthnExtractor;
+use svc_utils::extractors::AccountIdExtractor;
 use tracing::error;
 use uuid::Uuid;
 
@@ -32,10 +31,10 @@ pub struct ClassRecreatePayload {
 pub async fn recreate<T: AsClassType>(
     Extension(ctx): Extension<Arc<dyn AppContext>>,
     Path(id): Path<Uuid>,
-    AuthnExtractor(agent_id): AuthnExtractor,
+    AccountIdExtractor(account_id): AccountIdExtractor,
     Json(body): Json<ClassRecreatePayload>,
 ) -> AppResult {
-    do_recreate::<T>(ctx.as_ref(), agent_id.as_account_id(), id, body).await
+    do_recreate::<T>(ctx.as_ref(), &account_id, id, body).await
 }
 
 async fn do_recreate<T: AsClassType>(

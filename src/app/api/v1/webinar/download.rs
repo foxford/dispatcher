@@ -1,7 +1,6 @@
 use axum::extract::{Extension, Path};
 use hyper::{Body, Response};
-use svc_agent::Authenticable;
-use svc_utils::extractors::AuthnExtractor;
+use svc_utils::extractors::AccountIdExtractor;
 use uuid::Uuid;
 
 use super::*;
@@ -13,10 +12,8 @@ use crate::{app::metrics::AuthorizeMetrics, config::StorageConfig};
 pub async fn download(
     Extension(ctx): Extension<Arc<dyn AppContext>>,
     Path(id): Path<Uuid>,
-    AuthnExtractor(agent_id): AuthnExtractor,
+    AccountIdExtractor(account_id): AccountIdExtractor,
 ) -> AppResult {
-    let account_id = agent_id.as_account_id();
-
     let webinar = find::<WebinarType>(ctx.as_ref(), id)
         .await
         .error(AppErrorKind::ClassNotFound)?;
@@ -125,7 +122,7 @@ mod tests {
         let r = download(
             Extension(state.clone()),
             Path(webinar.id()),
-            AuthnExtractor(agent.agent_id().to_owned()),
+            AccountIdExtractor(agent.account_id().to_owned()),
         )
         .await
         .expect("shouldn't fail");

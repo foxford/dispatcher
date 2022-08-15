@@ -6,9 +6,9 @@ use axum::extract::{Extension, Json, Path};
 use chrono::Utc;
 use hyper::{Body, Response};
 use serde_derive::Deserialize;
-use svc_agent::{AgentId, Authenticable};
+use svc_agent::AgentId;
 use svc_authn::AccountId;
-use svc_utils::extractors::AuthnExtractor;
+use svc_utils::extractors::AccountIdExtractor;
 use uuid::Uuid;
 
 use super::{find, AppResult, ClassResponseBody};
@@ -33,14 +33,13 @@ pub struct ClassUpdate {
 pub async fn update<T: AsClassType>(
     Extension(ctx): Extension<Arc<dyn AppContext>>,
     Path(id): Path<Uuid>,
-    AuthnExtractor(agent_id): AuthnExtractor,
+    AccountIdExtractor(account_id): AccountIdExtractor,
     Json(payload): Json<ClassUpdate>,
 ) -> AppResult {
     let class = find::<T>(ctx.as_ref(), id)
         .await
         .error(AppErrorKind::ClassNotFound)?;
-    let updated_class =
-        do_update::<T>(ctx.as_ref(), agent_id.as_account_id(), class, payload).await?;
+    let updated_class = do_update::<T>(ctx.as_ref(), &account_id, class, payload).await?;
     Ok(Response::builder()
         .body(Body::from(
             serde_json::to_string(&updated_class)
@@ -53,15 +52,14 @@ pub async fn update<T: AsClassType>(
 pub async fn update_by_scope<T: AsClassType>(
     Extension(ctx): Extension<Arc<dyn AppContext>>,
     Path((audience, scope)): Path<(String, String)>,
-    AuthnExtractor(agent_id): AuthnExtractor,
+    AccountIdExtractor(account_id): AccountIdExtractor,
     Json(payload): Json<ClassUpdate>,
 ) -> AppResult {
     let class = find_by_scope::<T>(ctx.as_ref(), &audience, &scope)
         .await
         .error(AppErrorKind::ClassNotFound)?;
 
-    let updated_class =
-        do_update::<T>(ctx.as_ref(), agent_id.as_account_id(), class, payload).await?;
+    let updated_class = do_update::<T>(ctx.as_ref(), &account_id, class, payload).await?;
 
     let response =
         ClassResponseBody::new(&updated_class, ctx.turn_host_selector().get(&updated_class));

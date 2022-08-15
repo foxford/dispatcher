@@ -8,8 +8,7 @@ use hyper::{Body, Response};
 use serde_derive::Deserialize;
 use sqlx::Acquire;
 use svc_agent::AccountId;
-use svc_agent::Authenticable;
-use svc_utils::extractors::AuthnExtractor;
+use svc_utils::extractors::AccountIdExtractor;
 use uuid::Uuid;
 
 use crate::app::error::ErrorExt;
@@ -51,10 +50,10 @@ struct RecordingConvertObject {
 
 pub async fn convert(
     Extension(ctx): Extension<Arc<dyn AppContext>>,
-    AuthnExtractor(agent_id): AuthnExtractor,
+    AccountIdExtractor(account_id): AccountIdExtractor,
     Json(payload): Json<WebinarConvertObject>,
 ) -> AppResult {
-    do_convert(ctx.as_ref(), agent_id.as_account_id(), payload).await
+    do_convert(ctx.as_ref(), &account_id, payload).await
 }
 
 async fn do_convert(

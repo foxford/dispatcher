@@ -1,6 +1,5 @@
 use axum::extract::{Extension, Path};
 use hyper::{Body, Response};
-use svc_agent::Authenticable;
 use uuid::Uuid;
 
 use super::*;
@@ -13,10 +12,8 @@ use crate::{app::metrics::AuthorizeMetrics, config::StorageConfig};
 pub async fn download(
     Extension(ctx): Extension<Arc<dyn AppContext>>,
     Path(id): Path<Uuid>,
-    AuthnExtractor(agent_id): AuthnExtractor,
+    AccountIdExtractor(account_id): AccountIdExtractor,
 ) -> AppResult {
-    let account_id = agent_id.as_account_id();
-
     let minigroup = find::<MinigroupType>(ctx.as_ref(), id)
         .await
         .error(AppErrorKind::ClassNotFound)?;

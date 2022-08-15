@@ -2,9 +2,8 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use axum::extract::{Extension, Json, Path};
-use svc_agent::Authenticable;
 use svc_authn::AccountId;
-use svc_utils::extractors::AuthnExtractor;
+use svc_utils::extractors::AccountIdExtractor;
 use uuid::Uuid;
 
 use super::*;
@@ -20,11 +19,11 @@ use crate::db::class::KeyValueProperties;
 pub async fn read_property(
     Extension(ctx): Extension<Arc<dyn AppContext>>,
     Path((class_id, property_id)): Path<(Uuid, String)>,
-    AuthnExtractor(agent_id): AuthnExtractor,
+    AccountIdExtractor(account_id): AccountIdExtractor,
 ) -> AppResult {
     ReadProperty {
         state: ctx.as_ref(),
-        account_id: agent_id.as_account_id(),
+        account_id: &account_id,
         class_id,
         property_id,
     }
@@ -71,12 +70,12 @@ impl ReadProperty<'_> {
 pub async fn update_property(
     Extension(ctx): Extension<Arc<dyn AppContext>>,
     Path((class_id, property_id)): Path<(Uuid, String)>,
-    AuthnExtractor(agent_id): AuthnExtractor,
+    AccountIdExtractor(account_id): AccountIdExtractor,
     Json(payload): Json<serde_json::Value>,
 ) -> AppResult {
     UpdateProperty {
         state: ctx.as_ref(),
-        account_id: agent_id.as_account_id(),
+        account_id: &account_id,
         class_id,
         property_id,
         payload,

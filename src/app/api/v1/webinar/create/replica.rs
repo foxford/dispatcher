@@ -17,8 +17,8 @@ use anyhow::Context;
 use axum::extract::{Extension, Json, Path};
 use hyper::{Body, Response};
 use serde_derive::Deserialize;
-use svc_agent::{AccountId, Authenticable};
-use svc_utils::extractors::AuthnExtractor;
+use svc_agent::AccountId;
+use svc_utils::extractors::AccountIdExtractor;
 use tracing::{error, info, instrument};
 use uuid::Uuid;
 
@@ -37,12 +37,12 @@ pub struct ReplicaCreatePayload {
 )]
 pub async fn create(
     ctx: Extension<Arc<dyn AppContext>>,
-    AuthnExtractor(agent_id): AuthnExtractor,
+    AccountIdExtractor(account_id): AccountIdExtractor,
     Path(class_id): Path<Uuid>,
     Json(payload): Json<ReplicaCreatePayload>,
 ) -> AppResult {
     info!("Creating a replica of webinar");
-    let r = do_create(ctx.as_ref(), agent_id.as_account_id(), class_id, payload).await;
+    let r = do_create(ctx.as_ref(), &account_id, class_id, payload).await;
     if let Err(e) = &r {
         error!(error = ?e, "Failed to create a replica of webinar");
     }
