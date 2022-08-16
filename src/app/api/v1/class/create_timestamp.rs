@@ -67,11 +67,7 @@ pub async fn create_timestamp<T: AsClassType>(
 #[cfg(test)]
 mod create_timestamp_tests {
     use super::*;
-    use crate::{
-        app::api::v1::class::read::PropertyFilters, db::class::WebinarType,
-        test_helpers::prelude::*,
-    };
-    use axum::extract::Query;
+    use crate::{db::class::WebinarType, test_helpers::prelude::*};
     use chrono::{Duration, Utc};
     use serde_json::Value as JsonValue;
     use std::ops::Bound;
@@ -169,7 +165,7 @@ mod create_timestamp_tests {
         let response = super::super::read::<WebinarType>(
             Extension(state),
             Path(webinar.id()),
-            Query(PropertyFilters::default()),
+            axum::extract::RawQuery(None),
             AccountIdExtractor(agent.account_id().to_owned()),
         )
         .await

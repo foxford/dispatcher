@@ -36,6 +36,7 @@ pub enum ErrorKind {
     AudienceDoesNotMatch,
     AccountNotFound,
     AccountPropertyNotFound,
+    InvalidQueryString,
 }
 
 impl ErrorKind {
@@ -161,6 +162,12 @@ impl From<ErrorKind> for ErrorKindProperties {
                 status: ResponseStatus::NOT_FOUND,
                 kind: "account_property_not_found",
                 title: "Account property not found",
+                is_notify_sentry: false,
+            },
+            ErrorKind::InvalidQueryString => ErrorKindProperties {
+                status: ResponseStatus::BAD_REQUEST,
+                kind: "invalid_query_string",
+                title: "Invalid query string",
                 is_notify_sentry: false,
             },
         }

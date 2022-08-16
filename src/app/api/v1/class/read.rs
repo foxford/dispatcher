@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::Context;
-use axum::extract::Query;
+use axum::extract::RawQuery;
 use axum::extract::{Extension, Path};
 use chrono::Utc;
 use hyper::{Body, Response};
@@ -18,50 +18,22 @@ use crate::app::AppContext;
 use crate::app::{authz::AuthzObject, metrics::AuthorizeMetrics};
 use crate::db::class::{AsClassType, Object as Class};
 
-#[derive(Default, Debug, PartialEq, Eq)]
+#[derive(Default, Debug, PartialEq, Eq, Deserialize)]
 pub struct PropertyFilters {
-    class_keys: Vec<String>,
-    account_keys: Vec<String>,
-}
-
-fn group_same_keys(pairs: &[(&str, &str)], key: &str) -> Vec<String> {
-    pairs
-        .iter()
-        .filter_map(|(k, value)| {
-            if *k == key {
-                Some(value.to_string())
-            } else {
-                None
-            }
-        })
-        .collect()
-}
-
-// `serde_qs` doesn't work so well with optional vec param
-// so went with custom deserialize impl
-impl<'de> Deserialize<'de> for PropertyFilters {
-    fn deserialize<D>(de: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let parsed = Vec::deserialize(de)?;
-
-        let class_keys = group_same_keys(&parsed, "class_keys[]");
-        let account_keys = group_same_keys(&parsed, "account_keys[]");
-
-        Ok(Self {
-            class_keys,
-            account_keys,
-        })
-    }
+    class_keys: Option<Vec<String>>,
+    account_keys: Option<Vec<String>>,
 }
 
 pub async fn read<T: AsClassType>(
     ctx: Extension<Arc<dyn AppContext>>,
     Path(id): Path<Uuid>,
-    Query(property_filters): Query<PropertyFilters>,
+    RawQuery(raw_q): RawQuery,
     AccountIdExtractor(account_id): AccountIdExtractor,
 ) -> AppResult {
+    let property_filters = serde_qs::from_str(raw_q.unwrap_or_default().as_str())
+        .map_err(|e| anyhow!("Failed to parse qs, err = {:?}", e))
+        .error(AppErrorKind::InvalidQueryString)?;
+
     do_read::<T>(ctx.0.as_ref(), &account_id, id, property_filters).await
 }
 
@@ -81,9 +53,13 @@ async fn do_read<T: AsClassType>(
 pub async fn read_by_scope<T: AsClassType>(
     ctx: Extension<Arc<dyn AppContext>>,
     Path((audience, scope)): Path<(String, String)>,
-    Query(property_filters): Query<PropertyFilters>,
+    RawQuery(raw_q): RawQuery,
     AccountIdExtractor(account_id): AccountIdExtractor,
 ) -> AppResult {
+    let property_filters = serde_qs::from_str(raw_q.unwrap_or_default().as_str())
+        .map_err(|e| anyhow!("Failed to parse qs, err = {:?}", e))
+        .error(AppErrorKind::InvalidQueryString)?;
+
     do_read_by_scope::<T>(
         ctx.0.as_ref(),
         &account_id,
@@ -145,7 +121,7 @@ async fn do_read_inner<T: AsClassType>(
     };
 
     let mut class_body = ClassResponseBody::new(&class, state.turn_host_selector().get(&class));
-    class_body.filter_class_properties(&property_filters.class_keys);
+    class_body.filter_class_properties(&property_filters.class_keys.unwrap_or_default());
 
     let account = {
         let mut conn = state
@@ -160,8 +136,10 @@ async fn do_read_inner<T: AsClassType>(
     };
 
     if let Some(account) = account {
-        class_body
-            .set_account_properties(account.into_properties(), &property_filters.account_keys);
+        class_body.set_account_properties(
+            account.into_properties(),
+            &property_filters.account_keys.unwrap_or_default(),
+        );
     }
 
     let class_end = class.time().end();
@@ -239,7 +217,6 @@ mod tests {
         },
         test_helpers::prelude::*,
     };
-    use axum::extract::FromRequest;
     use serde_json::Value;
 
     #[tokio::test]
@@ -394,8 +371,8 @@ mod tests {
             agent.account_id(),
             webinar.id(),
             PropertyFilters {
-                class_keys: vec!["test".to_owned()],
-                account_keys: Vec::new(),
+                class_keys: Some(vec!["test".to_owned()]),
+                account_keys: None,
             },
         )
         .await
@@ -417,8 +394,8 @@ mod tests {
             agent.account_id(),
             webinar.id(),
             PropertyFilters {
-                class_keys: vec![],
-                account_keys: vec![],
+                class_keys: None,
+                account_keys: None,
             },
         )
         .await
@@ -481,8 +458,8 @@ mod tests {
             agent.account_id(),
             webinar.id(),
             PropertyFilters {
-                class_keys: vec!["test".to_owned()],
-                account_keys: vec!["test".to_owned()],
+                class_keys: Some(vec!["test".to_owned()]),
+                account_keys: Some(vec!["test".to_owned()]),
             },
         )
         .await
@@ -504,8 +481,8 @@ mod tests {
             agent.account_id(),
             webinar.id(),
             PropertyFilters {
-                class_keys: vec!["test".to_owned()],
-                account_keys: vec![],
+                class_keys: Some(vec!["test".to_owned()]),
+                account_keys: None,
             },
         )
         .await
@@ -525,50 +502,49 @@ mod tests {
 
     #[tokio::test]
     async fn property_filters_query_params_parser() {
-        async fn check<T: serde::de::DeserializeOwned + PartialEq + std::fmt::Debug>(
+        fn check<T: serde::de::DeserializeOwned + PartialEq + std::fmt::Debug>(
             uri: impl AsRef<str>,
             value: T,
         ) {
-            let mut req = axum::extract::RequestParts::new(
+            let req = axum::extract::RequestParts::new(
                 http::Request::builder().uri(uri.as_ref()).body(()).unwrap(),
             );
-            assert_eq!(Query::<T>::from_request(&mut req).await.unwrap().0, value);
+            assert_eq!(
+                serde_qs::from_str::<T>(req.uri().query().unwrap_or_default()).unwrap(),
+                value
+            );
         }
 
         check(
             "http://example.com/test",
             PropertyFilters {
-                class_keys: vec![],
-                account_keys: vec![],
+                class_keys: None,
+                account_keys: None,
             },
-        )
-        .await;
+        );
 
         check(
             "http://example.com/test?class_keys[]=is_adult",
             PropertyFilters {
-                class_keys: vec!["is_adult".to_owned()],
-                account_keys: vec![],
+                class_keys: Some(vec!["is_adult".to_owned()]),
+                account_keys: None,
             },
-        )
-        .await;
+        );
 
         check(
             "http://example.com/test?account_keys[]=onboarding",
             PropertyFilters {
-                class_keys: vec![],
-                account_keys: vec!["onboarding".to_owned()],
+                class_keys: None,
+                account_keys: Some(vec!["onboarding".to_owned()]),
             },
-        )
-        .await;
+        );
 
         check(
             "http://example.com/test?class_keys[]=is_adult&account_keys[]=onboarding",
             PropertyFilters {
-                class_keys: vec!["is_adult".to_owned()],
-                account_keys: vec!["onboarding".to_owned()],
+                class_keys: Some(vec!["is_adult".to_owned()]),
+                account_keys: Some(vec!["onboarding".to_owned()]),
             },
-        )
-        .await;
+        );
     }
 }
