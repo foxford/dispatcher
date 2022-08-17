@@ -61,7 +61,7 @@ impl<'a> TaskWithOptions<'a> {
     }
 }
 
-#[derive(Debug, PartialEq, Serialize)]
+#[derive(Debug, PartialEq, Eq, Serialize)]
 #[serde(untagged)]
 pub enum Task {
     TranscodeStreamToHls {
@@ -101,7 +101,7 @@ impl Task {
     }
 }
 
-#[derive(Debug, PartialEq, Serialize)]
+#[derive(Debug, PartialEq, Eq, Serialize)]
 pub struct TranscodeMinigroupToHlsStream {
     id: Uuid,
     uri: String,

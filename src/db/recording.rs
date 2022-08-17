@@ -74,7 +74,7 @@ impl Object {
 
 pub type BoundedOffsetTuples = Vec<(Bound<i64>, Bound<i64>)>;
 
-#[derive(Clone, Debug, PartialEq, Deserialize, Serialize, sqlx::Type, Default)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize, sqlx::Type, Default)]
 #[sqlx(transparent)]
 #[serde(from = "BoundedOffsetTuples")]
 #[serde(into = "BoundedOffsetTuples")]

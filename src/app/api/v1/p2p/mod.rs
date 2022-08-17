@@ -208,13 +208,11 @@ pub async fn convert(
             .await
             .error(AppErrorKind::DbConnAcquisitionFailed)?;
 
-        let p2p = query
+        query
             .execute(&mut conn)
             .await
             .context("Failed to find recording")
-            .error(AppErrorKind::DbQueryFailed)?;
-
-        p2p
+            .error(AppErrorKind::DbQueryFailed)?
     };
 
     crate::app::services::update_classroom_id(
