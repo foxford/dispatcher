@@ -6,10 +6,10 @@ metadata:
   name: {{ include "dispatcher.fullname" . }}-app
 data:
   App.toml: |
-    {{- $id := list (include "dispatcher.name" . ) (include "dispatcher.shortNamespace" .) .Values.app.svc.audience | compact | join "." }}
+    {{- $id := list (include "dispatcher.name" . ) (include "dispatcher.audienceEnvironment" .) .Values.app.svc.audience | compact | join "." }}
     id = {{ $id | quote }}
 
-    {{- $broker_id := list "mqtt-gateway" (include "dispatcher.shortNamespace" .) .Values.app.svc.audience | compact | join "." }}
+    {{- $broker_id := list "mqtt-gateway" (include "dispatcher.audienceEnvironment" .) .Values.app.svc.audience | compact | join "." }}
     broker_id = {{ $broker_id | quote }}
 
     retry_delay = "2 seconds"
@@ -65,26 +65,26 @@ data:
     metrics_listener_address = "0.0.0.0:8888"
 
     [conference_client]
-    {{- $conference := list "conference" (include "dispatcher.shortNamespace" $) .Values.app.svc.audience | compact | join "."  }}
+    {{- $conference := list "conference" (include "dispatcher.audienceEnvironment" $) .Values.app.svc.audience | compact | join "."  }}
     account_id = {{ $conference | quote }}
     timeout = "5"
     api_version = "v1"
 
     [event_client]
-    {{- $event := list "event" (include "dispatcher.shortNamespace" $) .Values.app.svc.audience | compact | join "."  }}
+    {{- $event := list "event" (include "dispatcher.audienceEnvironment" $) .Values.app.svc.audience | compact | join "."  }}
     account_id = {{ $event | quote }}
     timeout = "5"
     api_version = "v1"
 
     [tq_client]
-    {{- $tq := list "tq" (include "dispatcher.shortNamespace" $) .Values.app.svc.audience | compact | join "."  }}
+    {{- $tq := list "tq" (include "dispatcher.audienceEnvironment" $) .Values.app.svc.audience | compact | join "."  }}
     base_url = "http://tq-cluster:3000/"
     account_id = {{ $tq | quote }}
     timeout = "5"
     api_version = "v1"
     {{- range .Values.app.audiences }}
     {{- if hasKey . "tq" }}
-    {{- $ns_audience := list (include "dispatcher.shortNamespace" $) .audience | compact | join "."  }}
+    {{- $ns_audience := list (include "dispatcher.audienceEnvironment" $) .audience | compact | join "."  }}
     [tq_client.audience_settings.{{ $ns_audience | quote }}]
     {{- if hasKey .tq "preroll" }}
     preroll = {{ .tq.preroll | quote }}
@@ -122,7 +122,7 @@ data:
     ##
     ## SVC
     ##
-    {{- $svc_audience := list (include "dispatcher.shortNamespace" $) .audience | compact | join "." }}
+    {{- $svc_audience := list (include "dispatcher.audienceEnvironment" $) .audience | compact | join "." }}
     {{- with .authn }}
     [authn.{{ $svc_audience | quote }}]
     audience = [{{ $svc_audience | quote }}]
@@ -156,8 +156,8 @@ data:
     ##
     ## {{ .audience }}
     ##
-    {{- $svc_audience := list (include "dispatcher.shortNamespace" $) "svc" .audience | compact | join "." }}
-    {{- $usr_audience := list (include "dispatcher.shortNamespace" $) "usr" .audience | compact | join "." }}
+    {{- $svc_audience := list (include "dispatcher.audienceEnvironment" $) "svc" .audience | compact | join "." }}
+    {{- $usr_audience := list (include "dispatcher.audienceEnvironment" $) "usr" .audience | compact | join "." }}
     {{- with .authn }}
     [authn.{{ list "iam" $svc_audience | join "." | quote }}]
     audience = [{{ $svc_audience | quote }}, {{ $usr_audience | quote }}]
@@ -165,7 +165,7 @@ data:
     key = {{ .key | quote }}
     {{- end }}
 
-    {{- $ns_audience := list (include "dispatcher.shortNamespace" $) .audience | compact | join "."  }}
+    {{- $ns_audience := list (include "dispatcher.audienceEnvironment" $) .audience | compact | join "."  }}
     {{- println "" }}
 
     {{- with .authz }}
