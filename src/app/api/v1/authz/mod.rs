@@ -215,10 +215,10 @@ fn transform_authz_request(authz_req: &mut AuthzRequest, account_id: &AccountId)
 fn transform_event_authz_request(authz_req: &mut AuthzRequest) {
     let act = &mut authz_req.action;
 
-    // ["rooms", ROOM_ID, "agents"]::list       => ["rooms", ROOM_ID]::read
-    // ["rooms", ROOM_ID, "events"]::list       => ["rooms", ROOM_ID]::read
-    // ["rooms", ROOM_ID, "events"]::subscribe  => ["rooms", ROOM_ID]::read
-    // ["rooms", ROOM_ID, "events", "draw_lock", "authors", account_id]::create => ["rooms", ROOM_ID, "events", "draw", "authors", account_id]::create
+    // ["classrooms", CLASSROOM_ID, "agents"]::list       => ["classrooms", CLASSROOM_ID]::read
+    // ["classrooms", CLASSROOM_ID, "events"]::list       => ["classrooms", CLASSROOM_ID]::read
+    // ["classrooms", CLASSROOM_ID, "events"]::subscribe  => ["classrooms", CLASSROOM_ID]::read
+    // ["classrooms", CLASSROOM_ID, "events", "draw_lock", "authors", account_id]::create => ["classrooms", CLASSROOM_ID, "events", "draw", "authors", account_id]::create
     match authz_req.object.value.get_mut(0..) {
         None => {}
         Some([_rooms, _room_id, v]) if act == "list" && v == "agents" => {
@@ -242,15 +242,17 @@ fn transform_event_authz_request(authz_req: &mut AuthzRequest) {
 
 fn transform_conference_authz_request(authz_req: &mut AuthzRequest) {
     let act = &mut authz_req.action;
+    let authz_object: Option<&str> = authz_req.object.value.get(0).map(|s| s.as_ref());
 
-    // only transform rooms/* objects
-    if authz_req.object.value.get(0).map(|s| s.as_ref()) != Some("rooms") {
+    // TODO: Delete "rooms" in the next release (ULMS-1988)
+    // only transform rooms/* and classrooms/* objects
+    if authz_object != Some("rooms") && authz_object != Some("classrooms") {
         return;
     }
 
-    // ["rooms", ROOM_ID, "agents"]::list       => ["rooms", ROOM_ID]::read
-    // ["rooms", ROOM_ID, "rtcs"]::list         => ["rooms", ROOM_ID]::read
-    // ["rooms", ROOM_ID, "events"]::subscribe  => ["rooms", ROOM_ID]::read
+    // ["classrooms", CLASSROOM_ID, "agents"]::list       => ["classrooms", CLASSROOM_ID]::read
+    // ["classrooms", CLASSROOM_ID, "rtcs"]::list         => ["classrooms", CLASSROOM_ID]::read
+    // ["classrooms", CLASSROOM_ID, "events"]::subscribe  => ["classrooms", CLASSROOM_ID]::read
     match authz_req.object.value.get_mut(0..) {
         None => {}
         Some([_rooms, _room_id, v]) if act == "list" && v == "agents" => {
@@ -376,6 +378,7 @@ async fn substitute_class(
                 }
             }
         }
+        // TODO: Delete it in the next release (ULMS-1988)
         Some([obj, room_id]) if obj == "rooms" => {
             let query = match q(room_id) {
                 Ok(query) => query,
@@ -485,13 +488,13 @@ fn test_extract_rtc_id() {
 
 #[test]
 fn test_transform_event_authz_request() {
-    // ["rooms", ROOM_ID, "agents"]::list
-    // becomes ["rooms", ROOM_ID]::read
+    //  ["classrooms", CLASSROOM_ID, "agents"]::list
+    // becomes ["classrooms", CLASSROOM_ID]::read
     let mut authz_req: AuthzRequest = serde_json::from_str(
         r#"
         {
             "subject": {"namespace": "foobar", "value": "barbaz"},
-            "object": {"namespace": "foobar", "value": [ "rooms", "uuid", "agents"]},
+            "object": {"namespace": "foobar", "value": [ "classrooms", "uuid", "agents"]},
             "action": "list"
         }
     "#,
@@ -500,36 +503,13 @@ fn test_transform_event_authz_request() {
     transform_event_authz_request(&mut authz_req);
 
     assert_eq!(authz_req.action, "read");
-    assert_eq!(authz_req.object.value, ["rooms", "uuid"]);
+    assert_eq!(authz_req.object.value, ["classrooms", "uuid"]);
 }
 
 #[test]
 fn test_transform_event_authz_request_2() {
-    // ["rooms", ROOM_ID, "events", "draw_lock", "authors", account_id]::create
-    // becomes ["rooms", ROOM_ID, "events", "draw", "authors", account_id]::create
-    let mut authz_req: AuthzRequest = serde_json::from_str(
-        r#"
-        {
-            "subject": {"namespace": "foobar", "value": "barbaz"},
-            "object": {"namespace": "foobar", "value": [ "rooms", "uuid", "events", "draw_lock", "authors", "account_id"]},
-            "action": "create"
-        }
-    "#,
-    )
-    .unwrap();
-    transform_event_authz_request(&mut authz_req);
-
-    assert_eq!(authz_req.action, "create");
-    assert_eq!(
-        authz_req.object.value,
-        ["rooms", "uuid", "events", "draw", "authors", "account_id"]
-    );
-}
-
-#[test]
-fn test_transform_event_authz_request_3() {
-    // ["classrooms", ROOM_ID, "events", "draw_lock", "authors", account_id]::create
-    // becomes ["classrooms", ROOM_ID, "events", "draw", "authors", account_id]::create
+    //  ["classrooms", CLASSROOM_ID, "events", "draw_lock", "authors", account_id]::create
+    // becomes ["classrooms", CLASSROOM_ID, "events", "draw", "authors", account_id]::create
     let mut authz_req: AuthzRequest = serde_json::from_str(
         r#"
         {
