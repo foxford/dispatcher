@@ -242,11 +242,9 @@ fn transform_event_authz_request(authz_req: &mut AuthzRequest) {
 
 fn transform_conference_authz_request(authz_req: &mut AuthzRequest) {
     let act = &mut authz_req.action;
-    let authz_object: Option<&str> = authz_req.object.value.get(0).map(|s| s.as_ref());
 
-    // TODO: Delete "rooms" in the next release (ULMS-1988)
-    // only transform rooms/* and classrooms/* objects
-    if authz_object != Some("rooms") && authz_object != Some("classrooms") {
+    // only transform classrooms/* objects
+    if authz_req.object.value.get(0).map(|s| s.as_ref()) != Some("classrooms") {
         return;
     }
 
@@ -372,36 +370,6 @@ async fn substitute_class(
                 Some(AuthzClass { id }) => {
                     *obj = "classrooms".into();
                     *set_id = id;
-                    authz_req.object.namespace = state.agent_id().as_account_id().to_string();
-
-                    Ok(())
-                }
-            }
-        }
-        // TODO: Delete it in the next release (ULMS-1988)
-        Some([obj, room_id]) if obj == "rooms" => {
-            let query = match q(room_id) {
-                Ok(query) => query,
-                Err(_) => {
-                    return Ok(());
-                }
-            };
-
-            let mut conn = state
-                .get_conn()
-                .await
-                .error(AppErrorKind::DbConnAcquisitionFailed)?;
-
-            match query
-                .execute(&mut conn)
-                .await
-                .context("Failed to find classroom")
-                .error(AppErrorKind::DbQueryFailed)?
-            {
-                None => Ok(()),
-                Some(AuthzClass { id }) => {
-                    *obj = "classrooms".into();
-                    *room_id = id;
                     authz_req.object.namespace = state.agent_id().as_account_id().to_string();
 
                     Ok(())
