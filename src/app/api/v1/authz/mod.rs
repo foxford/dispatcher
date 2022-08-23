@@ -215,10 +215,11 @@ fn transform_authz_request(authz_req: &mut AuthzRequest, account_id: &AccountId)
 fn transform_event_authz_request(authz_req: &mut AuthzRequest) {
     let act = &mut authz_req.action;
 
-    // ["classrooms", CLASSROOM_ID, "agents"]::list       => ["classrooms", CLASSROOM_ID]::read
-    // ["classrooms", CLASSROOM_ID, "events"]::list       => ["classrooms", CLASSROOM_ID]::read
-    // ["classrooms", CLASSROOM_ID, "events"]::subscribe  => ["classrooms", CLASSROOM_ID]::read
-    // ["classrooms", CLASSROOM_ID, "events", "draw_lock", "authors", account_id]::create => ["classrooms", CLASSROOM_ID, "events", "draw", "authors", account_id]::create
+    // ["classrooms", CLASSROOM_ID, "agents"]::list                                             => ["classrooms", CLASSROOM_ID]::read
+    // ["classrooms", CLASSROOM_ID, "events"]::list                                             => ["classrooms", CLASSROOM_ID]::read
+    // ["classrooms", CLASSROOM_ID, "events"]::subscribe                                        => ["classrooms", CLASSROOM_ID]::read
+    // ["classrooms", CLASSROOM_ID, "events", "draw_lock", "authors", account_id]::create       => ["classrooms", CLASSROOM_ID, "events", "draw", "authors", account_id]::create
+    // ["classrooms", CLASSROOM_ID, "events", "document_page", "authors", account_id]::create   => ["classrooms", CLASSROOM_ID, "events", "document", "authors", account_id]::create
     match authz_req.object.value.get_mut(0..) {
         None => {}
         Some([_rooms, _room_id, v]) if act == "list" && v == "agents" => {
@@ -233,8 +234,13 @@ fn transform_event_authz_request(authz_req: &mut AuthzRequest) {
             *act = "read".into();
             authz_req.object.value.truncate(2);
         }
-        Some([_, _, v, kind, _, _]) if act == "create" && v == "events" && kind == "draw_lock" => {
-            kind.truncate(4);
+        Some([_, _, v, kind, _, _])
+            if act == "create"
+                && v == "events"
+                && (kind == "draw_lock" || kind == "document_page") =>
+        {
+            let offset = kind.find('_').unwrap();
+            kind.drain(offset..);
         }
         Some(_) => {}
     }
@@ -456,7 +462,7 @@ fn test_extract_rtc_id() {
 
 #[test]
 fn test_transform_event_authz_request() {
-    //  ["classrooms", CLASSROOM_ID, "agents"]::list
+    // ["classrooms", CLASSROOM_ID, "agents"]::list
     // becomes ["classrooms", CLASSROOM_ID]::read
     let mut authz_req: AuthzRequest = serde_json::from_str(
         r#"
@@ -476,7 +482,7 @@ fn test_transform_event_authz_request() {
 
 #[test]
 fn test_transform_event_authz_request_2() {
-    //  ["classrooms", CLASSROOM_ID, "events", "draw_lock", "authors", account_id]::create
+    // ["classrooms", CLASSROOM_ID, "events", "draw_lock", "authors", account_id]::create
     // becomes ["classrooms", CLASSROOM_ID, "events", "draw", "authors", account_id]::create
     let mut authz_req: AuthzRequest = serde_json::from_str(
         r#"
@@ -498,6 +504,36 @@ fn test_transform_event_authz_request_2() {
             "uuid",
             "events",
             "draw",
+            "authors",
+            "account_id"
+        ]
+    );
+}
+
+#[test]
+fn test_transform_event_authz_request_3() {
+    // ["classrooms", CLASSROOM_ID, "events", "document_page", "authors", account_id]::create
+    // becomes ["classrooms", CLASSROOM_ID, "events", "draw", "authors", account_id]::create
+    let mut authz_req: AuthzRequest = serde_json::from_str(
+        r#"
+        {
+            "subject": {"namespace": "foobar", "value": "barbaz"},
+            "object": {"namespace": "foobar", "value": [ "classrooms", "uuid", "events", "document_page", "authors", "account_id"]},
+            "action": "create"
+        }
+    "#,
+    )
+        .unwrap();
+    transform_event_authz_request(&mut authz_req);
+
+    assert_eq!(authz_req.action, "create");
+    assert_eq!(
+        authz_req.object.value,
+        [
+            "classrooms",
+            "uuid",
+            "events",
+            "document",
             "authors",
             "account_id"
         ]
