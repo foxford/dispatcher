@@ -62,6 +62,15 @@ Short namespace.
 {{- end }}
 
 {{/*
+Audience Environment
+*/}}
+{{- define "dispatcher.audienceEnvironment" -}}
+{{- $v := regexReplaceAll "(s)(\\d\\d)" (include "dispatcher.shortNamespace" .) "staging${2}" }}
+{{- $v := regexReplaceAll "(t)(\\d\\d)" $v "testing${2}" }}
+{{- $v }}
+{{- end }}
+
+{{/*
 Sets short_namespace in config if needed
 */}}
 {{- define "dispatcher.shortNamespaceSetting" -}}
