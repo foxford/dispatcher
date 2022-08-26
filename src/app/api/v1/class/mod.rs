@@ -58,7 +58,7 @@ impl ClassResponseBody {
         self.position = Some(position_secs);
     }
 
-    pub fn filter_class_properties(&mut self, keys: &Vec<String>) {
+    pub fn filter_class_properties(&mut self, keys: &[String]) {
         let mut props = KeyValueProperties::new();
 
         for key in keys {
