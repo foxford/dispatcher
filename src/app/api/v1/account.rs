@@ -100,13 +100,11 @@ pub async fn read_account(
     state: &dyn AppContext,
     id: &AccountId,
 ) -> anyhow::Result<crate::db::account::Object> {
-    let account = {
-        let mut conn = state.get_conn().await?;
-        crate::db::account::ReadQuery::by_id(id)
-            .execute(&mut conn)
-            .await?
-            .ok_or_else(|| anyhow!("Failed to find account"))?
-    };
+    let mut conn = state.get_conn().await?;
+    let account = crate::db::account::ReadQuery::by_id(id)
+        .execute(&mut conn)
+        .await?
+        .ok_or_else(|| anyhow!("Failed to find account"))?;
     Ok(account)
 }
 
@@ -115,12 +113,10 @@ pub async fn upsert_account(
     id: &AccountId,
     properties: KeyValueProperties,
 ) -> anyhow::Result<crate::db::account::Object> {
-    let account = {
-        let mut conn = state.get_conn().await?;
-        crate::db::account::UpsertQuery::new(id, properties)
-            .execute(&mut conn)
-            .await?
-    };
+    let mut conn = state.get_conn().await?;
+    let account = crate::db::account::UpsertQuery::new(id, properties)
+        .execute(&mut conn)
+        .await?;
     Ok(account)
 }
 
