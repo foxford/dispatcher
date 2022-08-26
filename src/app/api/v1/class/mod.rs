@@ -73,7 +73,7 @@ impl ClassResponseBody {
     pub fn set_account_properties(
         &mut self,
         mut account_properties: KeyValueProperties,
-        keys: &Vec<String>,
+        keys: &[String],
     ) {
         self.account_properties.clear();
 
