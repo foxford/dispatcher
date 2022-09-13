@@ -62,6 +62,11 @@ Attribute            | Type        | Optional | Description
 audience             | string      |          | Webinar audience
 scope                | string      |          | Webinar scope
 
+Query parameter        | Type        | Optional | Description
+---------------------- | ----------- | -------- | --------------
+class_keys             | [string]    | +        | List of webinar properties to fetch
+account_keys           | [string]    | +        | List of account properties to fetch
+
 Response:
 
 Attribute              | Type        | Optional | Description

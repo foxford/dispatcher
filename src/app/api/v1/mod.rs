@@ -5,8 +5,7 @@ use hyper::{Body, Request, Response};
 use percent_encoding::{percent_encode, NON_ALPHANUMERIC};
 use serde_derive::Deserialize;
 use serde_json::Value as JsonValue;
-use svc_agent::Authenticable;
-use svc_utils::extractors::AuthnExtractor;
+use svc_utils::extractors::AccountIdExtractor;
 use tracing::error;
 use url::Url;
 use uuid::Uuid;
@@ -29,11 +28,9 @@ pub async fn healthz() -> &'static str {
 pub async fn create_event(
     Extension(ctx): Extension<Arc<dyn AppContext>>,
     Path(id): Path<Uuid>,
-    AuthnExtractor(agent_id): AuthnExtractor,
+    AccountIdExtractor(account_id): AccountIdExtractor,
     Json(mut payload): Json<JsonValue>,
 ) -> AppResult {
-    let account_id = agent_id.as_account_id();
-
     let class = find_class(ctx.as_ref(), id)
         .await
         .error(AppErrorKind::ClassNotFound)?;
@@ -191,6 +188,7 @@ async fn find_by_scope<T: AsClassType>(
     Ok(webinar)
 }
 
+pub mod account;
 pub mod authz;
 pub mod class;
 pub mod minigroup;

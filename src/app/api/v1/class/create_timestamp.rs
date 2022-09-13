@@ -4,8 +4,7 @@ use anyhow::Context;
 use axum::extract::{Extension, Json, Path};
 use hyper::{Body, Response};
 use serde_derive::Deserialize;
-use svc_agent::Authenticable;
-use svc_utils::extractors::AuthnExtractor;
+use svc_utils::extractors::AccountIdExtractor;
 use uuid::Uuid;
 
 use super::{find, AppResult};
@@ -24,7 +23,7 @@ pub struct TimestampPayload {
 pub async fn create_timestamp<T: AsClassType>(
     Extension(ctx): Extension<Arc<dyn AppContext>>,
     Path(id): Path<Uuid>,
-    AuthnExtractor(agent_id): AuthnExtractor,
+    AccountIdExtractor(account_id): AccountIdExtractor,
     Json(body): Json<TimestampPayload>,
 ) -> AppResult {
     let class = find::<T>(ctx.as_ref(), id)
@@ -36,7 +35,7 @@ pub async fn create_timestamp<T: AsClassType>(
     ctx.authz()
         .authorize(
             class.audience().to_owned(),
-            agent_id.as_account_id().clone(),
+            account_id.clone(),
             object,
             "read".into(),
         )
@@ -45,7 +44,7 @@ pub async fn create_timestamp<T: AsClassType>(
 
     let query = crate::db::record_timestamp::UpsertQuery::new(
         class.id(),
-        agent_id.as_account_id().clone(),
+        account_id.clone(),
         body.position,
     );
 
@@ -104,7 +103,7 @@ mod create_timestamp_tests {
         create_timestamp::<WebinarType>(
             Extension(state),
             Path(webinar.id()),
-            AuthnExtractor(agent.agent_id().to_owned()),
+            AccountIdExtractor(agent.account_id().to_owned()),
             Json(body),
         )
         .await
@@ -156,7 +155,7 @@ mod create_timestamp_tests {
         create_timestamp::<WebinarType>(
             Extension(state.clone()),
             Path(webinar.id()),
-            AuthnExtractor(agent.agent_id().to_owned()),
+            AccountIdExtractor(agent.account_id().to_owned()),
             Json(body),
         )
         .await
@@ -166,7 +165,8 @@ mod create_timestamp_tests {
         let response = super::super::read::<WebinarType>(
             Extension(state),
             Path(webinar.id()),
-            AuthnExtractor(agent.agent_id().to_owned()),
+            axum::extract::RawQuery(None),
+            AccountIdExtractor(agent.account_id().to_owned()),
         )
         .await
         .expect("Failed to read webinar");

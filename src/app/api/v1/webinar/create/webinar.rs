@@ -4,8 +4,8 @@ use anyhow::Context;
 use axum::extract::{Extension, Json};
 use hyper::{Body, Response};
 use serde_derive::Deserialize;
-use svc_agent::{AccountId, Authenticable};
-use svc_utils::extractors::AuthnExtractor;
+use svc_agent::AccountId;
+use svc_utils::extractors::AccountIdExtractor;
 use tracing::{error, info, instrument};
 
 use crate::app::api::v1::{AppError, AppResult};
@@ -14,7 +14,7 @@ use crate::app::error::ErrorKind as AppErrorKind;
 use crate::app::services;
 use crate::app::AppContext;
 use crate::app::{authz::AuthzObject, metrics::AuthorizeMetrics};
-use crate::db::class::ClassProperties;
+use crate::db::class::KeyValueProperties;
 use crate::db::class::{self, BoundedDateTimeTuple, ClassType};
 
 #[derive(Deserialize)]
@@ -25,7 +25,7 @@ pub struct WebinarCreatePayload {
     time: Option<BoundedDateTimeTuple>,
     tags: Option<serde_json::Value>,
     #[serde(default)]
-    properties: ClassProperties,
+    properties: KeyValueProperties,
     reserve: Option<i32>,
     #[serde(default = "class::default_locked_chat")]
     locked_chat: bool,
@@ -40,11 +40,11 @@ pub struct WebinarCreatePayload {
 )]
 pub async fn create(
     ctx: Extension<Arc<dyn AppContext>>,
-    AuthnExtractor(agent_id): AuthnExtractor,
+    AccountIdExtractor(account_id): AccountIdExtractor,
     Json(payload): Json<WebinarCreatePayload>,
 ) -> AppResult {
     info!("Creating webinar");
-    let r = do_create(ctx.as_ref(), agent_id.as_account_id(), payload).await;
+    let r = do_create(ctx.as_ref(), &account_id, payload).await;
     if let Err(e) = &r {
         error!(error = ?e, "Failed to create webinar");
     }
@@ -183,7 +183,7 @@ mod tests {
             audience: USR_AUDIENCE.to_string(),
             time: None,
             tags: None,
-            properties: ClassProperties::default(),
+            properties: KeyValueProperties::default(),
             reserve: Some(10),
             locked_chat: true,
         };
@@ -230,7 +230,7 @@ mod tests {
             audience: USR_AUDIENCE.to_string(),
             time: Some(time),
             tags: None,
-            properties: ClassProperties::default(),
+            properties: KeyValueProperties::default(),
             reserve: Some(10),
             locked_chat: true,
         };
@@ -264,7 +264,7 @@ mod tests {
             audience: USR_AUDIENCE.to_string(),
             time: None,
             tags: None,
-            properties: ClassProperties::default(),
+            properties: KeyValueProperties::default(),
             reserve: Some(10),
             locked_chat: true,
         };
@@ -289,7 +289,7 @@ mod tests {
 
         let scope = random_string();
 
-        let mut properties: ClassProperties = serde_json::Map::new().into();
+        let mut properties: KeyValueProperties = serde_json::Map::new().into();
         properties.insert("is_adult".into(), true.into());
 
         let state = Arc::new(state);

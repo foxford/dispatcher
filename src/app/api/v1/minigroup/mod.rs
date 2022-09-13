@@ -6,8 +6,7 @@ use axum::extract::{Extension, Json};
 use hyper::{Body, Response};
 use serde_derive::Deserialize;
 use svc_agent::AccountId;
-use svc_agent::Authenticable;
-use svc_utils::extractors::AuthnExtractor;
+use svc_utils::extractors::AccountIdExtractor;
 use tracing::{error, info, instrument};
 
 use crate::app::authz::AuthzObject;
@@ -16,8 +15,8 @@ use crate::app::error::ErrorKind as AppErrorKind;
 use crate::app::metrics::AuthorizeMetrics;
 use crate::app::services;
 use crate::app::AppContext;
-use crate::db::class::ClassProperties;
 use crate::db::class::ClassType;
+use crate::db::class::KeyValueProperties;
 use crate::db::class::{self, BoundedDateTimeTuple};
 
 use super::AppError;
@@ -31,7 +30,7 @@ pub struct MinigroupCreatePayload {
     time: Option<BoundedDateTimeTuple>,
     tags: Option<serde_json::Value>,
     #[serde(default)]
-    properties: ClassProperties,
+    properties: KeyValueProperties,
     reserve: Option<i32>,
     #[serde(default = "class::default_locked_chat")]
     locked_chat: bool,
@@ -46,11 +45,11 @@ pub struct MinigroupCreatePayload {
 )]
 pub async fn create(
     Extension(ctx): Extension<Arc<dyn AppContext>>,
-    AuthnExtractor(agent_id): AuthnExtractor,
+    AccountIdExtractor(account_id): AccountIdExtractor,
     Json(body): Json<MinigroupCreatePayload>,
 ) -> AppResult {
     info!("Creating minigroup");
-    let r = do_create(ctx.as_ref(), agent_id.as_account_id(), body).await;
+    let r = do_create(ctx.as_ref(), &account_id, body).await;
     if let Err(e) = &r {
         error!(error = ?e, "Failed to create minigroup");
     }
@@ -194,7 +193,7 @@ mod tests {
                 audience: USR_AUDIENCE.to_string(),
                 time: None,
                 tags: None,
-                properties: ClassProperties::default(),
+                properties: KeyValueProperties::default(),
                 reserve: Some(10),
                 locked_chat: true,
             };
@@ -241,7 +240,7 @@ mod tests {
                 audience: USR_AUDIENCE.to_string(),
                 time: Some(time),
                 tags: None,
-                properties: ClassProperties::default(),
+                properties: KeyValueProperties::default(),
                 reserve: Some(10),
                 locked_chat: true,
             };
@@ -275,7 +274,7 @@ mod tests {
                 audience: USR_AUDIENCE.to_string(),
                 time: None,
                 tags: None,
-                properties: ClassProperties::default(),
+                properties: KeyValueProperties::default(),
                 reserve: Some(10),
                 locked_chat: true,
             };
@@ -300,7 +299,7 @@ mod tests {
 
             let scope = random_string();
 
-            let mut properties: ClassProperties = serde_json::Map::new().into();
+            let mut properties: KeyValueProperties = serde_json::Map::new().into();
             properties.insert("is_adult".into(), true.into());
 
             let state = Arc::new(state);

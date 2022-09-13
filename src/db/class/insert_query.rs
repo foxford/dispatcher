@@ -13,7 +13,7 @@ pub struct Dummy {
     created_at: DateTime<Utc>,
     #[serde(skip_serializing_if = "Option::is_none")]
     tags: Option<JsonValue>,
-    properties: ClassProperties,
+    properties: KeyValueProperties,
     preserve_history: bool,
     reserve: Option<i32>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -78,7 +78,7 @@ pub struct InsertQuery {
     audience: String,
     time: Time,
     tags: Option<JsonValue>,
-    properties: Option<ClassProperties>,
+    properties: Option<KeyValueProperties>,
     preserve_history: bool,
     conference_room_id: Option<Uuid>,
     event_room_id: Option<Uuid>,
@@ -118,7 +118,7 @@ impl InsertQuery {
         }
     }
 
-    pub fn properties(self, properties: ClassProperties) -> Self {
+    pub fn properties(self, properties: KeyValueProperties) -> Self {
         Self {
             properties: Some(properties),
             ..self
@@ -194,7 +194,7 @@ impl InsertQuery {
             self.reserve,
             self.room_events_uri,
             self.established,
-            self.properties.unwrap_or_default() as ClassProperties,
+            self.properties.unwrap_or_default() as KeyValueProperties,
             self.original_class_id,
         )
         .fetch_one(conn)

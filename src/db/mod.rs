@@ -19,6 +19,7 @@ pub(crate) async fn create_pool(
         .expect("Failed to create sqlx database pool")
 }
 
+pub(crate) mod account;
 pub(crate) mod authz;
 pub(crate) mod class;
 pub(crate) mod frontend;

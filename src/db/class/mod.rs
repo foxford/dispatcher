@@ -12,21 +12,25 @@ use serde_json::Value as JsonValue;
 pub type BoundedDateTimeTuple = (Bound<DateTime<Utc>>, Bound<DateTime<Utc>>);
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
-pub struct ClassProperties(serde_json::Map<String, JsonValue>);
+pub struct KeyValueProperties(serde_json::Map<String, JsonValue>);
 
-impl ClassProperties {
+impl KeyValueProperties {
+    pub fn new() -> Self {
+        Self(serde_json::Map::new())
+    }
+
     pub fn into_json(self) -> JsonValue {
         JsonValue::Object(self.0)
     }
 }
 
-impl From<serde_json::Map<String, JsonValue>> for ClassProperties {
+impl From<serde_json::Map<String, JsonValue>> for KeyValueProperties {
     fn from(map: serde_json::Map<String, JsonValue>) -> Self {
         Self(map)
     }
 }
 
-impl std::ops::Deref for ClassProperties {
+impl std::ops::Deref for KeyValueProperties {
     type Target = serde_json::Map<String, JsonValue>;
 
     fn deref(&self) -> &Self::Target {
@@ -34,13 +38,13 @@ impl std::ops::Deref for ClassProperties {
     }
 }
 
-impl std::ops::DerefMut for ClassProperties {
+impl std::ops::DerefMut for KeyValueProperties {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
 }
 
-impl sqlx::Encode<'_, sqlx::Postgres> for ClassProperties {
+impl sqlx::Encode<'_, sqlx::Postgres> for KeyValueProperties {
     fn encode_by_ref<'q>(
         &self,
         buf: &mut <sqlx::Postgres as sqlx::database::HasArguments<'q>>::ArgumentBuffer,
@@ -49,7 +53,7 @@ impl sqlx::Encode<'_, sqlx::Postgres> for ClassProperties {
     }
 }
 
-impl sqlx::Decode<'_, sqlx::Postgres> for ClassProperties {
+impl sqlx::Decode<'_, sqlx::Postgres> for KeyValueProperties {
     fn decode(
         value: <sqlx::Postgres as sqlx::database::HasValueRef<'_>>::ValueRef,
     ) -> Result<Self, sqlx::error::BoxDynError> {
@@ -63,7 +67,7 @@ impl sqlx::Decode<'_, sqlx::Postgres> for ClassProperties {
     }
 }
 
-impl sqlx::Type<sqlx::Postgres> for ClassProperties {
+impl sqlx::Type<sqlx::Postgres> for KeyValueProperties {
     fn type_info() -> <sqlx::Postgres as sqlx::Database>::TypeInfo {
         <JsonValue as sqlx::Type<sqlx::Postgres>>::type_info()
     }
@@ -154,7 +158,7 @@ pub struct Object {
     created_at: DateTime<Utc>,
     #[serde(skip_serializing_if = "Option::is_none")]
     tags: Option<JsonValue>,
-    properties: ClassProperties,
+    properties: KeyValueProperties,
     conference_room_id: Uuid,
     event_room_id: Uuid,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -209,7 +213,7 @@ impl Object {
         self.tags.as_ref()
     }
 
-    pub fn properties(&self) -> &ClassProperties {
+    pub fn properties(&self) -> &KeyValueProperties {
         &self.properties
     }
 
@@ -710,7 +714,7 @@ pub struct ClassUpdateQuery {
     time: Option<Time>,
     reserve: Option<i32>,
     host: Option<AgentId>,
-    properties: Option<ClassProperties>,
+    properties: Option<KeyValueProperties>,
 }
 
 impl ClassUpdateQuery {
@@ -739,7 +743,7 @@ impl ClassUpdateQuery {
         self
     }
 
-    pub fn properties(self, properties: ClassProperties) -> Self {
+    pub fn properties(self, properties: KeyValueProperties) -> Self {
         Self {
             properties: Some(properties),
             ..self
@@ -765,7 +769,7 @@ impl ClassUpdateQuery {
                 audience,
                 time AS "time!: Time",
                 tags,
-                properties AS "properties!: ClassProperties",
+                properties AS "properties!: KeyValueProperties",
                 preserve_history,
                 created_at,
                 event_room_id AS "event_room_id!: Uuid",
@@ -783,7 +787,7 @@ impl ClassUpdateQuery {
             time,
             self.reserve,
             self.host as Option<AgentId>,
-            self.properties.unwrap_or_default() as ClassProperties,
+            self.properties.unwrap_or_default() as KeyValueProperties,
         );
 
         query.fetch_one(conn).await

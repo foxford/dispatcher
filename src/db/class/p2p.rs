@@ -5,13 +5,13 @@ use serde_json::Value as JsonValue;
 use sqlx::postgres::{types::PgRange, PgConnection};
 use uuid::Uuid;
 
-use super::{AgentId, ClassProperties, ClassType, Object, Time};
+use super::{AgentId, ClassType, KeyValueProperties, Object, Time};
 
 pub struct P2PInsertQuery {
     scope: String,
     audience: String,
     tags: Option<JsonValue>,
-    properties: Option<ClassProperties>,
+    properties: Option<KeyValueProperties>,
     conference_room_id: Uuid,
     event_room_id: Uuid,
 }
@@ -40,7 +40,7 @@ impl P2PInsertQuery {
         }
     }
 
-    pub fn properties(self, properties: ClassProperties) -> Self {
+    pub fn properties(self, properties: KeyValueProperties) -> Self {
         Self {
             properties: Some(properties),
             ..self
@@ -87,7 +87,7 @@ impl P2PInsertQuery {
             ClassType::P2P as ClassType,
             self.conference_room_id,
             self.event_room_id,
-            self.properties.unwrap_or_default() as ClassProperties,
+            self.properties.unwrap_or_default() as KeyValueProperties,
         )
         .fetch_one(conn)
         .await

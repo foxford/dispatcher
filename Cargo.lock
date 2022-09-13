@@ -467,7 +467,7 @@ dependencies = [
 
 [[package]]
 name = "dispatcher"
-version = "0.4.3"
+version = "0.4.4"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -496,13 +496,14 @@ dependencies = [
  "serde",
  "serde_derive",
  "serde_json",
+ "serde_qs",
  "signal-hook",
  "signal-hook-tokio",
  "sqlx",
  "svc-agent",
  "svc-authn",
  "svc-authz",
- "svc-error",
+ "svc-error 0.4.0",
  "svc-utils",
  "tokio",
  "tower",
@@ -2084,6 +2085,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "serde_qs"
+version = "0.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8cac3f1e2ca2fe333923a1ae72caca910b98ed0630bb35ef6f8c8517d6e81afa"
+dependencies = [
+ "percent-encoding 2.1.0",
+ "serde",
+ "thiserror",
+]
+
+[[package]]
 name = "serde_urlencoded"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2412,6 +2424,19 @@ dependencies = [
 
 [[package]]
 name = "svc-error"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "601b25c55d2123e19b0d6981a8579f4811c12d3d883ad73c4d7e97119d1ee704"
+dependencies = [
+ "anyhow",
+ "crossbeam-channel",
+ "http",
+ "serde",
+ "serde_derive",
+]
+
+[[package]]
+name = "svc-error"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "746114b66fe115121d146776dd3808f4c60c762d72921fa5a0f0817798e26538"
@@ -2432,9 +2457,9 @@ dependencies = [
 
 [[package]]
 name = "svc-utils"
-version = "0.3.0"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d8fb014a41d49cd1bc0a7975511ed3a23e19a7352fc6bc8c76839d3ea0eed83d"
+checksum = "dd2ff44610526e1a93636b09b44ff05a741a8b9ace6e1c6abe4aa1d8cde88b08"
 dependencies = [
  "axum",
  "futures",
@@ -2444,6 +2469,7 @@ dependencies = [
  "prometheus",
  "svc-agent",
  "svc-authn",
+ "svc-error 0.3.0",
  "tokio",
  "tower",
  "tower-http 0.2.5",

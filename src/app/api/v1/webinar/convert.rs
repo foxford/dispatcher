@@ -8,8 +8,7 @@ use hyper::{Body, Response};
 use serde_derive::Deserialize;
 use sqlx::Acquire;
 use svc_agent::AccountId;
-use svc_agent::Authenticable;
-use svc_utils::extractors::AuthnExtractor;
+use svc_utils::extractors::AccountIdExtractor;
 use uuid::Uuid;
 
 use crate::app::error::ErrorExt;
@@ -18,7 +17,7 @@ use crate::app::AppContext;
 use crate::app::{authz::AuthzObject, metrics::AuthorizeMetrics};
 use crate::clients::{conference::ConferenceRoomResponse, event::EventRoomResponse};
 use crate::db::class::BoundedDateTimeTuple;
-use crate::db::class::ClassProperties;
+use crate::db::class::KeyValueProperties;
 use crate::db::recording::Segments;
 
 use super::AppResult;
@@ -33,7 +32,7 @@ pub struct WebinarConvertObject {
     time: Option<BoundedDateTimeTuple>,
     tags: Option<serde_json::Value>,
     #[serde(default)]
-    properties: ClassProperties,
+    properties: KeyValueProperties,
     original_event_room_id: Option<Uuid>,
     modified_event_room_id: Option<Uuid>,
     recording: Option<RecordingConvertObject>,
@@ -51,10 +50,10 @@ struct RecordingConvertObject {
 
 pub async fn convert(
     Extension(ctx): Extension<Arc<dyn AppContext>>,
-    AuthnExtractor(agent_id): AuthnExtractor,
+    AccountIdExtractor(account_id): AccountIdExtractor,
     Json(payload): Json<WebinarConvertObject>,
 ) -> AppResult {
-    do_convert(ctx.as_ref(), agent_id.as_account_id(), payload).await
+    do_convert(ctx.as_ref(), &account_id, payload).await
 }
 
 async fn do_convert(
@@ -256,7 +255,7 @@ mod tests {
             audience: USR_AUDIENCE.to_string(),
             time: None,
             tags: None,
-            properties: ClassProperties::default(),
+            properties: KeyValueProperties::default(),
             event_room_id,
             conference_room_id,
             original_event_room_id: None,
@@ -289,7 +288,7 @@ mod tests {
             audience: USR_AUDIENCE.to_string(),
             time: Some((Bound::Unbounded, Bound::Unbounded)),
             tags: Some(json!({"scope": "whatever"})),
-            properties: ClassProperties::default(),
+            properties: KeyValueProperties::default(),
             event_room_id,
             conference_room_id,
             original_event_room_id: None,
@@ -333,7 +332,7 @@ mod tests {
             audience: USR_AUDIENCE.to_string(),
             time: Some((Bound::Unbounded, Bound::Unbounded)),
             tags: Some(json!({"scope": "whatever"})),
-            properties: ClassProperties::default(),
+            properties: KeyValueProperties::default(),
             event_room_id,
             conference_room_id,
             original_event_room_id: None,
@@ -385,7 +384,7 @@ mod tests {
             audience: USR_AUDIENCE.to_string(),
             time: None,
             tags: None,
-            properties: ClassProperties::default(),
+            properties: KeyValueProperties::default(),
             event_room_id,
             conference_room_id,
             original_event_room_id: None,

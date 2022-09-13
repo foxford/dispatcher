@@ -1,6 +1,9 @@
 use uuid::Uuid;
 
-use crate::{app::turn_host::TurnHost, db::class};
+use crate::{
+    app::turn_host::TurnHost,
+    db::class::{self, KeyValueProperties},
+};
 
 use super::{find, find_by_scope, find_class_by_scope, AppResult};
 
@@ -34,6 +37,8 @@ struct ClassResponseBody {
     position: Option<i32>,
     turn_host: TurnHost,
     content_id: String,
+    properties: KeyValueProperties,
+    account_properties: KeyValueProperties,
 }
 
 impl ClassResponseBody {
@@ -51,6 +56,32 @@ impl ClassResponseBody {
 
     pub fn set_position(&mut self, position_secs: i32) {
         self.position = Some(position_secs);
+    }
+
+    pub fn filter_class_properties(&mut self, keys: &[String]) {
+        let mut props = KeyValueProperties::new();
+
+        for key in keys {
+            if let Some((key, value)) = self.properties.remove_entry(key) {
+                props.insert(key, value);
+            }
+        }
+
+        self.properties = props;
+    }
+
+    pub fn set_account_properties(
+        &mut self,
+        mut account_properties: KeyValueProperties,
+        keys: &[String],
+    ) {
+        self.account_properties.clear();
+
+        for key in keys {
+            if let Some((key, value)) = account_properties.remove_entry(key) {
+                self.account_properties.insert(key, value);
+            }
+        }
     }
 
     pub fn new(obj: &class::Object, turn_host: TurnHost) -> Self {
@@ -71,6 +102,8 @@ impl ClassResponseBody {
             position: None,
             turn_host,
             content_id: obj.content_id().unwrap_or(&class_id.to_string()).to_owned(),
+            properties: obj.properties().clone(),
+            account_properties: KeyValueProperties::new(),
         }
     }
 }
