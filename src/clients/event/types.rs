@@ -83,18 +83,13 @@ impl HostEventData {
 
 #[derive(Deserialize)]
 pub struct RoomAdjust {
-    room_id: Option<Uuid>,
-    tags: Option<JsonValue>,
+    room_id: Uuid,
     #[serde(flatten)]
     result: RoomAdjustResult,
 }
 
 impl RoomAdjust {
-    pub fn tags(&self) -> Option<&JsonValue> {
-        self.tags.as_ref()
-    }
-
-    pub fn room_id(&self) -> Option<Uuid> {
+    pub fn room_id(&self) -> Uuid {
         self.room_id
     }
 }

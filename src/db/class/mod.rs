@@ -364,6 +364,7 @@ enum ReadQueryPredicate {
 
 pub struct ReadQuery {
     condition: ReadQueryPredicate,
+    original: bool,
 }
 
 impl ReadQuery {
@@ -373,30 +374,42 @@ impl ReadQuery {
                 audience: audience.to_owned(),
                 scope: scope.to_owned(),
             },
+            original: false,
         }
     }
 
     pub fn by_conference_room(id: Uuid) -> Self {
         Self {
             condition: ReadQueryPredicate::ConferenceRoom(id),
+            original: false,
         }
     }
 
     pub fn by_event_room(id: Uuid) -> Self {
         Self {
             condition: ReadQueryPredicate::EventRoom(id),
+            original: false,
         }
     }
 
     pub fn by_original_event_room(id: Uuid) -> Self {
         Self {
             condition: ReadQueryPredicate::OriginalEventRoom(id),
+            original: false,
         }
     }
 
     pub fn by_id(id: Uuid) -> Self {
         Self {
             condition: ReadQueryPredicate::Id(id),
+            original: false,
+        }
+    }
+
+    pub fn original(self) -> Self {
+        Self {
+            original: true,
+            ..self
         }
     }
 
@@ -406,7 +419,7 @@ impl ReadQuery {
 
         let q = Select::from_table("class");
 
-        let q = match self.condition {
+        let mut q = match self.condition {
             ReadQueryPredicate::Id(_) => q.and_where("id".equals("_placeholder_")),
             ReadQueryPredicate::Scope { .. } => q
                 .and_where("audience".equals("_placeholder_"))
@@ -421,6 +434,10 @@ impl ReadQuery {
                 q.and_where("original_event_room_id".equals("_placeholder_"))
             }
         };
+
+        if self.original {
+            q = q.and_where("original_class_id".is_null())
+        }
 
         let (sql, _bindings) = Postgres::build(q);
         let query = sqlx::query_as(&sql);

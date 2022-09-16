@@ -61,14 +61,6 @@ impl MessageHandler {
     pub async fn handle_event(&self, data: IncomingEvent<String>, topic: String) {
         warn!("Incoming event",);
 
-        let audience: Option<&str> = topic
-            .split("/audiences/")
-            .collect::<Vec<&str>>()
-            .iter()
-            .rev()
-            .next()
-            .and_then(|s| s.split("/events").next());
-        let audience = audience.map(|s| s.to_owned()).unwrap();
         let topic = topic.split('/').collect::<Vec<&str>>();
 
         let label = data.properties().label().map(|x| x.to_owned());
@@ -82,7 +74,7 @@ impl MessageHandler {
                 .await
                 .error(AppErrorKind::TranscodingFlowFailed),
             Some("room.adjust") => self
-                .handle_adjust(data, audience)
+                .handle_adjust(data)
                 .await
                 .error(AppErrorKind::TranscodingFlowFailed),
             Some("task.complete") => self
@@ -217,21 +209,14 @@ impl MessageHandler {
             .await
     }
 
-    async fn handle_adjust(&self, data: IncomingEvent<String>, audience: String) -> Result<()> {
+    async fn handle_adjust(&self, data: IncomingEvent<String>) -> Result<()> {
         let payload = data.extract_payload();
         let room_adjust: RoomAdjust = serde_json::from_str(&payload)?;
 
-        let class = if let Some(uuid) = room_adjust.room_id() {
-            self.get_class_by_room_id(uuid).await?
-        } else {
-            self.get_class_from_tags(&audience, room_adjust.tags())
-                .await?
-        };
-
         // Do not run adjust for replicas
-        if class.original_class_id().is_some() {
-            return Ok(());
-        }
+        let class = self
+            .get_original_class_by_room_id(room_adjust.room_id())
+            .await?;
 
         postprocessing_strategy::get(self.ctx.clone(), class)?
             .handle_adjust(room_adjust.into())
@@ -297,24 +282,6 @@ impl MessageHandler {
         }
     }
 
-    async fn get_class_from_tags(&self, audience: &str, tags: Option<&JsonValue>) -> Result<Class> {
-        let maybe_scope = tags.and_then(|tags| {
-            tags.get("scope")
-                .and_then(|s| s.as_str().map(|s| s.to_owned()))
-        });
-
-        if let Some(ref scope) = maybe_scope {
-            let mut conn = self.ctx.get_conn().await?;
-
-            crate::db::class::ReadQuery::by_scope(audience, scope)
-                .execute(&mut conn)
-                .await?
-                .ok_or_else(|| anyhow!("Class not found by scope = {}", scope))
-        } else {
-            bail!("No scope specified in tags = {:?}", tags);
-        }
-    }
-
     async fn get_class_from_tags_by_conference_id(
         &self,
         tags: Option<&JsonValue>,
@@ -345,13 +312,14 @@ impl MessageHandler {
         }
     }
 
-    async fn get_class_by_room_id(&self, room_id: Uuid) -> Result<Class> {
+    async fn get_original_class_by_room_id(&self, room_id: Uuid) -> Result<Class> {
         let mut conn = self.ctx.get_conn().await?;
 
         crate::db::class::ReadQuery::by_event_room(room_id)
+            .original()
             .execute(&mut conn)
             .await?
-            .ok_or_else(|| anyhow!("Class not found by modified event room id = {}", room_id))
+            .ok_or_else(|| anyhow!("Class not found by event room id = {}", room_id))
     }
 
     async fn get_class_original_by_room_id(&self, room_id: Uuid) -> Result<Class> {
