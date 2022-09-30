@@ -43,7 +43,7 @@ pub async fn download(
     recordings
         .iter()
         .all(|recording| recording.transcoded_at().is_some())
-        .then(|| ())
+        .then_some(())
         .ok_or_else(|| anyhow!("Minigroup recordings were not transcoded"))
         .error(AppErrorKind::RecordingNotFound)?;
 

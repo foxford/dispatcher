@@ -144,7 +144,7 @@ fn get_coneference_update(
     conf_update
         .is_empty_update()
         .not()
-        .then(|| (conf_room_id, conf_update))
+        .then_some((conf_room_id, conf_update))
 }
 
 fn get_event_update(
