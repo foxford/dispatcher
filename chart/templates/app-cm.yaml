@@ -32,7 +32,7 @@ data:
     tenants = [
       {{- range .Values.app.audiences }}
         {{- if .mqtt_events }}
-        {{- $ns_audience := list (include "dispatcher.shortNamespace" $) .audience | compact | join "."  }}
+        {{- $ns_audience := list (include "dispatcher.audienceEnvironment" $) .audience | compact | join "."  }}
         {{ $ns_audience | quote }},
         {{- end }}
       {{- end }}
