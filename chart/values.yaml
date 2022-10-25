@@ -98,3 +98,7 @@ tls:
 
 sentry:
   dsn: "https://dsn.sentry.example.org/"
+
+serviceMonitor:
+  labels:
+    release: kube-prometheus-stack
