@@ -214,6 +214,11 @@ impl IntoResponse for Error {
     fn into_response(self) -> Response<BoxBody> {
         let properties: ErrorKindProperties = self.kind.into();
 
+        let span = tracing::Span::current();
+        span.record("kind", &properties.kind);
+        let detail = self.err.to_string();
+        span.record("detail", &detail.as_str());
+
         (properties.status, Json(&self.to_svc_error())).into_response()
     }
 }
