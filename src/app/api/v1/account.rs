@@ -8,7 +8,8 @@ use crate::{
     app::{
         api::IntoJsonResponse,
         error::{Error, ErrorExt, ErrorKind},
-        AppContext, http::Json,
+        http::Json,
+        AppContext,
     },
     db::class::KeyValueProperties,
 };
