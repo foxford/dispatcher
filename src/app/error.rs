@@ -37,6 +37,7 @@ pub enum ErrorKind {
     AccountNotFound,
     AccountPropertyNotFound,
     InvalidQueryString,
+    InternalFailure,
 }
 
 impl ErrorKind {
@@ -168,6 +169,12 @@ impl From<ErrorKind> for ErrorKindProperties {
                 status: ResponseStatus::BAD_REQUEST,
                 kind: "invalid_query_string",
                 title: "Invalid query string",
+                is_notify_sentry: false,
+            },
+            ErrorKind::InternalFailure => ErrorKindProperties {
+                status: ResponseStatus::INTERNAL_SERVER_ERROR,
+                kind: "internal_failure",
+                title: "internal failure",
                 is_notify_sentry: false,
             },
         }

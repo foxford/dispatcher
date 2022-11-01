@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use axum::{extract::Path, Extension, Json};
+use axum::{extract::Path, Extension};
 use svc_agent::AccountId;
 use svc_utils::extractors::AccountIdExtractor;
 
@@ -8,7 +8,7 @@ use crate::{
     app::{
         api::IntoJsonResponse,
         error::{Error, ErrorExt, ErrorKind},
-        AppContext,
+        AppContext, http::Json,
     },
     db::class::KeyValueProperties,
 };

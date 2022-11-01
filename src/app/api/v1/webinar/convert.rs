@@ -2,7 +2,7 @@ use std::ops::Bound;
 use std::sync::Arc;
 
 use anyhow::Context;
-use axum::extract::{Extension, Json};
+use axum::extract::Extension;
 use chrono::{DateTime, Utc};
 use hyper::{Body, Response};
 use serde_derive::Deserialize;
@@ -14,6 +14,7 @@ use uuid::Uuid;
 use crate::app::error::ErrorExt;
 use crate::app::error::ErrorKind as AppErrorKind;
 use crate::app::AppContext;
+use crate::app::http::Json;
 use crate::app::{authz::AuthzObject, metrics::AuthorizeMetrics};
 use crate::clients::{conference::ConferenceRoomResponse, event::EventRoomResponse};
 use crate::db::class::BoundedDateTimeTuple;

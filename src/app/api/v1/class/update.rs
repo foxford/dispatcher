@@ -2,7 +2,7 @@ use std::ops::{Bound, Not};
 use std::sync::Arc;
 
 use anyhow::Context;
-use axum::extract::{Extension, Json, Path};
+use axum::extract::{Extension, Path};
 use chrono::Utc;
 use hyper::{Body, Response};
 use serde_derive::Deserialize;
@@ -13,6 +13,7 @@ use uuid::Uuid;
 
 use super::{find, AppResult, ClassResponseBody};
 use crate::app::error::ErrorKind as AppErrorKind;
+use crate::app::http::Json;
 use crate::app::{api::v1::find_by_scope, error::ErrorExt};
 use crate::app::{authz::AuthzObject, metrics::AuthorizeMetrics};
 use crate::app::{error, AppContext};

@@ -2,7 +2,7 @@ use std::ops::Bound;
 use std::sync::Arc;
 
 use anyhow::Context;
-use axum::extract::{Extension, Json};
+use axum::extract::Extension;
 use hyper::{Body, Response};
 use serde_derive::Deserialize;
 use svc_agent::AccountId;
@@ -13,6 +13,7 @@ use uuid::Uuid;
 use crate::app::authz::AuthzObject;
 use crate::app::error::ErrorExt;
 use crate::app::error::ErrorKind as AppErrorKind;
+use crate::app::http::Json;
 use crate::app::metrics::AuthorizeMetrics;
 use crate::app::services;
 use crate::app::AppContext;

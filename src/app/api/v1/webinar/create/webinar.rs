@@ -1,7 +1,7 @@
 use std::{ops::Bound, sync::Arc};
 
 use anyhow::Context;
-use axum::extract::{Extension, Json};
+use axum::extract::Extension;
 use hyper::{Body, Response};
 use serde_derive::Deserialize;
 use svc_agent::AccountId;
@@ -11,6 +11,7 @@ use tracing::{error, info, instrument};
 use crate::app::api::v1::{AppError, AppResult};
 use crate::app::error::ErrorExt;
 use crate::app::error::ErrorKind as AppErrorKind;
+use crate::app::http::Json;
 use crate::app::services;
 use crate::app::AppContext;
 use crate::app::{authz::AuthzObject, metrics::AuthorizeMetrics};

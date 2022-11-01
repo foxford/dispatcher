@@ -3,6 +3,7 @@ use crate::app::{
     authz::AuthzObject,
     error::ErrorExt,
     error::ErrorKind as AppErrorKind,
+    http::Json,
     metrics::AuthorizeMetrics,
     services, AppContext,
 };
@@ -14,7 +15,7 @@ use crate::app::api::v1::find_class;
 use crate::app::error::Error;
 use crate::db::class::Object;
 use anyhow::Context;
-use axum::extract::{Extension, Json, Path};
+use axum::extract::{Extension, Path};
 use hyper::{Body, Response};
 use serde_derive::Deserialize;
 use svc_agent::AccountId;
