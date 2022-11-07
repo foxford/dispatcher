@@ -66,7 +66,7 @@ tracing-futures = "0.2"
 tracing-log = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 url = { version = "2.2.1", features = ["serde"] }
-uuid = { version = "0.8", features = ["v4", "serde"] }
+uuid = { version = "1.1", features = ["v4", "serde"] }
 vec1 = { version = "1.8.0", features = ["serde"] }
 
 [dev-dependencies]
