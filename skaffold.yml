@@ -20,8 +20,8 @@ deploy:
       - name: dispatcher
         chartPath: chart
         artifactOverrides:
-          app.image: cr.yandex/crp1of6bddata8ain3q5/dispatcher
-          migrations.image: cr.yandex/crp1of6bddata8ain3q5/dispatcher-migration
+          app.image.repository: cr.yandex/crp1of6bddata8ain3q5/dispatcher
+          migrations.image.repository: cr.yandex/crp1of6bddata8ain3q5/dispatcher-migration
         imageStrategy:
           helm: {}
         valuesFiles:
