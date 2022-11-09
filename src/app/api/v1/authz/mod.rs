@@ -2,7 +2,7 @@ use std::sync::Arc;
 use std::{str::FromStr, time::Duration};
 
 use anyhow::Context;
-use axum::extract::{Extension, Json, Path};
+use axum::extract::{Extension, Path};
 use hyper::{Body, Response};
 use serde_derive::{Deserialize, Serialize};
 use serde_json::json;
@@ -11,6 +11,7 @@ use svc_utils::extractors::AccountIdExtractor;
 use tracing::info;
 use uuid::Uuid;
 
+use crate::app::http::Json;
 use crate::app::{error, AppContext};
 use crate::app::{error::ErrorExt, metrics::AuthMetrics};
 use crate::{app::error::ErrorKind as AppErrorKind, utils::single_retry};

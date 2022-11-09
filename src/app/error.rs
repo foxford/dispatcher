@@ -37,6 +37,7 @@ pub enum ErrorKind {
     AccountNotFound,
     AccountPropertyNotFound,
     InvalidQueryString,
+    InternalFailure,
 }
 
 impl ErrorKind {
@@ -170,6 +171,12 @@ impl From<ErrorKind> for ErrorKindProperties {
                 title: "Invalid query string",
                 is_notify_sentry: false,
             },
+            ErrorKind::InternalFailure => ErrorKindProperties {
+                status: ResponseStatus::INTERNAL_SERVER_ERROR,
+                kind: "internal_failure",
+                title: "internal failure",
+                is_notify_sentry: false,
+            },
         }
     }
 }
@@ -213,6 +220,11 @@ impl Error {
 impl IntoResponse for Error {
     fn into_response(self) -> Response<BoxBody> {
         let properties: ErrorKindProperties = self.kind.into();
+
+        let span = tracing::Span::current();
+        span.record("kind", &properties.kind);
+        let detail = self.err.to_string();
+        span.record("detail", &detail.as_str());
 
         (properties.status, Json(&self.to_svc_error())).into_response()
     }

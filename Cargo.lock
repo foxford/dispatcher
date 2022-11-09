@@ -429,7 +429,7 @@ dependencies = [
 
 [[package]]
 name = "dispatcher"
-version = "0.4.6"
+version = "0.4.7"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2400,9 +2400,9 @@ dependencies = [
 
 [[package]]
 name = "svc-utils"
-version = "0.5.0"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dd2ff44610526e1a93636b09b44ff05a741a8b9ace6e1c6abe4aa1d8cde88b08"
+checksum = "df7f4355a87d906406754e82854005d909b2a18065165841b3167e0fed5aa722"
 dependencies = [
  "axum",
  "futures",

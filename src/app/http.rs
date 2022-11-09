@@ -1,7 +1,8 @@
 use std::sync::Arc;
 
+use async_trait::async_trait;
 use axum::{
-    extract::Extension,
+    extract::{rejection::JsonRejection, Extension, FromRequest},
     routing::{get, post, Router},
 };
 use svc_utils::middleware::{CorsLayer, LogLayer, MeteredRoute};
@@ -151,4 +152,35 @@ fn utils_router() -> Router {
             get(account::read_property).put(account::update_property),
         )
         .layer(CorsLayer)
+}
+
+pub struct Json<T>(pub T);
+
+#[async_trait]
+impl<B, T> FromRequest<B> for Json<T>
+where
+    axum::Json<T>: FromRequest<B, Rejection = JsonRejection>,
+    B: Send + 'static,
+{
+    type Rejection = super::error::Error;
+
+    async fn from_request(
+        req: &mut axum::extract::RequestParts<B>,
+    ) -> Result<Self, Self::Rejection> {
+        match axum::Json::<T>::from_request(req).await {
+            Ok(value) => Ok(Self(value.0)),
+            Err(rejection) => {
+                let kind = match rejection {
+                    JsonRejection::JsonDataError(_)
+                    | JsonRejection::JsonSyntaxError(_)
+                    | JsonRejection::MissingJsonContentType(_) => {
+                        super::error::ErrorKind::InvalidPayload
+                    }
+                    _ => super::error::ErrorKind::InternalFailure,
+                };
+                let err = super::error::Error::new(kind, anyhow::anyhow!(rejection.to_string()));
+                Err(err)
+            }
+        }
+    }
 }
