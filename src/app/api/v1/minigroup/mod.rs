@@ -379,5 +379,7 @@ mod tests {
 }
 
 mod download;
+mod whiteboard;
 
 pub use download::download;
+pub use whiteboard::create_whiteboard;

@@ -13,7 +13,9 @@ use super::api::v1::class::{
     commit_edition, create_timestamp, read, read_by_scope, read_property, recreate, update,
     update_by_scope, update_property,
 };
-use super::api::v1::minigroup::{create as create_minigroup, download as download_minigroup};
+use super::api::v1::minigroup::{
+    create as create_minigroup, create_whiteboard, download as download_minigroup,
+};
 use super::api::v1::p2p::{convert as convert_p2p, create as create_p2p};
 use super::api::v1::webinar::{
     convert_webinar, create_webinar, create_webinar_replica, download_webinar,
@@ -135,6 +137,7 @@ fn minigroups_router() -> Router {
         .metered_route("/api/v1/minigroups", post(create_minigroup))
         .metered_route("/api/v1/minigroups/:id/download", get(download_minigroup))
         .metered_route("/api/v1/minigroups/:id/events", post(create_event))
+        .metered_route("/api/v1/minigroups/:id/whiteboard", post(create_whiteboard))
 }
 
 fn authz_router() -> Router {

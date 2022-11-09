@@ -38,6 +38,7 @@ pub enum ErrorKind {
     AccountPropertyNotFound,
     InvalidQueryString,
     InternalFailure,
+    CreationWhiteboardFailed,
 }
 
 impl ErrorKind {
@@ -175,6 +176,12 @@ impl From<ErrorKind> for ErrorKindProperties {
                 status: ResponseStatus::INTERNAL_SERVER_ERROR,
                 kind: "internal_failure",
                 title: "internal failure",
+                is_notify_sentry: false,
+            },
+            ErrorKind::CreationWhiteboardFailed => ErrorKindProperties {
+                status: ResponseStatus::UNPROCESSABLE_ENTITY,
+                kind: "creation_whiteboard_failed",
+                title: "Creation whiteboard failed",
                 is_notify_sentry: false,
             },
         }
