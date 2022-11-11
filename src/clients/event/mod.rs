@@ -65,17 +65,29 @@ pub trait EventClient: Sync + Send {
     }
 
     async fn create_whiteboard(&self, room_id: Uuid) -> Result<(), ClientError> {
+        let document_id = Uuid::new_v4().to_string();
+
         let payload = EventPayload {
             room_id,
             kind: "document",
             set: "document",
             data: serde_json::json!({"title":"whiteboard","page":1,"published":true,"url":"about:whiteboard"}),
-            label: Some(Uuid::new_v4()),
+            label: &document_id,
         };
+        let document = serde_json::to_value(&payload).unwrap();
+        self.create_event(document).await?;
 
-        let payload = serde_json::to_value(&payload).unwrap();
+        let set = format!("document_page_{}", document_id);
+        let payload = EventPayload {
+            room_id,
+            kind: "document_page",
+            set: &set,
+            data: serde_json::json!({"page":1,"title":""}),
+            label: &format!("{}_1", set),
+        };
+        let document_page = serde_json::to_value(&payload).unwrap();
+        self.create_event(document_page).await?;
 
-        self.create_event(payload).await?;
         Ok(())
     }
 }

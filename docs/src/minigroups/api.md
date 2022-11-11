@@ -3,19 +3,20 @@
 All routes expect json payloads.
 
 ### Routes
-Route                                           | Method | Short description
------------------------------------------------ | ------ | ----------
-/api/v1/minigroups/:minigroup_id                | GET    | [Reads](#read-minigroup) minigroup.
-/api/v1/audiences/:audience/minigroups/:scope   | GET    | [Reads](#read-minigroup) minigroup.
-/api/v1/audiences/:audience/minigroups/:scope   | PUT    | [Updates](#update-minigroup) minigroup.
-/api/v1/minigroups                              | POST   | [Creates](#create-minigroup) minigroup and required rooms in other services.
-/api/v1/minigroups/:minigroup_id                | PUT    | [Updates](#update-minigroup) minigroup.
-/api/v1/minigroups/:minigroup_id/download       | GET    | [Downloads](#download-minigroup) minigroup source file.
-/api/v1/minigroups/:minigroup_id/events         | POST   | [Creates](#create-minigroup-event) event in the room.
-/api/v1/minigroups/:minigroup_id/recreate       | POST   | [Recreates](#recreate-minigroup) minigroup rooms.
-/api/v1/minigroups/:webinar_id/timestamps       | POST   | [Records](#timestamps) current position while viewing a recording.
-/api/v1/minigroups/:id/properties/:property_id  | GET    | [Reads](#read-property) the property
-/api/v1/minigroups/:id/properties/:property_id  | PUT    | [Updates](#update-property) the property
+| Route                                          | Method | Short description                                                            |
+|------------------------------------------------|--------|------------------------------------------------------------------------------|
+| /api/v1/minigroups/:minigroup_id               | GET    | [Reads](#read-minigroup) minigroup.                                          |
+| /api/v1/audiences/:audience/minigroups/:scope  | GET    | [Reads](#read-minigroup) minigroup.                                          |
+| /api/v1/audiences/:audience/minigroups/:scope  | PUT    | [Updates](#update-minigroup) minigroup.                                      |
+| /api/v1/minigroups                             | POST   | [Creates](#create-minigroup) minigroup and required rooms in other services. |
+| /api/v1/minigroups/:minigroup_id               | PUT    | [Updates](#update-minigroup) minigroup.                                      |
+| /api/v1/minigroups/:minigroup_id/download      | GET    | [Downloads](#download-minigroup) minigroup source file.                      |
+| /api/v1/minigroups/:minigroup_id/events        | POST   | [Creates](#create-minigroup-event) event in the room.                        |
+| /api/v1/minigroups/:minigroup_id/recreate      | POST   | [Recreates](#recreate-minigroup) minigroup rooms.                            |
+| /api/v1/minigroups/:webinar_id/timestamps      | POST   | [Records](#timestamps) current position while viewing a recording.           |
+| /api/v1/minigroups/:id/properties/:property_id | GET    | [Reads](#read-property) the property                                         |
+| /api/v1/minigroups/:id/properties/:property_id | PUT    | [Updates](#update-property) the property                                     |
+| /api/v1/minigroups/:id/whiteboard              | POST   | [Creates](#create-minigroup-whiteboard) whiteboard in the room.              |
 
 ### Create minigroup
 
@@ -159,3 +160,13 @@ Request body:
 Any valid JSON value that should be associated with the given property id.
 
 Response: status 200 and updated class properties as payload.
+
+### Create minigroup whiteboard
+
+Route parameters:
+
+| Attribute | Type | Description  |
+|-----------|------|--------------|
+| id        | uuid | Minigroup id |
+
+Response: status **201** and empty payload.

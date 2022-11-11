@@ -233,14 +233,13 @@ impl MqttRequest for EventDumpEventsPayload {
 }
 
 #[derive(Debug, Serialize)]
-pub struct EventPayload {
+pub struct EventPayload<'a> {
     pub room_id: Uuid,
     #[serde(rename(serialize = "type"))]
-    pub kind: &'static str,
-    pub set: &'static str,
+    pub kind: &'a str,
+    pub set: &'a str,
     pub data: JsonValue,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub label: Option<Uuid>,
+    pub label: &'a str,
 }
 
 #[derive(Clone, Debug, Serialize)]
