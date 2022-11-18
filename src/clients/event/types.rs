@@ -291,14 +291,14 @@ pub struct LockedTypes {
 
 impl LockedTypes {
     pub fn any_locked(&self) -> bool {
-        match self {
-            LockedTypes {
-                message,
-                reaction,
-                question,
-                question_reaction,
-            } => *message || *reaction || *question || *question_reaction,
-        }
+        let LockedTypes {
+            message,
+            reaction,
+            question,
+            question_reaction,
+        } = self;
+
+        *message || *reaction || *question || *question_reaction
     }
 
     #[cfg(test)]
