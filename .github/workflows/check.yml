@@ -30,7 +30,7 @@ jobs:
     - uses: dtolnay/rust-toolchain@1.64.0
       with:
         components: clippy, rustfmt
-    - uses: Swatinem/rust-cache@v1
+    - uses: Swatinem/rust-cache@v2
       with:
         cache-on-failure: true
     - name: clippy
