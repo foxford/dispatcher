@@ -8,15 +8,16 @@ use serde_derive::Deserialize;
 use sqlx::Acquire;
 use svc_authn::AccountId;
 use svc_utils::extractors::AccountIdExtractor;
-use tracing::error;
 use uuid::Uuid;
 
 use super::{find, AppResult};
 use crate::app::error::ErrorExt;
 use crate::app::error::ErrorKind as AppErrorKind;
 use crate::app::http::Json;
+use crate::app::services::lock_interaction;
 use crate::app::AppContext;
 use crate::app::{authz::AuthzObject, metrics::AuthorizeMetrics};
+use crate::clients::event::LockedTypes;
 use crate::db::class;
 use crate::db::class::AsClassType;
 use crate::db::class::BoundedDateTimeTuple;
@@ -27,6 +28,19 @@ pub struct ClassRecreatePayload {
     time: Option<BoundedDateTimeTuple>,
     #[serde(default = "class::default_locked_chat")]
     locked_chat: bool,
+    #[serde(default = "class::default_locked_questions")]
+    locked_questions: bool,
+}
+
+impl ClassRecreatePayload {
+    fn locked_types(&self) -> LockedTypes {
+        LockedTypes {
+            message: self.locked_chat,
+            reaction: self.locked_chat,
+            question: self.locked_questions,
+            question_reaction: self.locked_questions,
+        }
+    }
 }
 
 pub async fn recreate<T: AsClassType>(
@@ -101,13 +115,9 @@ async fn do_recreate<T: AsClassType>(
         webinar
     };
 
-    if body.locked_chat {
-        if let Err(e) = state.event_client().lock_chat(event_room_id).await {
-            error!(
-                %event_room_id,
-                "Failed to lock chat in event room, err = {:?}", e
-            );
-        }
+    let locked_types = body.locked_types();
+    if locked_types.any_locked() {
+        lock_interaction(state, event_room_id, locked_types).await;
     }
 
     let body = serde_json::to_string(&webinar)
@@ -241,9 +251,12 @@ mod tests {
 
             state
                 .event_client_mock()
-                .expect_lock_chat()
-                .with(pred::eq(event_room_id))
-                .returning(move |_room_id| Ok(()));
+                .expect_update_locked_types()
+                .with(
+                    pred::eq(event_room_id),
+                    pred::eq(LockedTypes::default().chat()),
+                )
+                .returning(move |_room_id, _locked_types| Ok(()));
 
             state
                 .conference_client_mock()

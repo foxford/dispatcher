@@ -281,10 +281,34 @@ pub struct EventRoomResponse {
     pub tags: Option<JsonValue>,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Default, PartialEq, Eq)]
 pub struct LockedTypes {
     pub message: bool,
     pub reaction: bool,
+    pub question: bool,
+    pub question_reaction: bool,
+}
+
+impl LockedTypes {
+    pub fn any_locked(&self) -> bool {
+        match self {
+            LockedTypes {
+                message,
+                reaction,
+                question,
+                question_reaction,
+            } => *message || *reaction || *question || *question_reaction,
+        }
+    }
+
+    #[cfg(test)]
+    pub fn chat(self) -> Self {
+        Self {
+            message: true,
+            reaction: true,
+            ..self
+        }
+    }
 }
 
 #[derive(Clone, Debug, Serialize)]

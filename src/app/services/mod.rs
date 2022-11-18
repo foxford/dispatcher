@@ -9,6 +9,7 @@ use crate::app::api::v1::AppError;
 use crate::app::error::ErrorExt;
 use crate::app::error::ErrorKind as AppErrorKind;
 use crate::app::AppContext;
+use crate::clients::event::LockedTypes;
 use crate::clients::{
     conference::RoomUpdate as ConfRoomUpdate, event::RoomUpdate as EventRoomUpdate,
 };
@@ -110,11 +111,15 @@ pub trait Creatable {
     fn rtc_sharing_policy(&self) -> Option<RtcSharingPolicy>;
 }
 
-pub async fn lock_chat(state: &dyn AppContext, event_room_id: Uuid) {
-    if let Err(e) = state.event_client().lock_chat(event_room_id).await {
+pub async fn lock_interaction(state: &dyn AppContext, event_room_id: Uuid, types: LockedTypes) {
+    if let Err(e) = state
+        .event_client()
+        .update_locked_types(event_room_id, types)
+        .await
+    {
         error!(
             %event_room_id,
-            "Failed to lock chat in event room, err = {:?}", e
+            "Failed to lock interaction in event room, err = {:?}", e
         );
     }
 }

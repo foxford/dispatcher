@@ -180,6 +180,10 @@ pub fn default_locked_chat() -> bool {
     true
 }
 
+pub fn default_locked_questions() -> bool {
+    true
+}
+
 pub fn default_whiteboard() -> bool {
     true
 }
