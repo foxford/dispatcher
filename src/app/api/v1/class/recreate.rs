@@ -252,10 +252,7 @@ mod tests {
             state
                 .event_client_mock()
                 .expect_update_locked_types()
-                .with(
-                    pred::eq(event_room_id),
-                    pred::eq(LockedTypes::default().chat()),
-                )
+                .with(pred::eq(event_room_id), pred::always())
                 .returning(move |_room_id, _locked_types| Ok(()));
 
             state

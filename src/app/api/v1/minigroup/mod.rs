@@ -370,7 +370,7 @@ mod tests {
                 .expect_update_locked_types()
                 .with(
                     pred::eq(event_room_id),
-                    pred::eq(LockedTypes::default().chat()),
+                    pred::always(),
                 )
                 .returning(move |_room_id, _locked_types| Ok(()));
 
