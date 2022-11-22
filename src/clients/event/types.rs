@@ -291,6 +291,7 @@ pub struct LockedTypes {
 
 impl LockedTypes {
     pub fn any_locked(&self) -> bool {
+        // compiler will notify if any new fields are not taken into account here
         let LockedTypes {
             message,
             reaction,
@@ -299,15 +300,6 @@ impl LockedTypes {
         } = self;
 
         *message || *reaction || *question || *question_reaction
-    }
-
-    #[cfg(test)]
-    pub fn chat(self) -> Self {
-        Self {
-            message: true,
-            reaction: true,
-            ..self
-        }
     }
 }
 
