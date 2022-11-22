@@ -165,7 +165,6 @@ async fn insert_replica_dummy(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::clients::event::LockedTypes;
     use crate::db::class::WebinarReadQuery;
     use crate::test_helpers::prelude::*;
     use mockall::predicate as pred;
@@ -298,10 +297,7 @@ mod tests {
         state
             .event_client_mock()
             .expect_update_locked_types()
-            .with(
-                pred::eq(event_room_id),
-                pred::always(),
-            )
+            .with(pred::eq(event_room_id), pred::always())
             .returning(move |_room_id, _locked_types| Ok(()));
 
         state
