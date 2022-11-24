@@ -16,13 +16,16 @@ use svc_agent::{
 use tracing::{error, warn};
 use uuid::Uuid;
 
-use crate::clients::event::{Event, EventData, RoomAdjustResult};
 use crate::clients::tq::{
     Task as TqTask, TranscodeMinigroupToHlsStream, TranscodeMinigroupToHlsSuccess,
 };
 use crate::db::class::Object as Class;
 use crate::db::recording::Segments;
 use crate::{app::AppContext, clients::conference::ConfigSnapshot};
+use crate::{
+    clients::event::{Event, EventData, RoomAdjustResult},
+    sentry_assert,
+};
 
 use super::{
     shared_helpers, MjrDumpsUploadReadyData, MjrDumpsUploadResult, TranscodeSuccess, UploadedStream,
@@ -505,6 +508,16 @@ fn collect_pin_segments(
     let mut pin_segments = vec![];
     let mut pin_start = None;
 
+    let mut add_segment = |start, end| {
+        sentry_assert!(
+            start <= end,
+            "collect_pin_segments | room_id => {:?}, event_id => {:?}",
+            pin_events.first().map(|e| e.room_id()),
+            pin_events.first().map(|e| e.id()),
+        );
+        pin_segments.push((Bound::Included(start), Bound::Excluded(end)));
+    };
+
     for event in pin_events {
         if let EventData::Pin(data) = event.data() {
             // Shift from the event room's dimension to the recording's dimension.
@@ -527,7 +540,7 @@ fn collect_pin_segments(
                 // its possible that pinned_at equals unpin's occurred_at after adjust
                 // we skip segments like that
                 if occurred_at > pinned_at {
-                    pin_segments.push((Bound::Included(pinned_at), Bound::Excluded(occurred_at)));
+                    add_segment(pinned_at, occurred_at);
                 }
                 pin_start = None;
             }
@@ -537,7 +550,7 @@ fn collect_pin_segments(
     // If the stream hasn't got unpinned since some moment then add a pin segment to the end
     // of the recording to keep it pinned.
     if let Some(start) = pin_start {
-        pin_segments.push((Bound::Included(start), Bound::Excluded(recording_end)));
+        add_segment(start, recording_end);
     }
 
     pin_segments

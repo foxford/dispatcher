@@ -32,6 +32,14 @@ impl Event {
     pub fn occurred_at(&self) -> u64 {
         self.occurred_at
     }
+
+    pub fn room_id(&self) -> Uuid {
+        self.room_id
+    }
+
+    pub fn id(&self) -> Uuid {
+        self.id
+    }
 }
 
 #[derive(Clone, Debug, Deserialize)]

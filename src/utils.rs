@@ -37,6 +37,21 @@ where
     }
 }
 
+#[macro_export]
+macro_rules! sentry_assert {
+    ($cond: expr, $fmt:expr, $($arg:tt)*) => {
+        let f = || {
+            anyhow::ensure!($cond, $fmt, $($arg)*);
+            Ok(())
+        };
+        if let Err(err) = f() {
+            if let Err(err) = svc_error::extension::sentry::send(std::sync::Arc::new(err)) {
+                tracing::error!(%err, "failed to capture assertion failure");
+            }
+        }
+    };
+}
+
 #[cfg(test)]
 mod tests {
     use std::{
