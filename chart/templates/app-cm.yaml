@@ -84,7 +84,7 @@ data:
     api_version = "v1"
     {{- range .Values.app.audiences }}
     {{- if hasKey . "tq" }}
-    {{- $ns_audience := list .audience | compact | join "."  }}
+    {{- $ns_audience := list (include "dispatcher.audienceEnvironment" $) .audience | compact | join "."  }}
     [tq_client.audience_settings.{{ $ns_audience | quote }}]
     {{- if hasKey .tq "preroll" }}
     preroll = {{ .tq.preroll | quote }}
