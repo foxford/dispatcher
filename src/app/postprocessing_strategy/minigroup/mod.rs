@@ -509,13 +509,17 @@ fn collect_pin_segments(
     let mut pin_start = None;
 
     let mut add_segment = |start, end| {
+        let collect_pin_segment_add_segment_precond_holds =
+            start <= end && start > 0 && end <= recording_end;
         sentry_assert!(
-            start <= end,
-            "collect_pin_segments | room_id => {:?}, event_id => {:?}",
+            collect_pin_segment_add_segment_precond_holds,
+            "room_id => {:?}, event_id => {:?}",
             pin_events.first().map(|e| e.room_id()),
             pin_events.first().map(|e| e.id()),
         );
-        pin_segments.push((Bound::Included(start), Bound::Excluded(end)));
+        if collect_pin_segment_add_segment_precond_holds {
+            pin_segments.push((Bound::Included(start), Bound::Excluded(end)));
+        }
     };
 
     for event in pin_events {
