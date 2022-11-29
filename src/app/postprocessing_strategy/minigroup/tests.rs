@@ -1024,4 +1024,27 @@ mod collect_pinned_events {
 
         assert_eq!(dbg!(pin_segments).len(), 0);
     }
+
+    #[test]
+    fn test_invalid_pin_segment_after_video() {
+        let agent_id = AgentId::from_str("web.agent.usr.foobar").unwrap();
+        let event_room_id = Uuid::new_v4();
+
+        let xs = vec![EventBuilder::new()
+            .room_id(event_room_id)
+            .set(PIN_EVENT_TYPE.to_string())
+            .data(EventData::Pin(PinEventData::new(agent_id.to_owned())))
+            // after segment
+            .occurred_at(3670995397747)
+            .build()];
+
+        let event_room_offset = DateTime::parse_from_rfc3339("2022-09-05T09:52:44.162+03:00")
+            .unwrap()
+            - (DateTime::parse_from_rfc3339("2022-09-05T10:00:28.802+03:00").unwrap()
+                - Duration::milliseconds(4018));
+
+        let pin_segments = collect_pin_segments(&xs, event_room_offset, &agent_id, 2943194);
+        // no pin segments
+        assert_eq!(pin_segments.len(), 0);
+    }
 }

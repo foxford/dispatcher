@@ -16,16 +16,13 @@ use svc_agent::{
 use tracing::{error, warn};
 use uuid::Uuid;
 
+use crate::clients::event::{Event, EventData, RoomAdjustResult};
 use crate::clients::tq::{
     Task as TqTask, TranscodeMinigroupToHlsStream, TranscodeMinigroupToHlsSuccess,
 };
 use crate::db::class::Object as Class;
 use crate::db::recording::Segments;
 use crate::{app::AppContext, clients::conference::ConfigSnapshot};
-use crate::{
-    clients::event::{Event, EventData, RoomAdjustResult},
-    sentry_assert,
-};
 
 use super::{
     shared_helpers, MjrDumpsUploadReadyData, MjrDumpsUploadResult, TranscodeSuccess, UploadedStream,
@@ -509,15 +506,7 @@ fn collect_pin_segments(
     let mut pin_start = None;
 
     let mut add_segment = |start, end| {
-        let collect_pin_segment_add_segment_precond_holds =
-            start <= end && start > 0 && end <= recording_end;
-        sentry_assert!(
-            collect_pin_segment_add_segment_precond_holds,
-            "room_id => {:?}, event_id => {:?}",
-            pin_events.first().map(|e| e.room_id()),
-            pin_events.first().map(|e| e.id()),
-        );
-        if collect_pin_segment_add_segment_precond_holds {
+        if start <= end && start >= 0 && end <= recording_end {
             pin_segments.push((Bound::Included(start), Bound::Excluded(end)));
         }
     };
