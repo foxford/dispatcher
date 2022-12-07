@@ -281,10 +281,26 @@ pub struct EventRoomResponse {
     pub tags: Option<JsonValue>,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Default, PartialEq, Eq)]
 pub struct LockedTypes {
     pub message: bool,
     pub reaction: bool,
+    pub question: bool,
+    pub question_reaction: bool,
+}
+
+impl LockedTypes {
+    pub fn any_locked(&self) -> bool {
+        // compiler will notify if any new fields are not taken into account here
+        let LockedTypes {
+            message,
+            reaction,
+            question,
+            question_reaction,
+        } = self;
+
+        *message || *reaction || *question || *question_reaction
+    }
 }
 
 #[derive(Clone, Debug, Serialize)]

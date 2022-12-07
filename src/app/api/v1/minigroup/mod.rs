@@ -15,7 +15,9 @@ use crate::app::error::ErrorKind as AppErrorKind;
 use crate::app::http::Json;
 use crate::app::metrics::AuthorizeMetrics;
 use crate::app::services;
+use crate::app::services::lock_interaction;
 use crate::app::AppContext;
+use crate::clients::event::LockedTypes;
 use crate::db::class::ClassType;
 use crate::db::class::KeyValueProperties;
 use crate::db::class::{self, BoundedDateTimeTuple};
@@ -35,6 +37,19 @@ pub struct MinigroupCreatePayload {
     reserve: Option<i32>,
     #[serde(default = "class::default_locked_chat")]
     locked_chat: bool,
+    #[serde(default = "class::default_locked_questions")]
+    locked_questions: bool,
+}
+
+impl MinigroupCreatePayload {
+    fn locked_types(&self) -> LockedTypes {
+        LockedTypes {
+            message: self.locked_chat,
+            reaction: self.locked_chat,
+            question: self.locked_questions,
+            question_reaction: self.locked_questions,
+        }
+    }
 }
 
 #[instrument(
@@ -108,10 +123,9 @@ async fn do_create(
         }
     };
 
-    if body.locked_chat {
-        services::lock_chat(state, event_room_id).await;
-
-        info!("Locked chat");
+    let locked_types = body.locked_types();
+    if locked_types.any_locked() {
+        lock_interaction(state, event_room_id, locked_types).await;
     }
 
     let body = serde_json::to_string_pretty(&dummy)
@@ -197,6 +211,7 @@ mod tests {
                 properties: KeyValueProperties::default(),
                 reserve: Some(10),
                 locked_chat: true,
+                locked_questions: true,
             };
 
             let r = do_create(state.as_ref(), agent.account_id(), body).await;
@@ -244,6 +259,7 @@ mod tests {
                 properties: KeyValueProperties::default(),
                 reserve: Some(10),
                 locked_chat: true,
+                locked_questions: true,
             };
 
             let r = do_create(state.as_ref(), agent.account_id(), body).await;
@@ -278,6 +294,7 @@ mod tests {
                 properties: KeyValueProperties::default(),
                 reserve: Some(10),
                 locked_chat: true,
+                locked_questions: true,
             };
 
             do_create(state.as_ref(), agent.account_id(), body)
@@ -312,6 +329,7 @@ mod tests {
                 properties: properties.clone(),
                 reserve: Some(10),
                 locked_chat: true,
+                locked_questions: true,
             };
 
             let r = do_create(state.as_ref(), agent.account_id(), body).await;
@@ -349,9 +367,9 @@ mod tests {
 
             state
                 .event_client_mock()
-                .expect_lock_chat()
-                .with(pred::eq(event_room_id))
-                .returning(move |_room_id| Ok(()));
+                .expect_update_locked_types()
+                .with(pred::eq(event_room_id), pred::always())
+                .returning(move |_room_id, _locked_types| Ok(()));
 
             state
                 .event_client_mock()

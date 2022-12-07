@@ -296,9 +296,9 @@ mod tests {
 
         state
             .event_client_mock()
-            .expect_lock_chat()
-            .with(pred::eq(event_room_id))
-            .returning(move |_room_id| Ok(()));
+            .expect_update_locked_types()
+            .with(pred::eq(event_room_id), pred::always())
+            .returning(move |_room_id, _locked_types| Ok(()));
 
         state
             .event_client_mock()

@@ -52,18 +52,6 @@ pub trait EventClient: Sync + Send {
     async fn list_events(&self, room_id: Uuid, kind: &str) -> Result<Vec<Event>, ClientError>;
     async fn dump_room(&self, event_room_id: Uuid) -> Result<(), ClientError>;
 
-    async fn lock_chat(&self, room_id: Uuid) -> Result<(), ClientError> {
-        self.update_locked_types(
-            room_id,
-            LockedTypes {
-                message: true,
-                reaction: true,
-            },
-        )
-        .await
-        .map(|_| ())
-    }
-
     async fn create_whiteboard(&self, room_id: Uuid) -> Result<(), ClientError> {
         let document_id = Uuid::new_v4().to_string();
 
