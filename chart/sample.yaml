@@ -1,0 +1,47 @@
+app:
+  svc:
+    audience: svc.test.net
+    credentials:
+      svc-pkcs8-der-credentials:
+        - subPath: svc.public_key
+          mountPath: /app/data/keys/svc.public_key.p8.der
+        - subPath: svc.private_key
+          mountPath: /app/data/keys/svc.private_key.p8.der
+    authz:
+      type: localwhitelist
+      records:
+        - subject_account_id: "devops.svc.test.net"
+          object: ["scopes"]
+          action: "rollback"
+    authn:
+      key: /app/data/keys/svc.public_key.p8.der
+  audiences:
+    - audience: foo.bar
+      credentials:
+        foo-pkcs8-der-credentials:
+          - subPath: iam.foo.public_key
+            mountPath: /app/data/keys/iam.foo.public_key.p8.der
+      authn:
+        key: data/keys/iam.foo.public_key.p8.der
+      authz:
+        type: http
+        url: http://foo.bar/api/auth
+      tq:
+        preroll_offset: 4018
+        to: yandex
+        preroll: https://storage.net/preroll.m4v
+        postroll: https://storage.net/postroll.m4v
+        watermark: https://storage.net/logo.png
+      mqtt_events: true
+  frontend:
+    foo:
+      base_url: https://apps.foo.bar
+  turn:
+    hosts:
+      - turn.foo.bar:3478
+  storage:
+    url: https://test.org/webinar/storage
+ingress:
+  host: test.net
+sentry:
+  dsn: https://test@foo.bar/123
