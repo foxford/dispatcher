@@ -9,12 +9,12 @@ data:
     {{- $id := list (include "dispatcher.name" . ) .Values.app.svc.audience | compact | join "." }}
     id = {{ $id | quote }}
 
-    {{- $broker_id := list "mqtt-gateway" .Values.app.svc.audience | compact | join "." }}
-    broker_id = {{ $broker_id | quote }}
+    {{- $brokerId := list "mqtt-gateway" .Values.app.svc.audience | compact | join "." }}
+    broker_id = {{ $brokerId | quote }}
 
     retry_delay = "2 seconds"
 
-    default_frontend_base = "https://{{ list (include "dispatcher.shortNamespace" $) .Values.ingress.host | compact | join "." }}/"
+    default_frontend_base = "https://ignore/"
     default_frontend_base_new = "https://{{ .Values.ingress.host }}/"
 
     {{- if .Values.app.turn }}
@@ -27,13 +27,10 @@ data:
     turn_hosts = []
     {{- end }}
 
-    {{- include "dispatcher.shortNamespaceSetting" $ | nindent 4 }}
-
     tenants = [
       {{- range .Values.app.audiences }}
         {{- if .mqtt_events }}
-        {{- $ns_audience := list (include "dispatcher.audienceEnvironment" $) .audience | compact | join "."  }}
-        {{ $ns_audience | quote }},
+        {{ include "dispatcher.tenantObjectAudience" (list $.Release.Namespace .audience) | quote }},
         {{- end }}
       {{- end }}
     ]
@@ -84,8 +81,7 @@ data:
     api_version = "v1"
     {{- range .Values.app.audiences }}
     {{- if hasKey . "tq" }}
-    {{- $ns_audience := list (include "dispatcher.audienceEnvironment" $) .audience | compact | join "."  }}
-    [tq_client.audience_settings.{{ $ns_audience | quote }}]
+    [tq_client.audience_settings.{{ include "dispatcher.tenantObjectAudience" (list $.Release.Namespace .audience) | quote }}]
     {{- if hasKey .tq "preroll" }}
     preroll = {{ .tq.preroll | quote }}
     {{- end }}
@@ -122,22 +118,18 @@ data:
     ##
     ## SVC
     ##
-    {{- $svc_audience := list .audience | compact | join "." }}
-    {{- with .authn }}
-    [authn.{{ $svc_audience | quote }}]
-    audience = [{{ $svc_audience | quote }}]
+
+    [authn.{{ .audience | quote }}]
+    audience = [{{ .audience | quote }}]
     algorithm = "ES256"
-    key = {{ .key | quote }}
-    {{- end }}
+    key = {{ .authn.key | quote }}
 
     {{- println "" }}
-
-    {{- with .authz }}
-    [authz.{{ $svc_audience | quote }}]
-    type = {{ .type | quote }}
-    {{- if eq "localwhitelist" .type }}
-    [[authz.{{ $svc_audience | quote }}.records]]
-    {{- range $record := .records }}
+    [authz.{{ $.Values.app.svc.audience | quote }}]
+    type = {{ .authz.type | quote }}
+    {{- if eq "localwhitelist" .authz.type }}
+    [[authz.{{ $.Values.app.svc.audience | quote }}.records]]
+    {{- range $record := .authz.records }}
     subject_account_id = {{ get $record "subject_account_id" | quote }}
     object = [
       {{- range $o := get $record "object" }}
@@ -148,7 +140,6 @@ data:
     {{- end }}
     {{- end }}
     {{- end }}
-    {{- end }}
 
     {{- println "" }}
 
@@ -156,20 +147,20 @@ data:
     ##
     ## {{ .audience }}
     ##
-    {{- $svc_audience := list "svc" .audience | compact | join "." }}
-    {{- $usr_audience := list "usr" .audience | compact | join "." }}
+    {{- $tenantServiceAudience := include "dispatcher.tenantServiceAudience" .audience }}
+    {{- $tenantUserAudience := include "dispatcher.tenantUserAudience" .audience }}
+    {{- $tenantObjectAudience := include "dispatcher.tenantObjectAudience" (list $.Release.Namespace .audience) }}
     {{- with .authn }}
-    [authn.{{ list "iam" $svc_audience | join "." | quote }}]
-    audience = [{{ $svc_audience | quote }}, {{ $usr_audience | quote }}]
+    [authn.{{ list "iam" $tenantServiceAudience | join "." | quote }}]
+    audience = [{{ $tenantServiceAudience | quote }}, {{ $tenantUserAudience | quote }}]
     algorithm = "ES256"
     key = {{ .key | quote }}
     {{- end }}
 
-    {{- $ns_audience := list (include "dispatcher.audienceEnvironment" $) .audience | compact | join "."  }}
     {{- println "" }}
 
     {{- with .authz }}
-    [authz.{{ $ns_audience | quote }}]
+    [authz.{{ $tenantObjectAudience | quote }}]
     type = {{ .type | quote }}
     {{- if eq "http" .type }}
     uri = {{ .url | required "A proper tenant url for authz required!" | quote }}
@@ -180,13 +171,13 @@ data:
     {{- end }}
     {{- if eq "local" .type }}
     trusted = [
-      {{- range $account_label := .trusted }}
-        {{ $ns_audience | list $account_label | join "." | quote }},
+      {{- range $accountLabel := .trusted }}
+        {{ list $accountLabel $.Values.app.svc.audience | join "." | quote }},
       {{- end }}
     ]
     {{- end }}
     {{- if eq "localwhitelist" .type }}
-    [[authz.{{ $ns_audience | quote }}.records]]
+    [[authz.{{ $tenantObjectAudience | quote }}.records]]
     {{- range $record := .records }}
     subject_account_id = {{ get $record "subject_account_id" | quote }}
     object = [

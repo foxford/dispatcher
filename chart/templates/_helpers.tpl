@@ -35,11 +35,11 @@ Common labels
 */}}
 {{- define "dispatcher.labels" -}}
 helm.sh/chart: {{ include "dispatcher.chart" . }}
-{{ include "dispatcher.selectorLabels" . }}
 {{- if .Chart.AppVersion }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{ include "dispatcher.selectorLabels" . }}
 {{- end }}
 
 {{/*
@@ -51,35 +51,34 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
-Short namespace.
+Tenant Service Audience
 */}}
-{{- define "dispatcher.shortNamespace" -}}
-{{- $shortns := regexSplit "-" .Release.Namespace -1 | first }}
-{{- if has $shortns (list "production" "p") }}
-{{- else }}
-{{- $shortns }}
-{{- end }}
-{{- end }}
+{{- define "dispatcher.tenantServiceAudience" -}}
+{{- $tenant := . -}}
+{{- list "svc" $tenant | join "." -}}
+{{- end -}}
 
 {{/*
-Audience Environment
+Tenant User Audience
 */}}
-{{- define "dispatcher.audienceEnvironment" -}}
-{{- $v := regexReplaceAll "(s)(\\d\\d)" (include "dispatcher.shortNamespace" .) "staging${2}" }}
-{{- $v := regexReplaceAll "(t)(\\d\\d)" $v "testing${2}" }}
-{{- $v }}
-{{- end }}
+{{- define "dispatcher.tenantUserAudience" -}}
+{{- $tenant := . -}}
+{{- list "usr" $tenant | join "." -}}
+{{- end -}}
 
 {{/*
-Sets short_namespace in config if needed
+Tenant Object Audience
 */}}
-{{- define "dispatcher.shortNamespaceSetting" -}}
-{{- $shortns := regexSplit "-" .Release.Namespace -1 | first }}
-{{- if has $shortns (list "production" "p") }}
-{{- else }}
-{{- $v := regexReplaceAll "(.)[^\\d]*(.+)" $shortns "${1}${2}" }}
-short_namespace = {{- regexReplaceAll "(.*)-ng(.*)" $v "${1}-foxford${2}" | quote }}
+{{- define "dispatcher.tenantObjectAudience" -}}
+{{- $namespace := index . 0 -}}
+{{- $tenant := index . 1 -}}
+{{- $env := regexSplit "-" $namespace -1 | first -}}
+{{- $devEnv := ""}}
+{{- if ne $env "p" }}
+{{- $devEnv = regexReplaceAll "(s)(\\d\\d)" $env "staging${2}" }}
+{{- $devEnv = regexReplaceAll "(t)(\\d\\d)" $devEnv "testing${2}" }}
 {{- end }}
+{{- list $devEnv $tenant | compact | join "." }}
 {{- end }}
 
 {{/*
