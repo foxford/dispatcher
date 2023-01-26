@@ -44,7 +44,7 @@ spec:
               port: {{ .Values.clusterService.ports.http }}
             initialDelaySeconds: 5
             periodSeconds: 5
-          startupProbe:
+          readinessProbe:
             httpGet:
               path: /api/v1/healthz
               port: {{ .Values.clusterService.ports.http }}
