@@ -10,6 +10,7 @@ spec:
   selector:
     matchLabels:
       {{- include "dispatcher.selectorLabels" . | nindent 6 }}
+  minReadySeconds: 5
   template:
     metadata:
       annotations:
