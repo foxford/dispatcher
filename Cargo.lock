@@ -464,7 +464,7 @@ dependencies = [
  "sqlx",
  "svc-agent",
  "svc-authn",
- "svc-authz",
+ "svc-authz 0.11.1 (git+https://github.com/foxford/svc-authz-rs.git?branch=ULMS-2236/cache-authz-in-dispatcher)",
  "svc-error 0.4.0",
  "svc-utils",
  "tokio",
@@ -2366,6 +2366,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "svc-authz"
+version = "0.11.1"
+source = "git+https://github.com/foxford/svc-authz-rs.git?branch=ULMS-2236/cache-authz-in-dispatcher#f72cf45d369baf413b3d603359e3ffd525773478"
+dependencies = [
+ "async-trait",
+ "bytes",
+ "chrono",
+ "futures",
+ "jsonwebtoken",
+ "log",
+ "r2d2_redis",
+ "reqwest",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "svc-authn",
+ "tokio",
+]
+
+[[package]]
 name = "svc-error"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2395,7 +2415,7 @@ dependencies = [
  "sqlx",
  "svc-agent",
  "svc-authn",
- "svc-authz",
+ "svc-authz 0.11.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]

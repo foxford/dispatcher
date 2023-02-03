@@ -29,6 +29,11 @@ migrations:
 
 env:
   RUST_LOG: warn,dispatcher=info,svc_utils=info,svc_utils::metrics=warn
+  CACHE_ENABLED: 1
+  CACHE_POOL_SIZE: 50
+  CACHE_POOL_IDLE_SIZE: 5
+  CACHE_POOL_TIMEOUT: 5
+  CACHE_EXPIRATION_TIME: 300
   DATABASE_POOL_SIZE: 10
   DATABASE_POOL_IDLE_SIZE: 10
   DATABASE_POOL_TIMEOUT: 5

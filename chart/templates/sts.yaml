@@ -28,6 +28,11 @@ spec:
           image: "{{ .Values.migrations.image.repository }}:{{ .Values.migrations.image.tag | default .Values.app.image.tag }}"
           imagePullPolicy: IfNotPresent
           env:
+            - name: "CACHE_URL"
+              valueFrom:
+                secretKeyRef:
+                  name: redis-{{ include "dispatcher.name" . }}-credentials
+                  key: CACHE_URL
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
