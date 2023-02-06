@@ -189,7 +189,7 @@ pub async fn restart_transcoding(
 
     match r {
         Ok(_) => Ok(Response::new(Body::from(""))),
-        Err(err) => Ok(Response::new(Body::from(err.to_string()))),
+        Err(err) => Err(AppError::new(AppErrorKind::InternalFailure, err))
     }
 }
 
