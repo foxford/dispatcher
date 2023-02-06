@@ -7,7 +7,6 @@ use axum::{
 };
 use svc_utils::middleware::{CorsLayer, LogLayer, MeteredRoute};
 
-use super::api::v1::account;
 use super::api::v1::authz::proxy as proxy_authz;
 use super::api::v1::class::{
     commit_edition, create_timestamp, read, read_by_scope, read_property, recreate, update,
@@ -20,6 +19,7 @@ use super::api::v1::p2p::{convert as convert_p2p, create as create_p2p};
 use super::api::v1::webinar::{
     convert_webinar, create_webinar, create_webinar_replica, download_webinar,
 };
+use super::api::v1::{account, minigroup::restart_transcoding};
 use super::api::{
     redirect_to_frontend, rollback, v1::create_event, v1::healthz,
     v1::redirect_to_frontend as redirect_to_frontend2,
@@ -153,6 +153,10 @@ fn utils_router() -> Router {
         .metered_route(
             "/api/v1/account/properties/:property_id",
             get(account::read_property).put(account::update_property),
+        )
+        .metered_route(
+            "/api/v1/transcoding/minigroup/:id/restart",
+            post(restart_transcoding),
         )
         .layer(CorsLayer)
 }

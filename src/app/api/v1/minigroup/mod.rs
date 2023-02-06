@@ -3,11 +3,13 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use axum::extract::Extension;
+use axum::extract::Path;
 use hyper::{Body, Response};
 use serde_derive::Deserialize;
 use svc_agent::AccountId;
 use svc_utils::extractors::AccountIdExtractor;
 use tracing::{error, info, instrument};
+use uuid::Uuid;
 
 use crate::app::authz::AuthzObject;
 use crate::app::error::ErrorExt;
@@ -176,6 +178,19 @@ async fn insert_minigroup_dummy(
         .await
         .context("Failed to insert minigroup")
         .error(AppErrorKind::DbQueryFailed)
+}
+
+pub async fn restart_transcoding(
+    Extension(ctx): Extension<Arc<dyn AppContext>>,
+    AccountIdExtractor(_account_id): AccountIdExtractor,
+    Path(id): Path<Uuid>,
+) -> AppResult {
+    let r = crate::app::postprocessing_strategy::restart_minigroup_transcoding(ctx, id).await;
+
+    match r {
+        Ok(_) => Ok(Response::new(Body::from(""))),
+        Err(err) => Ok(Response::new(Body::from(err.to_string()))),
+    }
 }
 
 #[cfg(test)]

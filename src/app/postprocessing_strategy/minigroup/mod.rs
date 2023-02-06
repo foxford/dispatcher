@@ -350,18 +350,21 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
 
 impl MinigroupPostprocessingStrategy {
     async fn find_host(&self, event_room_id: Uuid) -> Result<Option<AgentId>> {
-        let host_events = self
-            .ctx
-            .event_client()
-            .list_events(event_room_id, HOST_EVENT_TYPE)
-            .await
-            .context("Failed to get host events for room")?;
+        find_host(self.ctx.clone(), event_room_id).await
+    }
+}
 
-        match host_events.first().map(|event| event.data()) {
-            None => Ok(None),
-            Some(EventData::Host(data)) => Ok(Some(data.agent_id().to_owned())),
-            Some(other) => bail!("Got unexpected host event data: {:?}", other),
-        }
+async fn find_host(ctx: Arc<dyn AppContext>, event_room_id: Uuid) -> Result<Option<AgentId>> {
+    let host_events = ctx
+        .event_client()
+        .list_events(event_room_id, HOST_EVENT_TYPE)
+        .await
+        .context("Failed to get host events for room")?;
+
+    match host_events.first().map(|event| event.data()) {
+        None => Ok(None),
+        Some(EventData::Host(data)) => Ok(Some(data.agent_id().to_owned())),
+        Some(other) => bail!("Got unexpected host event data: {:?}", other),
     }
 }
 
@@ -406,6 +409,102 @@ async fn call_adjust(
         .map_err(|err| anyhow!("Failed to adjust room, id = {}: {}", room_id, err))?;
 
     Ok(())
+}
+
+pub async fn restart_transcoding(ctx: Arc<dyn AppContext>, class_id: Uuid) -> Result<()> {
+    let mut conn = ctx.get_conn().await?;
+
+    let minigroup = crate::db::class::ReadQuery::by_id(class_id)
+        .execute(&mut conn)
+        .await?
+        .ok_or(anyhow!("Class not found"))?;
+
+    let modified_event_room_id = match minigroup.modified_event_room_id() {
+        Some(id) => id,
+        None => return Ok(()),
+    };
+
+    // Find host stream id.
+    let host = match find_host(ctx.clone(), modified_event_room_id).await? {
+        None => {
+            error!(?class_id, "No host in room");
+            return Ok(());
+        }
+        Some(agent_id) => agent_id,
+    };
+
+    let recordings = crate::db::recording::RecordingListQuery::new(class_id)
+        .execute(&mut conn)
+        .await?;
+
+    let recordings = recordings
+        .into_iter()
+        .map(|recording| ReadyRecording::from_db_object(&recording))
+        .collect::<Option<Vec<_>>>()
+        .ok_or_else(|| anyhow!("Not all recordings are ready"))?;
+
+    let maybe_host_recording = recordings
+        .iter()
+        .find(|recording| recording.created_by == host);
+
+    let host_stream = match maybe_host_recording {
+        // Host has been set but there's no recording, skip transcoding.
+        None => bail!("No host stream id in room"),
+        Some(recording) => recording,
+    };
+
+    // Find the earliest recording.
+    let earliest_recording = recordings
+        .iter()
+        .min_by(|a, b| a.started_at.cmp(&b.started_at))
+        .ok_or_else(|| anyhow!("No recordings"))?;
+
+    // Fetch pin events for building pin segments.
+    let pin_events = ctx
+        .event_client()
+        .list_events(modified_event_room_id, PIN_EVENT_TYPE)
+        .await
+        .context("Failed to get pin events for room")?;
+
+    // Fetch writer config snapshots for building muted segments.
+    let mute_events = ctx
+        .conference_client()
+        .read_config_snapshots(minigroup.conference_room_id())
+        .await
+        .context("Failed to get writer config snapshots for room")?;
+
+    // Build streams for template bindings.
+    let streams = recordings
+        .iter()
+        .map(|recording| {
+            let event_room_offset = recording.started_at
+                - (host_stream.started_at
+                    - Duration::milliseconds(ctx.get_preroll_offset(minigroup.audience())));
+
+            let recording_offset = recording.started_at - earliest_recording.started_at;
+
+            build_stream(
+                recording,
+                &pin_events,
+                event_room_offset,
+                recording_offset,
+                &mute_events,
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+
+    let host_stream_id = host_stream.rtc_id;
+
+    // Create a tq task.
+    let task = TqTask::TranscodeMinigroupToHls {
+        streams,
+        host_stream_id,
+    };
+
+    ctx.tq_client()
+        .create_task(&minigroup, task)
+        .await
+        .context("TqClient create task failed")
 }
 
 fn build_stream(

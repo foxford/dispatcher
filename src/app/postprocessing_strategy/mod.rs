@@ -20,6 +20,8 @@ use crate::{
 use minigroup::MinigroupPostprocessingStrategy;
 use webinar::WebinarPostprocessingStrategy;
 
+pub use minigroup::restart_transcoding as restart_minigroup_transcoding;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 pub(crate) fn get(
