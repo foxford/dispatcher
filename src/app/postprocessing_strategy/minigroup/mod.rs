@@ -453,6 +453,11 @@ pub async fn restart_transcoding(ctx: Arc<dyn AppContext>, class_id: Uuid) -> Re
         Some(recording) => recording,
     };
 
+    ctx.event_client()
+        .dump_room(modified_event_room_id)
+        .await
+        .context("Dump room event failed")?;
+
     // Find the earliest recording.
     let earliest_recording = recordings
         .iter()
