@@ -417,7 +417,7 @@ pub async fn restart_transcoding(ctx: Arc<dyn AppContext>, class_id: Uuid) -> Re
     let minigroup = crate::db::class::ReadQuery::by_id(class_id)
         .execute(&mut conn)
         .await?
-        .ok_or(anyhow!("Class not found"))?;
+        .ok_or_else(|| anyhow!("Class not found"))?;
 
     let modified_event_room_id = match minigroup.modified_event_room_id() {
         Some(id) => id,
