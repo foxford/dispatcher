@@ -421,7 +421,7 @@ pub async fn restart_transcoding(ctx: Arc<dyn AppContext>, class_id: Uuid) -> Re
 
     let modified_event_room_id = match minigroup.modified_event_room_id() {
         Some(id) => id,
-        None => return Ok(()),
+        None => bail!("Not adjusted yet"),
     };
 
     // Find host stream id.
