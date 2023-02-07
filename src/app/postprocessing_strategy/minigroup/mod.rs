@@ -173,101 +173,11 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
                     .await?;
 
                     txn.commit().await?;
+
                     recordings
-                        .into_iter()
-                        .map(|recording| ReadyRecording::from_db_object(&recording))
-                        .collect::<Option<Vec<_>>>()
-                        .ok_or_else(|| anyhow!("Not all recordings are ready"))?
                 };
 
-                self.ctx
-                    .event_client()
-                    .dump_room(modified_room_id)
-                    .await
-                    .context("Dump room event failed")?;
-
-                let maybe_host_recording = recordings
-                    .iter()
-                    .find(|recording| recording.created_by == host);
-
-                let host_stream = match maybe_host_recording {
-                    // Host has been set but there's no recording, skip transcoding.
-                    None => bail!("No host stream id in room"),
-                    Some(recording) => recording,
-                };
-
-                // Find the earliest recording.
-                let earliest_recording = recordings
-                    .iter()
-                    .min_by(|a, b| a.started_at.cmp(&b.started_at))
-                    .ok_or_else(|| anyhow!("No recordings"))?;
-
-                // Fetch event room opening time for events' offset calculation.
-                let modified_event_room = self
-                    .ctx
-                    .event_client()
-                    .read_room(modified_room_id)
-                    .await
-                    .context("Failed to read modified event room")?;
-
-                match modified_event_room.time {
-                    (Bound::Included(_), _) => (),
-                    _ => bail!("Wrong event room opening time"),
-                };
-
-                // Fetch pin events for building pin segments.
-                let pin_events = self
-                    .ctx
-                    .event_client()
-                    .list_events(modified_room_id, PIN_EVENT_TYPE)
-                    .await
-                    .context("Failed to get pin events for room")?;
-
-                let conference_room_id = self.minigroup.conference_room_id();
-
-                // Fetch writer config snapshots for building muted segments.
-                let mute_events = self
-                    .ctx
-                    .conference_client()
-                    .read_config_snapshots(conference_room_id)
-                    .await
-                    .context("Failed to get writer config snapshots for room")?;
-
-                // Build streams for template bindings.
-                let streams = recordings
-                    .iter()
-                    .map(|recording| {
-                        let event_room_offset = recording.started_at
-                            - (host_stream.started_at
-                                - Duration::milliseconds(
-                                    self.ctx.get_preroll_offset(self.minigroup.audience()),
-                                ));
-
-                        let recording_offset = recording.started_at - earliest_recording.started_at;
-
-                        build_stream(
-                            recording,
-                            &pin_events,
-                            event_room_offset,
-                            recording_offset,
-                            &mute_events,
-                        )
-                    })
-                    .collect::<Result<Vec<_>, _>>()?;
-
-                let host_stream_id = host_stream.rtc_id;
-
-                // Create a tq task.
-                let task = TqTask::TranscodeMinigroupToHls {
-                    streams,
-                    host_stream_id,
-                };
-
-                self.ctx
-                    .tq_client()
-                    .create_task(&self.minigroup, task)
-                    .await
-                    .context("TqClient create task failed")
+                send_transcoding_task(&self.ctx, &self.minigroup, recordings).await
             }
             RoomAdjustResult::Error { error } => {
                 bail!("Adjust failed, err = {:#?}", error);
@@ -419,6 +329,19 @@ pub async fn restart_transcoding(ctx: Arc<dyn AppContext>, minigroup: Class) -> 
         bail!("Invalid class type");
     }
 
+    let mut conn = ctx.get_conn().await?;
+    let recordings = crate::db::recording::RecordingListQuery::new(minigroup.id())
+        .execute(&mut conn)
+        .await?;
+
+    send_transcoding_task(&ctx, &minigroup, recordings).await
+}
+
+async fn send_transcoding_task(
+    ctx: &Arc<dyn AppContext>,
+    minigroup: &Class,
+    recordings: Vec<crate::db::recording::Object>,
+) -> Result<()> {
     let modified_event_room_id = match minigroup.modified_event_room_id() {
         Some(id) => id,
         None => bail!("Not adjusted yet"),
@@ -432,11 +355,6 @@ pub async fn restart_transcoding(ctx: Arc<dyn AppContext>, minigroup: Class) -> 
         }
         Some(agent_id) => agent_id,
     };
-
-    let mut conn = ctx.get_conn().await?;
-    let recordings = crate::db::recording::RecordingListQuery::new(minigroup.id())
-        .execute(&mut conn)
-        .await?;
 
     let recordings = recordings
         .into_iter()
@@ -452,6 +370,18 @@ pub async fn restart_transcoding(ctx: Arc<dyn AppContext>, minigroup: Class) -> 
         // Host has been set but there's no recording, skip transcoding.
         None => bail!("No host stream id in room"),
         Some(recording) => recording,
+    };
+
+    // Fetch event room opening time for events' offset calculation.
+    let modified_event_room = ctx
+        .event_client()
+        .read_room(modified_event_room_id)
+        .await
+        .context("Failed to read modified event room")?;
+
+    match modified_event_room.time {
+        (Bound::Included(_), _) => (),
+        _ => bail!("Wrong event room opening time"),
     };
 
     ctx.event_client()
