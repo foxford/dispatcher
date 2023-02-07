@@ -438,7 +438,7 @@ async fn send_transcoding_task(
     };
 
     ctx.tq_client()
-        .create_task(&minigroup, task)
+        .create_task(minigroup, task)
         .await
         .context("TqClient create task failed")
 }
