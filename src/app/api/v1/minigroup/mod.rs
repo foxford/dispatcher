@@ -182,10 +182,33 @@ async fn insert_minigroup_dummy(
 
 pub async fn restart_transcoding(
     Extension(ctx): Extension<Arc<dyn AppContext>>,
-    AccountIdExtractor(_account_id): AccountIdExtractor,
+    AccountIdExtractor(account_id): AccountIdExtractor,
     Path(id): Path<Uuid>,
 ) -> AppResult {
-    let r = crate::app::postprocessing_strategy::restart_minigroup_transcoding(ctx, id).await;
+    let mut conn = ctx
+        .get_conn()
+        .await
+        .map_err(|err| AppError::new(AppErrorKind::InternalFailure, err))?;
+
+    let minigroup = crate::db::class::ReadQuery::by_id(id)
+        .execute(&mut conn)
+        .await
+        .map_err(|err| AppError::new(AppErrorKind::InternalFailure, err.into()))?
+        .ok_or_else(|| AppError::new(AppErrorKind::ClassNotFound, anyhow!("Class not found")))?;
+
+    let object = AuthzObject::new(&["classrooms", &id.to_string()]).into();
+    ctx.authz()
+        .authorize(
+            minigroup.audience().to_owned(),
+            account_id.clone(),
+            object,
+            "update".into(),
+        )
+        .await
+        .measure()?;
+
+    let r =
+        crate::app::postprocessing_strategy::restart_minigroup_transcoding(ctx, minigroup).await;
 
     match r {
         Ok(_) => Ok(Response::new(Body::from(""))),

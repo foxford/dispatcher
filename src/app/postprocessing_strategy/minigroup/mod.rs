@@ -16,13 +16,16 @@ use svc_agent::{
 use tracing::{error, warn};
 use uuid::Uuid;
 
-use crate::clients::event::{Event, EventData, RoomAdjustResult};
 use crate::clients::tq::{
     Task as TqTask, TranscodeMinigroupToHlsStream, TranscodeMinigroupToHlsSuccess,
 };
 use crate::db::class::Object as Class;
 use crate::db::recording::Segments;
 use crate::{app::AppContext, clients::conference::ConfigSnapshot};
+use crate::{
+    clients::event::{Event, EventData, RoomAdjustResult},
+    db::class::ClassType,
+};
 
 use super::{
     shared_helpers, MjrDumpsUploadReadyData, MjrDumpsUploadResult, TranscodeSuccess, UploadedStream,
@@ -411,13 +414,10 @@ async fn call_adjust(
     Ok(())
 }
 
-pub async fn restart_transcoding(ctx: Arc<dyn AppContext>, class_id: Uuid) -> Result<()> {
-    let mut conn = ctx.get_conn().await?;
-
-    let minigroup = crate::db::class::ReadQuery::by_id(class_id)
-        .execute(&mut conn)
-        .await?
-        .ok_or_else(|| anyhow!("Class not found"))?;
+pub async fn restart_transcoding(ctx: Arc<dyn AppContext>, minigroup: Class) -> Result<()> {
+    if minigroup.kind() != ClassType::Minigroup {
+        bail!("Invalid class type");
+    }
 
     let modified_event_room_id = match minigroup.modified_event_room_id() {
         Some(id) => id,
@@ -427,13 +427,14 @@ pub async fn restart_transcoding(ctx: Arc<dyn AppContext>, class_id: Uuid) -> Re
     // Find host stream id.
     let host = match find_host(ctx.clone(), modified_event_room_id).await? {
         None => {
-            error!(?class_id, "No host in room");
+            error!(class_id = ?minigroup.id(), "No host in room");
             return Ok(());
         }
         Some(agent_id) => agent_id,
     };
 
-    let recordings = crate::db::recording::RecordingListQuery::new(class_id)
+    let mut conn = ctx.get_conn().await?;
+    let recordings = crate::db::recording::RecordingListQuery::new(minigroup.id())
         .execute(&mut conn)
         .await?;
 
