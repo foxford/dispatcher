@@ -177,7 +177,8 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
                     recordings
                 };
 
-                send_transcoding_task(&self.ctx, &self.minigroup, recordings).await
+                send_transcoding_task(&self.ctx, &self.minigroup, recordings, modified_room_id)
+                    .await
             }
             RoomAdjustResult::Error { error } => {
                 bail!("Adjust failed, err = {:#?}", error);
@@ -329,24 +330,25 @@ pub async fn restart_transcoding(ctx: Arc<dyn AppContext>, minigroup: Class) -> 
         bail!("Invalid class type");
     }
 
+    let modified_event_room_id = match minigroup.modified_event_room_id() {
+        Some(id) => id,
+        None => bail!("Not adjusted yet"),
+    };
+
     let mut conn = ctx.get_conn().await?;
     let recordings = crate::db::recording::RecordingListQuery::new(minigroup.id())
         .execute(&mut conn)
         .await?;
 
-    send_transcoding_task(&ctx, &minigroup, recordings).await
+    send_transcoding_task(&ctx, &minigroup, recordings, modified_event_room_id).await
 }
 
 async fn send_transcoding_task(
     ctx: &Arc<dyn AppContext>,
     minigroup: &Class,
     recordings: Vec<crate::db::recording::Object>,
+    modified_event_room_id: Uuid,
 ) -> Result<()> {
-    let modified_event_room_id = match minigroup.modified_event_room_id() {
-        Some(id) => id,
-        None => bail!("Not adjusted yet"),
-    };
-
     // Find host stream id.
     let host = match find_host(ctx.clone(), modified_event_room_id).await? {
         None => {
