@@ -32,10 +32,10 @@ struct Subject {
     value: SubjectValue,
 }
 
-impl Into<AccountId> for Subject {
-    fn into(self) -> AccountId {
-        match self.value {
-            SubjectValue::New(label) => AccountId::new(&label, &self.namespace),
+impl From<Subject> for AccountId {
+    fn from(s: Subject) -> Self {
+        match s.value {
+            SubjectValue::New(label) => AccountId::new(&label, &s.namespace),
             SubjectValue::Old(_) => todo!(),
         }
     }
