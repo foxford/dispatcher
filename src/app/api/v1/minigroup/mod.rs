@@ -3,11 +3,13 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use axum::extract::Extension;
+use axum::extract::Path;
 use hyper::{Body, Response};
 use serde_derive::Deserialize;
 use svc_agent::AccountId;
 use svc_utils::extractors::AccountIdExtractor;
 use tracing::{error, info, instrument};
+use uuid::Uuid;
 
 use crate::app::authz::AuthzObject;
 use crate::app::error::ErrorExt;
@@ -176,6 +178,42 @@ async fn insert_minigroup_dummy(
         .await
         .context("Failed to insert minigroup")
         .error(AppErrorKind::DbQueryFailed)
+}
+
+pub async fn restart_transcoding(
+    Extension(ctx): Extension<Arc<dyn AppContext>>,
+    AccountIdExtractor(account_id): AccountIdExtractor,
+    Path(id): Path<Uuid>,
+) -> AppResult {
+    let mut conn = ctx
+        .get_conn()
+        .await
+        .map_err(|err| AppError::new(AppErrorKind::InternalFailure, err))?;
+
+    let minigroup = crate::db::class::ReadQuery::by_id(id)
+        .execute(&mut conn)
+        .await
+        .map_err(|err| AppError::new(AppErrorKind::InternalFailure, err.into()))?
+        .ok_or_else(|| AppError::new(AppErrorKind::ClassNotFound, anyhow!("Class not found")))?;
+
+    let object = AuthzObject::new(&["classrooms", &id.to_string()]).into();
+    ctx.authz()
+        .authorize(
+            minigroup.audience().to_owned(),
+            account_id.clone(),
+            object,
+            "update".into(),
+        )
+        .await
+        .measure()?;
+
+    let r =
+        crate::app::postprocessing_strategy::restart_minigroup_transcoding(ctx, minigroup).await;
+
+    match r {
+        Ok(_) => Ok(Response::new(Body::from(""))),
+        Err(err) => Err(AppError::new(AppErrorKind::InternalFailure, err)),
+    }
 }
 
 #[cfg(test)]

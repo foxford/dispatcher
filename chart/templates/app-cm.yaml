@@ -168,6 +168,11 @@ data:
     key = {{ default "data/keys/svc.private_key.p8.der" .key | quote }}
     user_agent = {{ default $id .user_agent | quote }}
     max_retries = {{ default 3 .max_retries }}
+    trusted = [
+      {{- range $account_label := .trusted }}
+        {{ (list $account_label $.Values.app.svc.audience) | compact | join "." | quote }},
+      {{- end }}
+    ]
     {{- end }}
     {{- if eq "local" .type }}
     trusted = [
