@@ -307,24 +307,19 @@ fn transform_storage_authz_request(authz_req: &mut AuthzRequest) {
 fn transform_storage_v1_authz_request(authz_req: &mut AuthzRequest) {
     let get_idx_as_str = |idx: usize| authz_req.object.value.get(idx).map(|s: &String| s.as_str());
 
-    match (
+    // this authz object came from storage v1
+    if let (Some("buckets"), Some(bucket), Some("sets"), Some(set)) = (
         get_idx_as_str(0),
         get_idx_as_str(1),
         get_idx_as_str(2),
         get_idx_as_str(3),
     ) {
-        // this authz object came from storage v1
-        (Some("buckets"), Some(bucket), Some("sets"), Some(set)) => {
-            let updated_set = format!("{bucket}::{set}");
+        let updated_set = format!("{bucket}::{set}");
 
-            authz_req.object.value.clear();
+        authz_req.object.value.clear();
 
-            authz_req.object.value.push("sets".into());
-            authz_req.object.value.push(updated_set);
-        }
-        _ => {
-            // ignore
-        }
+        authz_req.object.value.push("sets".into());
+        authz_req.object.value.push(updated_set);
     }
 }
 
