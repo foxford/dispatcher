@@ -12,5 +12,5 @@ spec:
     - name: wget
       image: busybox
       command: ['wget']
-      args: ['http://{{ include "dispatcher.fullname" . }}-cluster:{{ .Values.clusterService.ports.http }}/api/v1/healthz']
+      args: ['http://{{ include "dispatcher.fullname" . }}-cluster:{{ .Values.clusterService.ports.http }}/healthz']
   restartPolicy: Never

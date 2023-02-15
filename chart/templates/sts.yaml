@@ -46,13 +46,13 @@ spec:
           imagePullPolicy: IfNotPresent
           livenessProbe:
             httpGet:
-              path: /api/v1/healthz
+              path: /healthz
               port: {{ .Values.clusterService.ports.http }}
             initialDelaySeconds: 5
             periodSeconds: 5
           startupProbe:
             httpGet:
-              path: /api/v1/healthz
+              path: /healthz
               port: {{ .Values.clusterService.ports.http }}
             failureThreshold: 10
             periodSeconds: 3

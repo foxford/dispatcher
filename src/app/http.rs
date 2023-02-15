@@ -52,7 +52,7 @@ fn redirects_router() -> Router {
             get(redirect_to_frontend),
         )
         .metered_route("/api/scopes/:scope/rollback", post(rollback))
-        .metered_route("/api/v1/healthz", get(healthz))
+        .metered_route("/healthz", get(healthz))
         .metered_route("/api/v1/scopes/:scope/rollback", post(rollback))
         .metered_route("/api/v1/redirs", get(redirect_to_frontend2))
         .metered_route(
