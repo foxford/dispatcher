@@ -154,7 +154,8 @@ async fn insert_p2p_dummy(
         .execute(&mut conn)
         .await
         .context("Failed to insert p2p")
-        .error(AppErrorKind::DbQueryFailed)
+        .error(AppErrorKind::DbQueryFailed)?
+        .ok_or_else(|| AppError::new(AppErrorKind::ClassAlreadyEstablished, anyhow!("")))
 }
 
 #[derive(Deserialize)]

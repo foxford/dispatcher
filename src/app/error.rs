@@ -39,6 +39,7 @@ pub enum ErrorKind {
     InvalidQueryString,
     InternalFailure,
     CreationWhiteboardFailed,
+    ClassAlreadyEstablished,
 }
 
 impl ErrorKind {
@@ -182,6 +183,12 @@ impl From<ErrorKind> for ErrorKindProperties {
                 status: ResponseStatus::UNPROCESSABLE_ENTITY,
                 kind: "creation_whiteboard_failed",
                 title: "Creation whiteboard failed",
+                is_notify_sentry: false,
+            },
+            ErrorKind::ClassAlreadyEstablished => ErrorKindProperties {
+                status: ResponseStatus::UNPROCESSABLE_ENTITY,
+                kind: "class_already_established",
+                title: "Class already established",
                 is_notify_sentry: false,
             },
         }
