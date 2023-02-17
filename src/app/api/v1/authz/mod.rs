@@ -93,7 +93,7 @@ pub async fn proxy(
         response
     };
 
-    let response = if response.contains(&old_action) {
+    let response = if response.contains(&authz_req.action) {
         vec![old_action]
     } else {
         vec![]
