@@ -75,9 +75,9 @@ pub async fn proxy(
     let retry_delay = ctx.config().retry_delay;
     let account_id: AccountId = authz_req.subject.clone().into();
 
-    let response = {
+    {
         let _timer = AuthMetrics::start_timer();
-        let (response, _) = single_retry(
+        single_retry(
             || {
                 ctx.authz().authorize(
                     request_audience.clone(),
@@ -89,16 +89,9 @@ pub async fn proxy(
             retry_delay,
         )
         .await?;
+    }
 
-        response
-    };
-
-    let response = if response.contains(&authz_req.action) {
-        vec![old_action]
-    } else {
-        vec![]
-    };
-
+    let response = vec![old_action];
     let response = serde_json::to_string(&response).unwrap();
 
     let response = Response::builder().body(Body::from(response)).unwrap();

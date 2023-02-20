@@ -47,8 +47,7 @@ sqlx = { version = "0.5", features = [
 ] }
 svc-agent = { version = "0.19", features = ["sqlx"] }
 svc-authn = { version = "0.7", features = ["jose", "sqlx"] }
-# svc-authz = "0.11"
-svc-authz = {git = "https://github.com/foxford/svc-authz-rs.git", branch = "ULMS-2236/cache-authz-in-dispatcher"}
+svc-authz = "0.11"
 svc-error = { version = "0.4", features = [
     "svc-agent",
     "svc-authn",

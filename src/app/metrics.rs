@@ -100,9 +100,9 @@ pub trait AuthorizeMetrics {
     fn measure(self) -> Self;
 }
 
-impl AuthorizeMetrics for Result<(Vec<String>, Duration), svc_authz::error::Error> {
+impl AuthorizeMetrics for Result<Duration, svc_authz::error::Error> {
     fn measure(self) -> Self {
-        if let Ok(Ok(d)) = self.as_ref().map(|(_, d)| d.to_std()) {
+        if let Ok(Ok(d)) = self.as_ref().map(|d| d.to_std()) {
             let nanos = f64::from(d.subsec_nanos()) / 1e9;
             METRICS.authz_time.observe(d.as_secs() as f64 + nanos)
         }
