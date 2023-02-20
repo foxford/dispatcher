@@ -33,15 +33,6 @@ struct Subject {
     value: SubjectValue,
 }
 
-impl From<Subject> for AccountId {
-    fn from(s: Subject) -> Self {
-        match s.value {
-            SubjectValue::New(label) => AccountId::new(&label, &s.namespace),
-            SubjectValue::Old(values) => AccountId::new(&values[1], &s.namespace),
-        }
-    }
-}
-
 #[derive(Deserialize, Debug, Serialize, Clone)]
 #[serde(untagged)]
 enum SubjectValue {
