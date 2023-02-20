@@ -1,18 +1,19 @@
-use std::str::FromStr;
 use std::sync::Arc;
+use std::{str::FromStr, time::Duration};
 
 use anyhow::Context;
 use axum::extract::{Extension, Path};
 use hyper::{Body, Response};
 use serde_derive::{Deserialize, Serialize};
+use serde_json::json;
 use svc_authn::{AccountId, Authenticable};
 use svc_utils::extractors::AccountIdExtractor;
 use tracing::info;
 use uuid::Uuid;
 
 use crate::app::http::Json;
+use crate::app::{error, AppContext};
 use crate::app::{error::ErrorExt, metrics::AuthMetrics};
-use crate::app::{AppContext, AuthzObject};
 use crate::{app::error::ErrorKind as AppErrorKind, utils::single_retry};
 
 use crate::db::authz::{AuthzClass, AuthzReadQuery};
@@ -72,29 +73,12 @@ pub async fn proxy(
     transform_authz_request(&mut authz_req, &account_id);
     substitute_class(&mut authz_req, ctx.as_ref(), q).await?;
 
+    let http_proxy = ctx.authz().http_proxy(&request_audience);
     let retry_delay = ctx.config().retry_delay;
-    let account_id: AccountId = authz_req.subject.clone().into();
 
-    {
-        let _timer = AuthMetrics::start_timer();
-        single_retry(
-            || {
-                ctx.authz().authorize(
-                    request_audience.clone(),
-                    account_id.clone(),
-                    AuthzObject::from_owned_slice(&authz_req.object.value).into(),
-                    authz_req.action.clone(),
-                )
-            },
-            retry_delay,
-        )
-        .await?;
-    }
-
-    let response = vec![old_action];
-    let response = serde_json::to_string(&response).unwrap();
-
+    let response = proxy_request(&authz_req, http_proxy, &old_action, retry_delay).await?;
     let response = Response::builder().body(Body::from(response)).unwrap();
+
     Ok(response)
 }
 
@@ -170,6 +154,58 @@ fn make_finder(account_id: &AccountId) -> Result<Finder, AppError> {
     };
 
     Ok(q)
+}
+
+async fn proxy_request(
+    authz_req: &AuthzRequest,
+    http_proxy: Option<svc_authz::HttpProxy>,
+    old_action: &str,
+    retry_delay: Duration,
+) -> Result<String, AppError> {
+    let _timer = AuthMetrics::start_timer();
+    if let Some(http_proxy) = http_proxy {
+        let payload = serde_json::to_string(&authz_req)
+            .context("Failed to serialize authz request")
+            .error(AppErrorKind::SerializationFailed)?;
+        let get_response = || async {
+            let resp = http_proxy
+                .send_async(payload.clone())
+                .await
+                .context("Authz proxied request failed")
+                .error(AppErrorKind::AuthorizationFailed)?;
+
+            let body = String::from_utf8(resp.to_vec())
+                .map_err(|e| {
+                    anyhow!(
+                        "Authz proxied request body conversion to utf8 failed, err = {:?}",
+                        e
+                    )
+                })
+                .error(AppErrorKind::AuthorizationFailed)?;
+            Ok::<_, error::Error>(body)
+        };
+        let body = single_retry(get_response, retry_delay).await?;
+
+        info!(
+            "Authz proxy: adjusted request {:?}, response = {}",
+            authz_req, body
+        );
+
+        let json_body = match serde_json::from_str::<Vec<String>>(&body) {
+            Ok(v) if v.contains(&authz_req.action) => json!([old_action]),
+            Ok(_) => json!([]),
+            Err(_) => {
+                return Err(anyhow!("Invalid response format"))
+                    .error(AppErrorKind::AuthorizationFailed);
+            }
+        };
+
+        let body = serde_json::to_string(&json_body).unwrap();
+
+        Ok(body)
+    } else {
+        Err(anyhow!("No proxy for non http authz backend")).error(AppErrorKind::AuthorizationFailed)
+    }
 }
 
 fn transform_authz_request(authz_req: &mut AuthzRequest, account_id: &AccountId) {
