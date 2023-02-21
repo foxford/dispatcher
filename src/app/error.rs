@@ -273,6 +273,15 @@ impl From<svc_authz::Error> for Error {
     }
 }
 
+impl From<ErrorKind> for Error {
+    fn from(kind: ErrorKind) -> Self {
+        Self {
+            kind,
+            err: Arc::new(anyhow!("")),
+        }
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 pub trait ErrorExt<T> {

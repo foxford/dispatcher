@@ -178,7 +178,7 @@ async fn insert_minigroup_dummy(
         .await
         .context("Failed to insert minigroup")
         .error(AppErrorKind::DbQueryFailed)?
-        .ok_or_else(|| AppError::new(AppErrorKind::ClassAlreadyEstablished, anyhow!("")))
+        .ok_or_else(|| AppError::from(AppErrorKind::ClassAlreadyEstablished))
 }
 
 pub async fn restart_transcoding(

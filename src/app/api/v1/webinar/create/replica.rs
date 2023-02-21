@@ -160,7 +160,7 @@ async fn insert_replica_dummy(
         .await
         .context("Failed to insert a replica of webinar")
         .error(AppErrorKind::DbQueryFailed)?
-        .ok_or_else(|| AppError::new(AppErrorKind::ClassAlreadyEstablished, anyhow!("")))
+        .ok_or_else(|| AppError::from(AppErrorKind::ClassAlreadyEstablished))
 }
 
 #[cfg(test)]
