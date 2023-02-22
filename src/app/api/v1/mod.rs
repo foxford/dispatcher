@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use anyhow::Context;
 use axum::extract::{Extension, Path, Query};
 use hyper::{Body, Request, Response};
 use percent_encoding::{percent_encode, NON_ALPHANUMERIC};
@@ -58,7 +59,7 @@ pub async fn create_event(
         );
     }
     result
-        .map_err(|e| anyhow!("Failed to create event, reason = {:?}", e))
+        .context("Failed to create event")
         .error(AppErrorKind::InvalidPayload)?;
 
     let response = Response::builder()

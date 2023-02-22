@@ -39,6 +39,7 @@ pub enum ErrorKind {
     InvalidQueryString,
     InternalFailure,
     CreationWhiteboardFailed,
+    ClassAlreadyEstablished,
 }
 
 impl ErrorKind {
@@ -184,6 +185,12 @@ impl From<ErrorKind> for ErrorKindProperties {
                 title: "Creation whiteboard failed",
                 is_notify_sentry: false,
             },
+            ErrorKind::ClassAlreadyEstablished => ErrorKindProperties {
+                status: ResponseStatus::UNPROCESSABLE_ENTITY,
+                kind: "class_already_established",
+                title: "Class already established",
+                is_notify_sentry: false,
+            },
         }
     }
 }
@@ -192,25 +199,28 @@ impl From<ErrorKind> for ErrorKindProperties {
 
 pub struct Error {
     kind: ErrorKind,
-    err: Arc<anyhow::Error>,
+    err: Option<Arc<anyhow::Error>>,
 }
 
 impl Error {
     pub fn new(kind: ErrorKind, err: anyhow::Error) -> Self {
         Self {
             kind,
-            err: Arc::new(err),
+            err: Some(Arc::new(err)),
         }
     }
 
     pub fn to_svc_error(&self) -> SvcError {
         let properties: ErrorKindProperties = self.kind.into();
 
-        SvcError::builder()
+        let err_builder = SvcError::builder()
             .status(properties.status)
-            .kind(properties.kind, properties.title)
-            .detail(&self.err.to_string())
-            .build()
+            .kind(properties.kind, properties.title);
+
+        match &self.err {
+            Some(err) => err_builder.detail(&err.to_string()).build(),
+            None => err_builder.build(),
+        }
     }
 
     pub fn notify_sentry(&self) {
@@ -218,8 +228,10 @@ impl Error {
             return;
         }
 
-        if let Err(e) = sentry::send(self.err.clone()) {
-            tracing::error!("Failed to send error to sentry, reason = {:?}", e);
+        if let Some(err) = &self.err {
+            if let Err(e) = sentry::send(err.clone()) {
+                tracing::error!("Failed to send error to sentry, reason = {:?}", e);
+            }
         }
     }
 }
@@ -230,8 +242,11 @@ impl IntoResponse for Error {
 
         let span = tracing::Span::current();
         span.record("kind", &properties.kind);
-        let detail = self.err.to_string();
-        span.record("detail", &detail.as_str());
+
+        if let Some(err) = &self.err {
+            let detail = err.to_string();
+            span.record("detail", &detail.as_str());
+        }
 
         (properties.status, Json(&self.to_svc_error())).into_response()
     }
@@ -248,7 +263,10 @@ impl fmt::Debug for Error {
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}: {}", self.kind, self.err)
+        match &self.err {
+            Some(err) => write!(f, "{}: {err}", self.kind),
+            None => write!(f, "{}", self.kind),
+        }
     }
 }
 
@@ -261,8 +279,14 @@ impl From<svc_authz::Error> for Error {
 
         Self {
             kind,
-            err: Arc::new(source.into()),
+            err: Some(Arc::new(source.into())),
         }
+    }
+}
+
+impl From<ErrorKind> for Error {
+    fn from(kind: ErrorKind) -> Self {
+        Self { kind, err: None }
     }
 }
 
@@ -272,8 +296,11 @@ pub trait ErrorExt<T> {
     fn error(self, kind: ErrorKind) -> Result<T, Error>;
 }
 
-impl<T> ErrorExt<T> for Result<T, anyhow::Error> {
+impl<T, E> ErrorExt<T> for Result<T, E>
+where
+    E: Into<anyhow::Error>,
+{
     fn error(self, kind: ErrorKind) -> Result<T, Error> {
-        self.map_err(|source| Error::new(kind, source))
+        self.map_err(|err| Error::new(kind, err.into()))
     }
 }

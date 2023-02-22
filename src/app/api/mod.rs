@@ -179,7 +179,7 @@ fn build_back_url<B>(request: &Request<B>) -> Result<Uri, AppError> {
         // Ingress terminates https so set it back.
         .scheme("https")
         .build()
-        .map_err(|e| anyhow!("Failed to build back_url, e = {:?}", e))
+        .context("Failed to build back_url")
         .error(AppErrorKind::InvalidParameter)?;
 
     Ok(absolute_uri)
