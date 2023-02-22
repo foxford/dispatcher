@@ -161,11 +161,13 @@ async fn insert_webinar_dummy(
         .get_conn()
         .await
         .error(AppErrorKind::DbConnAcquisitionFailed)?;
+
     query
         .execute(&mut conn)
         .await
         .context("Failed to insert webinar")
-        .error(AppErrorKind::DbQueryFailed)
+        .error(AppErrorKind::DbQueryFailed)?
+        .ok_or_else(|| AppError::from(AppErrorKind::ClassAlreadyEstablished))
 }
 
 #[cfg(test)]

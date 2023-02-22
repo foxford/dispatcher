@@ -166,12 +166,7 @@ async fn proxy_request(
                 .error(AppErrorKind::AuthorizationFailed)?;
 
             let body = String::from_utf8(resp.to_vec())
-                .map_err(|e| {
-                    anyhow!(
-                        "Authz proxied request body conversion to utf8 failed, err = {:?}",
-                        e
-                    )
-                })
+                .context("Authz proxied request body conversion to utf8 failed")
                 .error(AppErrorKind::AuthorizationFailed)?;
             Ok::<_, error::Error>(body)
         };

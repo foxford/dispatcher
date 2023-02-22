@@ -7,7 +7,6 @@ use axum::{
 };
 use svc_utils::middleware::{CorsLayer, LogLayer, MeteredRoute};
 
-use super::api::v1::authz::proxy as proxy_authz;
 use super::api::v1::class::{
     commit_edition, create_timestamp, read, read_by_scope, read_property, recreate, update,
     update_by_scope, update_property,
@@ -25,6 +24,7 @@ use super::api::{
     v1::redirect_to_frontend as redirect_to_frontend2,
 };
 use super::info::{list_frontends, list_scopes};
+use super::{api::v1::authz::proxy as proxy_authz, error::ErrorExt};
 
 use crate::app::AppContext;
 use crate::db::class::{MinigroupType, P2PType, WebinarType};
@@ -185,8 +185,8 @@ where
                     }
                     _ => super::error::ErrorKind::InternalFailure,
                 };
-                let err = super::error::Error::new(kind, anyhow::anyhow!(rejection.to_string()));
-                Err(err)
+
+                Err(rejection).error(kind)
             }
         }
     }

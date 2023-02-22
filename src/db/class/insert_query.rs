@@ -146,7 +146,7 @@ impl InsertQuery {
         }
     }
 
-    pub async fn execute(self, conn: &mut PgConnection) -> sqlx::Result<Dummy> {
+    pub async fn execute(self, conn: &mut PgConnection) -> sqlx::Result<Option<Dummy>> {
         let time: PgRange<DateTime<Utc>> = self.time.into();
 
         sqlx::query_as!(
@@ -197,7 +197,7 @@ impl InsertQuery {
             self.properties.unwrap_or_default() as KeyValueProperties,
             self.original_class_id,
         )
-        .fetch_one(conn)
+        .fetch_optional(conn)
         .await
     }
 }
@@ -229,7 +229,7 @@ mod tests {
 
         let t = Utc::now().trunc_subsecs(0);
 
-        InsertQuery::new(
+        let maybe_webinar = InsertQuery::new(
             ClassType::Webinar,
             webinar.scope().to_owned(),
             webinar.audience().to_owned(),
@@ -237,7 +237,9 @@ mod tests {
         )
         .execute(&mut conn)
         .await
-        .expect_err("Should conflict with already existing webinar");
+        .unwrap();
+
+        assert!(maybe_webinar.is_none());
 
         let w = WebinarReadQuery::by_id(webinar.id())
             .execute(&mut conn)
@@ -262,6 +264,7 @@ mod tests {
         )
         .execute(&mut conn)
         .await
+        .unwrap()
         .unwrap();
 
         let t = Utc::now().trunc_subsecs(0);
@@ -274,7 +277,8 @@ mod tests {
         )
         .execute(&mut conn)
         .await
-        .expect("Should be ok");
+        .expect("Should be ok")
+        .unwrap();
 
         let time: BoundedDateTimeTuple = r.time.into();
         assert_eq!(time.0, Bound::Included(t));
