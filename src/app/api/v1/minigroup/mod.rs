@@ -186,16 +186,13 @@ pub async fn restart_transcoding(
     AccountIdExtractor(account_id): AccountIdExtractor,
     Path(id): Path<Uuid>,
 ) -> AppResult {
-    let mut conn = ctx
-        .get_conn()
-        .await
-        .map_err(|err| AppError::new(AppErrorKind::InternalFailure, err))?;
+    let mut conn = ctx.get_conn().await.error(AppErrorKind::InternalFailure)?;
 
     let minigroup = crate::db::class::ReadQuery::by_id(id)
         .execute(&mut conn)
         .await
-        .map_err(|err| AppError::new(AppErrorKind::InternalFailure, err.into()))?
-        .ok_or_else(|| AppError::new(AppErrorKind::ClassNotFound, anyhow!("Class not found")))?;
+        .error(AppErrorKind::InternalFailure)?
+        .ok_or_else(|| AppError::from(AppErrorKind::ClassNotFound))?;
 
     let object = AuthzObject::new(&["classrooms", &id.to_string()]).into();
     ctx.authz()
@@ -213,7 +210,7 @@ pub async fn restart_transcoding(
 
     match r {
         Ok(_) => Ok(Response::new(Body::from(""))),
-        Err(err) => Err(AppError::new(AppErrorKind::InternalFailure, err)),
+        Err(err) => Err(err).error(AppErrorKind::InternalFailure),
     }
 }
 

@@ -45,12 +45,10 @@ impl ReadProperty<'_> {
             .await
             .error(ErrorKind::AccountNotFound)?;
 
-        let property = account.properties().get(&self.property_id).ok_or_else(|| {
-            Error::new(
-                ErrorKind::AccountPropertyNotFound,
-                anyhow!("missing account property"),
-            )
-        })?;
+        let property = account
+            .properties()
+            .get(&self.property_id)
+            .ok_or_else(|| Error::from(ErrorKind::AccountPropertyNotFound))?;
 
         Ok(property.clone())
     }

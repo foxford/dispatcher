@@ -31,7 +31,7 @@ pub async fn read<T: AsClassType>(
     AccountIdExtractor(account_id): AccountIdExtractor,
 ) -> AppResult {
     let property_filters = serde_qs::from_str(raw_q.unwrap_or_default().as_str())
-        .map_err(|e| anyhow!("Failed to parse qs, err = {:?}", e))
+        .context("Failed to parse qs")
         .error(AppErrorKind::InvalidQueryString)?;
 
     do_read::<T>(ctx.0.as_ref(), &account_id, id, property_filters).await
@@ -57,7 +57,7 @@ pub async fn read_by_scope<T: AsClassType>(
     AccountIdExtractor(account_id): AccountIdExtractor,
 ) -> AppResult {
     let property_filters = serde_qs::from_str(raw_q.unwrap_or_default().as_str())
-        .map_err(|e| anyhow!("Failed to parse qs, err = {:?}", e))
+        .context("Failed to parse qs")
         .error(AppErrorKind::InvalidQueryString)?;
 
     do_read_by_scope::<T>(

@@ -57,12 +57,10 @@ impl ReadProperty<'_> {
         .authorize()
         .await?;
 
-        let property = class.properties().get(&self.property_id).ok_or_else(|| {
-            Error::new(
-                AppErrorKind::ClassPropertyNotFound,
-                anyhow!("missing class property"),
-            )
-        })?;
+        let property = class
+            .properties()
+            .get(&self.property_id)
+            .ok_or_else(|| Error::from(AppErrorKind::ClassPropertyNotFound))?;
 
         Ok(property.clone())
     }

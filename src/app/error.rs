@@ -263,7 +263,10 @@ impl fmt::Debug for Error {
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}: {:?}", self.kind, self.err)
+        match &self.err {
+            Some(err) => write!(f, "{}: {err}", self.kind),
+            None => write!(f, "{}", self.kind),
+        }
     }
 }
 
@@ -293,8 +296,11 @@ pub trait ErrorExt<T> {
     fn error(self, kind: ErrorKind) -> Result<T, Error>;
 }
 
-impl<T> ErrorExt<T> for Result<T, anyhow::Error> {
+impl<T, E> ErrorExt<T> for Result<T, E>
+where
+    E: Into<anyhow::Error>,
+{
     fn error(self, kind: ErrorKind) -> Result<T, Error> {
-        self.map_err(|source| Error::new(kind, source))
+        self.map_err(|err| Error::new(kind, err.into()))
     }
 }
