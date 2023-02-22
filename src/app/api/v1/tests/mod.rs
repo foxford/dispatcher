@@ -17,7 +17,7 @@ async fn test_healthz() {
     let resp = app
         .oneshot(
             Request::builder()
-                .uri("/api/v1/healthz")
+                .uri("/healthz")
                 .body(Body::empty())
                 .unwrap(),
         )

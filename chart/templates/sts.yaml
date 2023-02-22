@@ -41,13 +41,13 @@ spec:
           imagePullPolicy: IfNotPresent
           livenessProbe:
             httpGet:
-              path: /api/v1/healthz
+              path: /healthz
               port: {{ .Values.clusterService.ports.http }}
             initialDelaySeconds: 5
             periodSeconds: 5
           startupProbe:
             httpGet:
-              path: /api/v1/healthz
+              path: /healthz
               port: {{ .Values.clusterService.ports.http }}
             failureThreshold: 10
             periodSeconds: 3
@@ -56,6 +56,11 @@ spec:
             - name: {{ $key }}
               value: {{ $value | quote }}
             {{- end }}
+            - name: "CACHE_URL"
+              valueFrom:
+                secretKeyRef:
+                  name: redis-{{ include "dispatcher.name" . }}-credentials
+                  key: CACHE_URL
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:

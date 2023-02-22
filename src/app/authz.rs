@@ -13,6 +13,13 @@ impl AuthzObject {
             ban_key: None,
         }
     }
+
+    pub fn from_owned_slice(obj: &[String]) -> Self {
+        Self {
+            object: Vec::from(obj),
+            ban_key: None,
+        }
+    }
 }
 
 impl IntentObject for AuthzObject {

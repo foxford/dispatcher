@@ -27,13 +27,13 @@ pub struct AuthzRequest {
     action: String,
 }
 
-#[derive(Deserialize, Debug, Serialize)]
+#[derive(Deserialize, Debug, Serialize, Clone)]
 struct Subject {
     namespace: String,
     value: SubjectValue,
 }
 
-#[derive(Deserialize, Debug, Serialize)]
+#[derive(Deserialize, Debug, Serialize, Clone)]
 #[serde(untagged)]
 enum SubjectValue {
     New(String),
@@ -62,15 +62,14 @@ pub async fn proxy(
     let old_action = authz_req.action.clone();
 
     transform_authz_request(&mut authz_req, &account_id);
-
     substitute_class(&mut authz_req, ctx.as_ref(), q).await?;
 
     let http_proxy = ctx.authz().http_proxy(&request_audience);
-
     let retry_delay = ctx.config().retry_delay;
-    let response = proxy_request(&authz_req, http_proxy, &old_action, retry_delay).await?;
 
+    let response = proxy_request(&authz_req, http_proxy, &old_action, retry_delay).await?;
     let response = Response::builder().body(Body::from(response)).unwrap();
+
     Ok(response)
 }
 
@@ -273,6 +272,8 @@ fn transform_conference_authz_request(authz_req: &mut AuthzRequest) {
 }
 
 fn transform_storage_authz_request(authz_req: &mut AuthzRequest) {
+    transform_storage_v1_authz_request(authz_req);
+
     let act = &mut authz_req.action;
 
     // only transform sets/* objects
@@ -315,6 +316,25 @@ fn transform_storage_authz_request(authz_req: &mut AuthzRequest) {
             authz_req.object.value.push("content".into())
         }
         Some(_) => {}
+    }
+}
+
+fn transform_storage_v1_authz_request(authz_req: &mut AuthzRequest) {
+    let get_idx_as_str = |idx: usize| authz_req.object.value.get(idx).map(|s: &String| s.as_str());
+
+    // this authz object came from storage v1
+    if let (Some("buckets"), Some(bucket), Some("sets"), Some(set)) = (
+        get_idx_as_str(0),
+        get_idx_as_str(1),
+        get_idx_as_str(2),
+        get_idx_as_str(3),
+    ) {
+        let updated_set = format!("{bucket}::{set}");
+
+        authz_req.object.value.clear();
+
+        authz_req.object.value.push("sets".into());
+        authz_req.object.value.push(updated_set);
     }
 }
 
