@@ -201,6 +201,7 @@ fn transform_authz_request(authz_req: &mut AuthzRequest, account_id: &AccountId)
         "storage" => transform_storage_authz_request(authz_req, account_id),
         "nats-gatekeeper" => transform_nats_gatekeeper_authz_request(authz_req),
         "presence" => transform_presence_authz_request(authz_req),
+        "tq" => transform_tq_authz_request(authz_req, account_id),
         _ => {}
     }
 }
@@ -338,6 +339,10 @@ fn transform_storage_v1_authz_request(authz_req: &mut AuthzRequest, account_id: 
 
         authz_req.object.namespace = account_id.to_string();
     }
+}
+
+fn transform_tq_authz_request(authz_req: &mut AuthzRequest, account_id: &AccountId) {
+    authz_req.object.namespace = account_id.to_string();
 }
 
 fn transform_nats_gatekeeper_authz_request(authz_req: &mut AuthzRequest) {
