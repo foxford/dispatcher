@@ -198,9 +198,10 @@ fn transform_authz_request(authz_req: &mut AuthzRequest, account_id: &AccountId)
     match account_id.label() {
         "event" => transform_event_authz_request(authz_req),
         "conference" => transform_conference_authz_request(authz_req),
-        "storage" => transform_storage_authz_request(authz_req),
+        "storage" => transform_storage_authz_request(authz_req, account_id),
         "nats-gatekeeper" => transform_nats_gatekeeper_authz_request(authz_req),
         "presence" => transform_presence_authz_request(authz_req),
+        "tq" => transform_tq_authz_request(authz_req, account_id),
         _ => {}
     }
 }
@@ -271,8 +272,8 @@ fn transform_conference_authz_request(authz_req: &mut AuthzRequest) {
     }
 }
 
-fn transform_storage_authz_request(authz_req: &mut AuthzRequest) {
-    transform_storage_v1_authz_request(authz_req);
+fn transform_storage_authz_request(authz_req: &mut AuthzRequest, account_id: &AccountId) {
+    transform_storage_v1_authz_request(authz_req, account_id);
 
     let act = &mut authz_req.action;
 
@@ -319,7 +320,7 @@ fn transform_storage_authz_request(authz_req: &mut AuthzRequest) {
     }
 }
 
-fn transform_storage_v1_authz_request(authz_req: &mut AuthzRequest) {
+fn transform_storage_v1_authz_request(authz_req: &mut AuthzRequest, account_id: &AccountId) {
     let get_idx_as_str = |idx: usize| authz_req.object.value.get(idx).map(|s: &String| s.as_str());
 
     // this authz object came from storage v1
@@ -335,7 +336,13 @@ fn transform_storage_v1_authz_request(authz_req: &mut AuthzRequest) {
 
         authz_req.object.value.push("sets".into());
         authz_req.object.value.push(updated_set);
+
+        authz_req.object.namespace = account_id.to_string();
     }
+}
+
+fn transform_tq_authz_request(authz_req: &mut AuthzRequest, account_id: &AccountId) {
+    authz_req.object.namespace = account_id.to_string();
 }
 
 fn transform_nats_gatekeeper_authz_request(authz_req: &mut AuthzRequest) {
