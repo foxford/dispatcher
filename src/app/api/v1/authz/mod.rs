@@ -61,7 +61,7 @@ pub async fn proxy(
     info!("Authz proxy: raw request {:?}", authz_req);
     let old_action = authz_req.action.clone();
 
-    transform_authz_request(&mut authz_req, &account_id, ctx.agent_id().as_account_id());
+    transform_authz_request(&mut authz_req, &account_id, ctx.as_ref());
     substitute_class(&mut authz_req, ctx.as_ref(), q).await?;
 
     let http_proxy = ctx.authz().http_proxy(&request_audience);
@@ -197,15 +197,15 @@ async fn proxy_request(
 fn transform_authz_request(
     authz_req: &mut AuthzRequest,
     account_id: &AccountId,
-    self_account_id: &AccountId,
+    state: &dyn AppContext,
 ) {
     match account_id.label() {
         "event" => transform_event_authz_request(authz_req),
         "conference" => transform_conference_authz_request(authz_req),
-        "storage" => transform_storage_authz_request(authz_req, self_account_id),
+        "storage" => transform_storage_authz_request(authz_req, state),
         "nats-gatekeeper" => transform_nats_gatekeeper_authz_request(authz_req),
         "presence" => transform_presence_authz_request(authz_req),
-        "tq" => transform_tq_authz_request(authz_req, self_account_id),
+        "tq" => transform_tq_authz_request(authz_req, state),
         _ => {}
     }
 }
@@ -276,8 +276,8 @@ fn transform_conference_authz_request(authz_req: &mut AuthzRequest) {
     }
 }
 
-fn transform_storage_authz_request(authz_req: &mut AuthzRequest, account_id: &AccountId) {
-    transform_storage_v1_authz_request(authz_req, account_id);
+fn transform_storage_authz_request(authz_req: &mut AuthzRequest, state: &dyn AppContext) {
+    transform_storage_v1_authz_request(authz_req, state);
 
     let act = &mut authz_req.action;
 
@@ -324,7 +324,7 @@ fn transform_storage_authz_request(authz_req: &mut AuthzRequest, account_id: &Ac
     }
 }
 
-fn transform_storage_v1_authz_request(authz_req: &mut AuthzRequest, account_id: &AccountId) {
+fn transform_storage_v1_authz_request(authz_req: &mut AuthzRequest, state: &dyn AppContext) {
     let get_idx_as_str = |idx: usize| authz_req.object.value.get(idx).map(|s: &String| s.as_str());
 
     // this authz object came from storage v1
@@ -341,12 +341,12 @@ fn transform_storage_v1_authz_request(authz_req: &mut AuthzRequest, account_id: 
         authz_req.object.value.push("sets".into());
         authz_req.object.value.push(updated_set);
 
-        authz_req.object.namespace = account_id.to_string();
+        authz_req.object.namespace = state.agent_id().as_account_id().to_string();
     }
 }
 
-fn transform_tq_authz_request(authz_req: &mut AuthzRequest, account_id: &AccountId) {
-    authz_req.object.namespace = account_id.to_string();
+fn transform_tq_authz_request(authz_req: &mut AuthzRequest, state: &dyn AppContext) {
+    authz_req.object.namespace = state.agent_id().as_account_id().to_string();
 }
 
 fn transform_nats_gatekeeper_authz_request(authz_req: &mut AuthzRequest) {
