@@ -61,7 +61,7 @@ pub async fn proxy(
     info!("Authz proxy: raw request {:?}", authz_req);
     let old_action = authz_req.action.clone();
 
-    transform_authz_request(&mut authz_req, &account_id);
+    transform_authz_request(&mut authz_req, &account_id, ctx.agent_id().as_account_id());
     substitute_class(&mut authz_req, ctx.as_ref(), q).await?;
 
     let http_proxy = ctx.authz().http_proxy(&request_audience);
@@ -194,14 +194,18 @@ async fn proxy_request(
     }
 }
 
-fn transform_authz_request(authz_req: &mut AuthzRequest, account_id: &AccountId) {
+fn transform_authz_request(
+    authz_req: &mut AuthzRequest,
+    account_id: &AccountId,
+    self_account_id: &AccountId,
+) {
     match account_id.label() {
         "event" => transform_event_authz_request(authz_req),
         "conference" => transform_conference_authz_request(authz_req),
-        "storage" => transform_storage_authz_request(authz_req, account_id),
+        "storage" => transform_storage_authz_request(authz_req, self_account_id),
         "nats-gatekeeper" => transform_nats_gatekeeper_authz_request(authz_req),
         "presence" => transform_presence_authz_request(authz_req),
-        "tq" => transform_tq_authz_request(authz_req, account_id),
+        "tq" => transform_tq_authz_request(authz_req, self_account_id),
         _ => {}
     }
 }
