@@ -19,7 +19,7 @@ JSON payload is optional with following attributes:
 
 Attribute              | Type        | Optional | Description
 ---------------------- | ----------- | -------- | --------------
-priority               | string      |          | One of 'low', 'normal' or 'high'
+priority               | string      |          | One of 'low', 'normal' or 'high'. 'normal' is default
 
 Response: status 200 and empty payload or json object with an error description.
 
@@ -34,6 +34,6 @@ JSON payload is optional with following attributes:
 
 Attribute              | Type        | Optional | Description
 ---------------------- | ----------- | -------- | --------------
-priority               | string      |          | One of 'low', 'normal' or 'high'
+priority               | string      |          | One of 'low', 'normal' or 'high'. 'normal' is default
 
 Response: status 200 and empty payload or json object with an error description.
