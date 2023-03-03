@@ -261,7 +261,7 @@ mod handle_upload {
             .tq_client_mock()
             .expect_create_task()
             .times(2)
-            .returning(|_, _| Ok(()));
+            .returning(|_, _, _| Ok(()));
 
         // Handle uploading two RTCs.
         let rtc1_id = Uuid::new_v4();
@@ -517,12 +517,12 @@ mod handle_adjust {
         state
             .tq_client_mock()
             .expect_create_task()
-            .withf(move |class: &Class, task: &TqTask| {
+            .withf(move |class: &Class, task: &TqTask, p: &Priority| {
                 assert_eq!(class.id(), minigroup_id);
                 assert_eq!(task, &expected_task);
                 true
             })
-            .returning(|_, _| Ok(()));
+            .returning(|_, _, _| Ok(()));
 
         // Handle event room adjustment.
         let state = Arc::new(state);
@@ -739,12 +739,12 @@ mod handle_adjust {
         state
             .tq_client_mock()
             .expect_create_task()
-            .withf(move |class: &Class, task: &TqTask| {
+            .withf(move |class: &Class, task: &TqTask, p: &Priority| {
                 assert_eq!(class.id(), minigroup_id);
                 assert_eq!(task, &expected_task);
                 true
             })
-            .returning(|_, _| Ok(()));
+            .returning(|_, _, _| Ok(()));
 
         // Handle event room adjustment.
         let state = Arc::new(state);

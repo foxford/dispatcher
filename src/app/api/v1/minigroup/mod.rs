@@ -20,6 +20,7 @@ use crate::app::services;
 use crate::app::services::lock_interaction;
 use crate::app::AppContext;
 use crate::clients::event::LockedTypes;
+use crate::clients::tq::Priority;
 use crate::db::class::ClassType;
 use crate::db::class::KeyValueProperties;
 use crate::db::class::{self, BoundedDateTimeTuple};
@@ -181,10 +182,24 @@ async fn insert_minigroup_dummy(
         .ok_or_else(|| AppError::from(AppErrorKind::ClassAlreadyEstablished))
 }
 
+#[derive(Debug, Deserialize)]
+pub struct RestartTranscodingPayload {
+    priority: Priority,
+}
+
+impl Default for RestartTranscodingPayload {
+    fn default() -> Self {
+        Self {
+            priority: Priority::Normal,
+        }
+    }
+}
+
 pub async fn restart_transcoding(
     Extension(ctx): Extension<Arc<dyn AppContext>>,
     AccountIdExtractor(account_id): AccountIdExtractor,
     Path(id): Path<Uuid>,
+    payload: Option<Json<RestartTranscodingPayload>>,
 ) -> AppResult {
     let mut conn = ctx.get_conn().await.error(AppErrorKind::InternalFailure)?;
 
@@ -205,8 +220,17 @@ pub async fn restart_transcoding(
         .await
         .measure()?;
 
-    let r =
-        crate::app::postprocessing_strategy::restart_minigroup_transcoding(ctx, minigroup).await;
+    let payload = match payload {
+        Some(Json(payload)) => payload,
+        None => RestartTranscodingPayload::default(),
+    };
+
+    let r = crate::app::postprocessing_strategy::restart_minigroup_transcoding(
+        ctx,
+        minigroup,
+        payload.priority,
+    )
+    .await;
 
     match r {
         Ok(_) => Ok(Response::new(Body::from(""))),

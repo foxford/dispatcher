@@ -13,6 +13,7 @@ use uuid::Uuid;
 
 use crate::app::AppContext;
 use crate::clients::event::RoomAdjustResult;
+use crate::clients::tq::Priority;
 use crate::db::class::Object as Class;
 use crate::{
     clients::tq::{Task as TqTask, TranscodeStreamToHlsSuccess},
@@ -55,6 +56,7 @@ impl super::PostprocessingStrategy for WebinarPostprocessingStrategy {
                     stream_uri: dump.uri,
                     stream_id: dump.id,
                 },
+                Priority::Normal,
             )
             .await
             .context("Failed to set mjr dumps convert task")?;
@@ -117,6 +119,7 @@ impl super::PostprocessingStrategy for WebinarPostprocessingStrategy {
                             event_room_id: Some(modified_room_id),
                             segments: Some(modified_segments),
                         },
+                        Priority::Normal,
                     )
                     .await
                     .context("TqClient create task failed")
