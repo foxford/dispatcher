@@ -48,7 +48,6 @@ impl Object {
         self.segments.as_ref()
     }
 
-    #[cfg(test)]
     pub fn modified_segments(&self) -> Option<&Segments> {
         self.modified_segments.as_ref()
     }

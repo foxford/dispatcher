@@ -12,7 +12,9 @@ use super::{find, AppResult};
 pub use convert::convert as convert_webinar;
 pub use create::*;
 pub use download::download as download_webinar;
+pub use restart_transcoding::restart_transcoding;
 
 mod convert;
 mod create;
 mod download;
+mod restart_transcoding;

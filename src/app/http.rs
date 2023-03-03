@@ -18,7 +18,10 @@ use super::api::v1::p2p::{convert as convert_p2p, create as create_p2p};
 use super::api::v1::webinar::{
     convert_webinar, create_webinar, create_webinar_replica, download_webinar,
 };
-use super::api::v1::{account, minigroup::restart_transcoding as restart_transcoding_minigroup};
+use super::api::v1::{
+    account, minigroup::restart_transcoding as restart_transcoding_minigroup,
+    webinar::restart_transcoding as restart_transcoding_webinar,
+};
 use super::api::{
     redirect_to_frontend, rollback, v1::create_event, v1::healthz,
     v1::redirect_to_frontend as redirect_to_frontend2,
@@ -157,6 +160,10 @@ fn utils_router() -> Router {
         .metered_route(
             "/api/v1/transcoding/minigroup/:id/restart",
             post(restart_transcoding_minigroup),
+        )
+        .metered_route(
+            "/api/v1/transcoding/webinar/:id/restart",
+            post(restart_transcoding_webinar),
         )
         .layer(CorsLayer)
 }

@@ -14,7 +14,7 @@ use uuid::Uuid;
 use crate::app::AppContext;
 use crate::clients::event::RoomAdjustResult;
 use crate::clients::tq::Priority;
-use crate::db::class::Object as Class;
+use crate::db::class::{ClassType, Object as Class};
 use crate::{
     clients::tq::{Task as TqTask, TranscodeStreamToHlsSuccess},
     db::recording::RecordingInsertQuery,
@@ -96,33 +96,16 @@ impl super::PostprocessingStrategy for WebinarPostprocessingStrategy {
                     txn.commit().await?;
                     recording
                 };
-                self.ctx
-                    .event_client()
-                    .dump_room(modified_room_id)
-                    .await
-                    .context("Dump room event failed")?;
-                self.ctx
-                    .tq_client()
-                    .create_task(
-                        &self.webinar,
-                        TqTask::TranscodeStreamToHls {
-                            stream_id: recording.rtc_id(),
-                            stream_uri: recording
-                                .stream_uri()
-                                .ok_or_else(|| {
-                                    anyhow!(
-                                        "Missing stream_uri in adjust for {}",
-                                        recording.rtc_id()
-                                    )
-                                })?
-                                .clone(),
-                            event_room_id: Some(modified_room_id),
-                            segments: Some(modified_segments),
-                        },
-                        Priority::Normal,
-                    )
-                    .await
-                    .context("TqClient create task failed")
+
+                send_transcoding_task(
+                    &self.ctx,
+                    &self.webinar,
+                    recording,
+                    modified_room_id,
+                    Priority::Normal,
+                )
+                .await
+                .context("TqClient create task failed")
             }
             RoomAdjustResult::Error { error } => {
                 bail!("Adjust failed, err = {:?}", error);
@@ -213,6 +196,64 @@ impl super::PostprocessingStrategy for WebinarPostprocessingStrategy {
             .await
             .context("Failed to adjust room")
     }
+}
+
+pub async fn restart_transcoding(
+    ctx: Arc<dyn AppContext>,
+    webinar: Class,
+    priority: Priority,
+) -> Result<()> {
+    if webinar.kind() != ClassType::Webinar {
+        bail!("Invalid class type");
+    }
+
+    let modified_event_room_id = match webinar.modified_event_room_id() {
+        Some(id) => id,
+        None => bail!("Not adjusted yet"),
+    };
+
+    let mut conn = ctx.get_conn().await?;
+    let recordings = crate::db::recording::RecordingListQuery::new(webinar.id())
+        .execute(&mut conn)
+        .await?;
+
+    for recording in recordings {
+        send_transcoding_task(&ctx, &webinar, recording, modified_event_room_id, priority).await?;
+    }
+
+    Ok(())
+}
+
+async fn send_transcoding_task(
+    ctx: &Arc<dyn AppContext>,
+    webinar: &Class,
+    recording: crate::db::recording::Object,
+    modified_event_room_id: Uuid,
+    priority: Priority,
+) -> Result<()> {
+    ctx.event_client()
+        .dump_room(modified_event_room_id)
+        .await
+        .context("Dump room event failed")?;
+
+    ctx.tq_client()
+        .create_task(
+            webinar,
+            TqTask::TranscodeStreamToHls {
+                stream_id: recording.rtc_id(),
+                stream_uri: recording
+                    .stream_uri()
+                    .ok_or_else(|| {
+                        anyhow!("Missing stream_uri in adjust for {}", recording.rtc_id())
+                    })?
+                    .clone(),
+                event_room_id: Some(modified_event_room_id),
+                segments: recording.modified_segments().cloned(),
+            },
+            priority,
+        )
+        .await
+        .context("TqClient create task failed")
 }
 
 #[derive(Serialize)]
