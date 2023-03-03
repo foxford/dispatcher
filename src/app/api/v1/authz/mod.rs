@@ -61,7 +61,7 @@ pub async fn proxy(
     info!("Authz proxy: raw request {:?}", authz_req);
     let old_action = authz_req.action.clone();
 
-    transform_authz_request(&mut authz_req, &account_id);
+    transform_authz_request(&mut authz_req, &account_id, ctx.as_ref());
     substitute_class(&mut authz_req, ctx.as_ref(), q).await?;
 
     let http_proxy = ctx.authz().http_proxy(&request_audience);
@@ -194,14 +194,18 @@ async fn proxy_request(
     }
 }
 
-fn transform_authz_request(authz_req: &mut AuthzRequest, account_id: &AccountId) {
+fn transform_authz_request(
+    authz_req: &mut AuthzRequest,
+    account_id: &AccountId,
+    state: &dyn AppContext,
+) {
     match account_id.label() {
         "event" => transform_event_authz_request(authz_req),
         "conference" => transform_conference_authz_request(authz_req),
-        "storage" => transform_storage_authz_request(authz_req, account_id),
+        "storage" => transform_storage_authz_request(authz_req, state),
         "nats-gatekeeper" => transform_nats_gatekeeper_authz_request(authz_req),
         "presence" => transform_presence_authz_request(authz_req),
-        "tq" => transform_tq_authz_request(authz_req, account_id),
+        "tq" => transform_tq_authz_request(authz_req, state),
         _ => {}
     }
 }
@@ -272,8 +276,8 @@ fn transform_conference_authz_request(authz_req: &mut AuthzRequest) {
     }
 }
 
-fn transform_storage_authz_request(authz_req: &mut AuthzRequest, account_id: &AccountId) {
-    transform_storage_v1_authz_request(authz_req, account_id);
+fn transform_storage_authz_request(authz_req: &mut AuthzRequest, state: &dyn AppContext) {
+    transform_storage_v1_authz_request(authz_req, state);
 
     let act = &mut authz_req.action;
 
@@ -320,29 +324,25 @@ fn transform_storage_authz_request(authz_req: &mut AuthzRequest, account_id: &Ac
     }
 }
 
-fn transform_storage_v1_authz_request(authz_req: &mut AuthzRequest, account_id: &AccountId) {
-    let get_idx_as_str = |idx: usize| authz_req.object.value.get(idx).map(|s: &String| s.as_str());
+fn transform_storage_v1_authz_request(authz_req: &mut AuthzRequest, state: &dyn AppContext) {
+    match authz_req.object.value.get(0..4) {
+        // this authz object came from storage v1
+        Some([buckets, bucket, sets, set]) if buckets == "buckets" && sets == "sets" => {
+            let updated_set = format!("{bucket}::{set}");
 
-    // this authz object came from storage v1
-    if let (Some("buckets"), Some(bucket), Some("sets"), Some(set)) = (
-        get_idx_as_str(0),
-        get_idx_as_str(1),
-        get_idx_as_str(2),
-        get_idx_as_str(3),
-    ) {
-        let updated_set = format!("{bucket}::{set}");
+            authz_req.object.value.clear();
 
-        authz_req.object.value.clear();
+            authz_req.object.value.push("sets".into());
+            authz_req.object.value.push(updated_set);
 
-        authz_req.object.value.push("sets".into());
-        authz_req.object.value.push(updated_set);
-
-        authz_req.object.namespace = account_id.to_string();
+            authz_req.object.namespace = state.agent_id().as_account_id().to_string();
+        }
+        _ => {}
     }
 }
 
-fn transform_tq_authz_request(authz_req: &mut AuthzRequest, account_id: &AccountId) {
-    authz_req.object.namespace = account_id.to_string();
+fn transform_tq_authz_request(authz_req: &mut AuthzRequest, state: &dyn AppContext) {
+    authz_req.object.namespace = state.agent_id().as_account_id().to_string();
 }
 
 fn transform_nats_gatekeeper_authz_request(authz_req: &mut AuthzRequest) {
@@ -582,5 +582,36 @@ fn test_transform_nats_gatekeeper_authz_request() {
     assert_eq!(
         authz_req.object.value,
         ["classrooms", "f793a4da-c726-4a55-b069-f5b19c13597d"]
+    );
+}
+
+#[tokio::test]
+async fn test_transform_storage_v1_authz_request() {
+    use crate::test_helpers::prelude::TestAuthz;
+    use crate::test_helpers::state::TestState;
+
+    let test_state = TestState::new(TestAuthz::new()).await;
+
+    let mut authz_req: AuthzRequest = serde_json::from_str(
+        r#"
+        {
+            "subject": {"namespace": "foobar", "value": "[barbaz, bazqux]"},
+            "object": {"namespace": "foobar", "value": [ "buckets", "f793a4da-c726-4a55-b069-f5b19c13597d", "sets", "108"]},
+            "action": "create"
+        }
+    "#,
+    )
+        .unwrap();
+
+    transform_storage_authz_request(&mut authz_req, &test_state);
+
+    assert_eq!(authz_req.action, "create");
+    assert_eq!(
+        authz_req.object.value,
+        ["sets", "f793a4da-c726-4a55-b069-f5b19c13597d::108"]
+    );
+    assert_eq!(
+        authz_req.object.namespace,
+        test_state.agent_id().as_account_id().to_string()
     );
 }
