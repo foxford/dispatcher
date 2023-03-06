@@ -1,1 +1,1 @@
-ALTER TABLE class ADD COLUMN content_id text;
+ALTER TABLE class ADD COLUMN IF NOT EXISTS content_id text;
