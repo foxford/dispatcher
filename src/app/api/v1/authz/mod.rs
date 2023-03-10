@@ -141,6 +141,10 @@ fn make_finder(account_id: &AccountId) -> Result<Finder, AppError> {
             let id = Uuid::from_str(id)?;
             Ok(AuthzReadQuery::by_id(id))
         }) as Finder,
+        "tq" => Box::new(|id: &str| {
+            let id = Uuid::from_str(id)?;
+            Ok(AuthzReadQuery::by_id(id))
+        }) as Finder,
         _ => Err(anyhow!("No finder")).error(AppErrorKind::Unauthorized)?,
     };
 
