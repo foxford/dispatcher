@@ -133,15 +133,7 @@ fn make_finder(account_id: &AccountId) -> Result<Finder, AppError> {
                 Err(anyhow!("Access to bucket {:?} isnt proxied", id))
             }
         }) as Finder,
-        "nats-gatekeeper" => Box::new(|id: &str| {
-            let id = Uuid::from_str(id)?;
-            Ok(AuthzReadQuery::by_id(id))
-        }) as Finder,
-        "presence" => Box::new(|id: &str| {
-            let id = Uuid::from_str(id)?;
-            Ok(AuthzReadQuery::by_id(id))
-        }) as Finder,
-        "tq" => Box::new(|id: &str| {
+        "nats-gatekeeper" | "presence" | "tq" => Box::new(|id: &str| {
             let id = Uuid::from_str(id)?;
             Ok(AuthzReadQuery::by_id(id))
         }) as Finder,
