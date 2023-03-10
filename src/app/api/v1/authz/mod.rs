@@ -338,7 +338,13 @@ fn transform_storage_v1_authz_request(authz_req: &mut AuthzRequest, state: &dyn 
 }
 
 fn transform_tq_authz_request(authz_req: &mut AuthzRequest, state: &dyn AppContext) {
-    authz_req.object.namespace = state.agent_id().as_account_id().to_string();
+    match authz_req.object.value.get(0..4) {
+        Some([scopes, _, priorities, _]) if scopes == "scopes" && priorities == "priorities" => {
+            authz_req.object.value.truncate(2);
+            authz_req.object.namespace = state.agent_id().as_account_id().to_string();
+        }
+        _ => {}
+    }
 }
 
 fn transform_nats_gatekeeper_authz_request(authz_req: &mut AuthzRequest) {
