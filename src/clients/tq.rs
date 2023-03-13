@@ -17,7 +17,7 @@ use crate::db::class::Object as Class;
 use crate::db::recording::Segments;
 
 #[derive(Debug, Deserialize, Serialize, Clone, Copy)]
-#[serde(rename = "lowercase")]
+#[serde(rename_all = "lowercase")]
 pub enum Priority {
     Low,
     Normal,
@@ -399,5 +399,27 @@ impl TqClient for HttpTqClient {
             };
             Err(ClientError::Payload(e))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use serde::Serialize;
+
+    use crate::clients::tq::Priority;
+
+    #[test]
+    fn test_priority_serialization() {
+        #[derive(Debug, Serialize)]
+        struct Test {
+            priority: Priority,
+        }
+
+        let t = Test {
+            priority: Priority::Normal,
+        };
+
+        let s = serde_json::to_string(&t).unwrap();
+        assert_eq!(s.as_str(), "{\"priority\":\"normal\"}");
     }
 }

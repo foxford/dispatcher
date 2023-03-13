@@ -517,7 +517,7 @@ mod handle_adjust {
         state
             .tq_client_mock()
             .expect_create_task()
-            .withf(move |class: &Class, task: &TqTask, p: &Priority| {
+            .withf(move |class: &Class, task: &TqTask, _p: &Priority| {
                 assert_eq!(class.id(), minigroup_id);
                 assert_eq!(task, &expected_task);
                 true
@@ -739,7 +739,7 @@ mod handle_adjust {
         state
             .tq_client_mock()
             .expect_create_task()
-            .withf(move |class: &Class, task: &TqTask, p: &Priority| {
+            .withf(move |class: &Class, task: &TqTask, _p: &Priority| {
                 assert_eq!(class.id(), minigroup_id);
                 assert_eq!(task, &expected_task);
                 true
