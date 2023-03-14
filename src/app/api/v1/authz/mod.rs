@@ -56,7 +56,7 @@ pub async fn proxy(
 ) -> AppResult {
     validate_client(&account_id, ctx.as_ref())?;
 
-    let q = make_finder(&account_id)?;
+    let q = make_finder(&account_id, &request_audience)?;
 
     info!("Authz proxy: raw request {:?}", authz_req);
     let old_action = authz_req.action.clone();
@@ -86,7 +86,7 @@ fn validate_client(account_id: &AccountId, state: &dyn AppContext) -> Result<(),
     Ok(())
 }
 
-fn make_finder(account_id: &AccountId) -> Result<Finder, AppError> {
+fn make_finder(account_id: &AccountId, request_audience: &str) -> Result<Finder, AppError> {
     let q = match account_id.label() {
         "event" => Box::new(|id: &str| {
             let id = Uuid::from_str(id)?;
@@ -133,10 +133,14 @@ fn make_finder(account_id: &AccountId) -> Result<Finder, AppError> {
                 Err(anyhow!("Access to bucket {:?} isnt proxied", id))
             }
         }) as Finder,
-        "nats-gatekeeper" | "presence" | "tq" => Box::new(|id: &str| {
+        "nats-gatekeeper" | "presence" => Box::new(|id: &str| {
             let id = Uuid::from_str(id)?;
             Ok(AuthzReadQuery::by_id(id))
         }) as Finder,
+        "tq" => {
+            let audience = request_audience.to_owned();
+            Box::new(move |scope: &str| Ok(AuthzReadQuery::by_scope(audience, scope.to_owned())))
+        }
         _ => Err(anyhow!("No finder")).error(AppErrorKind::Unauthorized)?,
     };
 
