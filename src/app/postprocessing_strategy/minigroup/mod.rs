@@ -17,7 +17,7 @@ use tracing::{error, warn};
 use uuid::Uuid;
 
 use crate::clients::tq::{
-    Task as TqTask, TranscodeMinigroupToHlsStream, TranscodeMinigroupToHlsSuccess,
+    Priority, Task as TqTask, TranscodeMinigroupToHlsStream, TranscodeMinigroupToHlsSuccess,
 };
 use crate::db::class::Object as Class;
 use crate::db::recording::Segments;
@@ -177,8 +177,14 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
                     recordings
                 };
 
-                send_transcoding_task(&self.ctx, &self.minigroup, recordings, modified_room_id)
-                    .await
+                send_transcoding_task(
+                    &self.ctx,
+                    &self.minigroup,
+                    recordings,
+                    modified_room_id,
+                    Priority::Normal,
+                )
+                .await
             }
             RoomAdjustResult::Error { error } => {
                 bail!("Adjust failed, err = {:#?}", error);
@@ -255,6 +261,7 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
                         stream_uri: dump.uri,
                         stream_id: dump.id,
                     },
+                    Priority::Normal,
                 )
                 .await?
         }
@@ -325,7 +332,11 @@ async fn call_adjust(
     Ok(())
 }
 
-pub async fn restart_transcoding(ctx: Arc<dyn AppContext>, minigroup: Class) -> Result<()> {
+pub async fn restart_transcoding(
+    ctx: Arc<dyn AppContext>,
+    minigroup: Class,
+    priority: Priority,
+) -> Result<()> {
     if minigroup.kind() != ClassType::Minigroup {
         bail!("Invalid class type");
     }
@@ -340,7 +351,14 @@ pub async fn restart_transcoding(ctx: Arc<dyn AppContext>, minigroup: Class) -> 
         .execute(&mut conn)
         .await?;
 
-    send_transcoding_task(&ctx, &minigroup, recordings, modified_event_room_id).await
+    send_transcoding_task(
+        &ctx,
+        &minigroup,
+        recordings,
+        modified_event_room_id,
+        priority,
+    )
+    .await
 }
 
 async fn send_transcoding_task(
@@ -348,6 +366,7 @@ async fn send_transcoding_task(
     minigroup: &Class,
     recordings: Vec<crate::db::recording::Object>,
     modified_event_room_id: Uuid,
+    priority: Priority,
 ) -> Result<()> {
     // Find host stream id.
     let host = match find_host(ctx.clone(), modified_event_room_id).await? {
@@ -440,7 +459,7 @@ async fn send_transcoding_task(
     };
 
     ctx.tq_client()
-        .create_task(minigroup, task)
+        .create_task(minigroup, task, priority)
         .await
         .context("TqClient create task failed")
 }

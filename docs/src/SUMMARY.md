@@ -15,3 +15,4 @@
     - [Minigroups](minigroups/overview.md)
         - [API](minigroups/api.md)
     - [Classes API](classes/api.md)
+    - [Transcoding utils](utils/transcoding.md)

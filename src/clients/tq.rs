@@ -16,7 +16,13 @@ use crate::config::TqAudienceSettings;
 use crate::db::class::Object as Class;
 use crate::db::recording::Segments;
 
-const PRIORITY: &str = "normal";
+#[derive(Debug, Deserialize, Serialize, Clone, Copy)]
+#[serde(rename_all = "lowercase")]
+pub enum Priority {
+    Low,
+    Normal,
+    High,
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -226,7 +232,12 @@ pub struct TranscodeMinigroupToHlsSuccess {
 #[cfg_attr(test, automock)]
 #[async_trait]
 pub trait TqClient: Sync + Send {
-    async fn create_task(&self, class: &Class, task: Task) -> Result<(), ClientError>;
+    async fn create_task(
+        &self,
+        class: &Class,
+        task: Task,
+        priority: Priority,
+    ) -> Result<(), ClientError>;
 }
 
 pub struct HttpTqClient {
@@ -291,7 +302,12 @@ impl HttpTqClient {
         Ok(url)
     }
 
-    fn build_task<'a>(&self, class: &'a Class, task: Task) -> TaskPayload<'a, '_> {
+    fn build_task<'a>(
+        &self,
+        class: &'a Class,
+        task: Task,
+        priority: Priority,
+    ) -> TaskPayload<'a, '_> {
         let template = task.template();
 
         let mut tags = class
@@ -318,7 +334,7 @@ impl HttpTqClient {
         TaskPayload {
             audience: class.audience(),
             tags,
-            priority: PRIORITY,
+            priority,
             bindings: task_with_options,
             template,
         }
@@ -338,17 +354,22 @@ impl HttpTqClient {
 struct TaskPayload<'a, 'b> {
     audience: &'a str,
     tags: JsonValue,
-    priority: &'a str,
+    priority: Priority,
     template: &'a str,
     bindings: TaskWithOptions<'b>,
 }
 
 #[async_trait]
 impl TqClient for HttpTqClient {
-    async fn create_task(&self, class: &Class, task: Task) -> Result<(), ClientError> {
+    async fn create_task(
+        &self,
+        class: &Class,
+        task: Task,
+        priority: Priority,
+    ) -> Result<(), ClientError> {
         let url = self.build_url(class, &task)?;
 
-        let task = self.build_task(class, task);
+        let task = self.build_task(class, task, priority);
 
         let json = serde_json::to_string(&task).map_err(|e| ClientError::Payload(e.to_string()))?;
 
@@ -378,5 +399,27 @@ impl TqClient for HttpTqClient {
             };
             Err(ClientError::Payload(e))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use serde::Serialize;
+
+    use crate::clients::tq::Priority;
+
+    #[test]
+    fn test_priority_serialization() {
+        #[derive(Debug, Serialize)]
+        struct Test {
+            priority: Priority,
+        }
+
+        let t = Test {
+            priority: Priority::Normal,
+        };
+
+        let s = serde_json::to_string(&t).unwrap();
+        assert_eq!(s.as_str(), "{\"priority\":\"normal\"}");
     }
 }
