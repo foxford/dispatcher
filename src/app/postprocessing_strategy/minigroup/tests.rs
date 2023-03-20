@@ -498,7 +498,8 @@ mod handle_adjust {
             streams: vec![
                 TranscodeMinigroupToHlsStream::new(recording1.rtc_id(), uri1)
                     .offset(0)
-                    .segments(cut_original_segments.clone())
+                    .segments(original_host_segments.clone())
+                    .modified_segments(cut_original_segments.clone())
                     .pin_segments(
                         vec![
                             (Bound::Included(0), Bound::Excluded(1200000)),
@@ -509,6 +510,7 @@ mod handle_adjust {
                 TranscodeMinigroupToHlsStream::new(recording2.rtc_id(), uri2)
                     .offset(600000)
                     .segments(recording2.segments().unwrap().to_owned())
+                    .modified_segments(recording2.segments().unwrap().to_owned())
                     .pin_segments(vec![(Bound::Included(600000), Bound::Excluded(900000))].into()),
             ],
             host_stream_id: recording1.rtc_id(),
@@ -726,11 +728,13 @@ mod handle_adjust {
             streams: vec![
                 TranscodeMinigroupToHlsStream::new(recording1.rtc_id(), uri1)
                     .offset(0)
-                    .segments(cut_original_segments.clone())
+                    .segments(original_host_segments.clone())
+                    .modified_segments(cut_original_segments.clone())
                     .pin_segments(vec![(Bound::Included(0), Bound::Excluded(1_000_000))].into()),
                 TranscodeMinigroupToHlsStream::new(recording2.rtc_id(), uri2)
                     .offset(600_000)
                     .segments(recording2.segments().unwrap().to_owned())
+                    .modified_segments(recording2.segments().unwrap().to_owned())
                     .pin_segments(vec![].into()),
             ],
             host_stream_id: recording1.rtc_id(),
