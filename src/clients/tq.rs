@@ -9,7 +9,7 @@ use mockall::{automock, predicate::*};
 use reqwest::{header, Url};
 use serde_derive::{Deserialize, Serialize};
 use serde_json::{json, Value as JsonValue};
-use tracing::{info, error};
+use tracing::{error, info};
 use uuid::Uuid;
 
 use super::ClientError;
