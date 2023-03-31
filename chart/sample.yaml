@@ -2,10 +2,6 @@ migrations:
   image:
     tag: "1.2.3"
 app:
-  resources:
-    limits:
-      cpu: 0.2
-      memory: 200Mi
   image:
     tag: "1.2.3"
   svc:
