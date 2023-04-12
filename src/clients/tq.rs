@@ -288,8 +288,8 @@ impl HttpTqClient {
 
     fn build_url(&self, class: &Class, task: &Task) -> Result<Url, ClientError> {
         let route = format!(
-            "api/v1/audiences/{}/tasks/{}",
-            class.audience(),
+            "api/v1/classrooms/{}/tasks/{}",
+            class.id(),
             Self::task_id(class, task)
         );
 
