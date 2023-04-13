@@ -347,7 +347,9 @@ fn transform_tq_authz_request(authz_req: &mut AuthzRequest, state: &dyn AppConte
             authz_req.object.value.truncate(2);
             authz_req.object.namespace = state.agent_id().as_account_id().to_string();
         }
-        Some([classrooms, _, priorities, _]) if classrooms == "classrooms"  && priorities == "priorities" => {
+        Some([classrooms, _, priorities, _])
+            if classrooms == "classrooms" && priorities == "priorities" =>
+        {
             authz_req.object.value.truncate(2);
             authz_req.object.namespace = state.agent_id().as_account_id().to_string();
         }
