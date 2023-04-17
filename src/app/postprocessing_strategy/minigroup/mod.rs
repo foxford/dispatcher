@@ -533,6 +533,20 @@ fn build_stream(
         audio_mute_segments.push((Bound::Included(muted_at), Bound::Excluded(recording_end)));
     }
 
+    let segments = remove_break_gaps_from_segments(
+        recording.segments.to_owned().into(),
+        recording.modified_segments.to_owned().into(),
+    )?;
+
+    let pin_segments =
+        remove_break_gaps_from_segments(recording.segments.to_owned().into(), pin_segments)?;
+
+    let video_mute_segments =
+        remove_break_gaps_from_segments(recording.segments.to_owned().into(), video_mute_segments)?;
+
+    let audio_mute_segments =
+        remove_break_gaps_from_segments(recording.segments.to_owned().into(), audio_mute_segments)?;
+
     let v = TranscodeMinigroupToHlsStream::new(recording.rtc_id, recording.stream_uri.to_owned())
         .offset(recording_offset.num_milliseconds() as u64)
         // We pass not modified but original segments here, this is done because:
@@ -544,12 +558,81 @@ fn build_stream(
         // non-host's str: begin-----------------------------------------end (no pause at all)
         // For a non-host's stream we must apply the pause in the host's stream
         // Tq does that but it needs pauses, and these pauses are only present in og segments, not in modified segments
-        .segments(recording.modified_segments.to_owned())
+        .segments(segments.into())
         .pin_segments(pin_segments.into())
         .video_mute_segments(video_mute_segments.into())
         .audio_mute_segments(audio_mute_segments.into());
 
     Ok(v)
+}
+
+/// This function returns `modified_segments` from which the break time has been removed
+/// based on `original_segments`.
+///
+/// Example
+///
+/// There was one break between two session groups in the lesson:
+/// * `original_segments`: `vec![(0, 78434), (97524, 134925)]`
+/// * `modified_segments`: `vec![(0, 32236), (67350, 78434), (97524, 104581), (121961, 134925)]`
+///
+/// The break was 19090 microseconds (97524 - 78434).
+/// Since the break does not include into the final record,
+/// we need to reduce the rest of the segments after a break by 19090 microseconds.
+///
+/// The final result will be such:
+/// vec![
+///     (0, 32236),      // not changed
+///     (67350, 78434),  // not changed
+///     (78434, 85491),  // (97524 - 19090), (104581 - 19090)
+///     (102871, 115835) // (121961 - 19090), (134925 - 19090)
+/// ]
+fn remove_break_gaps_from_segments(
+    mut original_segments: Vec<(Bound<i64>, Bound<i64>)>,
+    segments: Vec<(Bound<i64>, Bound<i64>)>,
+) -> Result<Vec<(Bound<i64>, Bound<i64>)>> {
+    // We want to iterate over 2 segments at once,
+    // so that we can determine the duration of the break for shifting the segments.
+    // To do this, we add an empty element to the end.
+    original_segments.push((Bound::Included(0), Bound::Excluded(0)));
+
+    let mut result = Vec::with_capacity(segments.len());
+
+    for (start, stop) in segments {
+        if let (Bound::Included(start), Bound::Excluded(stop)) = (start, stop) {
+            let duration = stop - start;
+            let start_in_stream = find_position_in_segments(start, &original_segments)?;
+
+            result.push((
+                Bound::Included(start_in_stream),
+                Bound::Excluded(start_in_stream + duration),
+            ));
+        }
+    }
+
+    Ok(result)
+}
+
+fn find_position_in_segments(position: i64, segments: &[(Bound<i64>, Bound<i64>)]) -> Result<i64> {
+    let mut offset = 0;
+
+    for (segment, next_segment) in segments[0..segments.len() - 1]
+        .iter()
+        .zip(segments[1..].iter())
+    {
+        if let (Bound::Included(start), Bound::Excluded(stop)) = segment {
+            if position >= *start && position <= *stop {
+                return Ok(position - offset);
+            } else if let (Bound::Included(next_start), _next_stop) = next_segment {
+                offset += next_start - stop;
+            }
+        }
+    }
+
+    Err(anyhow!(
+        "position {} not found in segments: {:?}",
+        position,
+        segments
+    ))
 }
 
 fn collect_pin_segments(

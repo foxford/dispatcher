@@ -494,11 +494,17 @@ mod handle_adjust {
         let uri1 = recording1.stream_uri().unwrap().clone();
         let uri2 = recording2.stream_uri().unwrap().clone();
 
+        let changed_segments: Segments = vec![
+            (Bound::Included(3_000), Bound::Excluded(1_500_000)),
+            (Bound::Included(1_500_000), Bound::Excluded(2_700_000)),
+        ]
+        .into();
+
         let expected_task = TqTask::TranscodeMinigroupToHls {
             streams: vec![
                 TranscodeMinigroupToHlsStream::new(recording1.rtc_id(), uri1)
                     .offset(0)
-                    .segments(cut_original_segments.clone())
+                    .segments(changed_segments)
                     .pin_segments(
                         vec![
                             (Bound::Included(0), Bound::Excluded(1200000)),
@@ -603,7 +609,7 @@ mod handle_adjust {
 
         let cut_original_segments: Segments = vec![
             (Bound::Included(3_000), Bound::Excluded(1_500_000)),
-            (Bound::Included(1_800_000), Bound::Excluded(3_000_000)),
+            (Bound::Included(1_500_000), Bound::Excluded(2_700_000)),
         ]
         .into();
 
@@ -722,11 +728,17 @@ mod handle_adjust {
         let uri1 = recording1.stream_uri().unwrap().to_string();
         let uri2 = recording2.stream_uri().unwrap().to_string();
 
+        let changed_segments: Segments = vec![
+            (Bound::Included(3_000), Bound::Excluded(1_500_000)),
+            (Bound::Included(1_500_000), Bound::Excluded(2_700_000)),
+        ]
+        .into();
+
         let expected_task = TqTask::TranscodeMinigroupToHls {
             streams: vec![
                 TranscodeMinigroupToHlsStream::new(recording1.rtc_id(), uri1)
                     .offset(0)
-                    .segments(cut_original_segments.clone())
+                    .segments(changed_segments)
                     .pin_segments(vec![(Bound::Included(0), Bound::Excluded(1_000_000))].into()),
                 TranscodeMinigroupToHlsStream::new(recording2.rtc_id(), uri2)
                     .offset(600_000)
