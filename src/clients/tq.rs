@@ -9,6 +9,7 @@ use mockall::{automock, predicate::*};
 use reqwest::{header, Url};
 use serde_derive::{Deserialize, Serialize};
 use serde_json::{json, Value as JsonValue};
+use tracing::{error, info};
 use uuid::Uuid;
 
 use super::ClientError;
@@ -383,6 +384,7 @@ impl TqClient for HttpTqClient {
 
         let status = resp.status();
         if status == http::StatusCode::OK {
+            info!(class_id = %class.id(), "created tq task");
             Ok(())
         } else {
             let e = match resp.text().await {
@@ -397,6 +399,8 @@ impl TqClient for HttpTqClient {
                     )
                 }
             };
+            error!(class_id = %class.id(), error = %e, "failed to create tq task");
+
             Err(ClientError::Payload(e))
         }
     }
