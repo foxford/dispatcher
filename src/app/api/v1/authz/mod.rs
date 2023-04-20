@@ -347,6 +347,12 @@ fn transform_tq_authz_request(authz_req: &mut AuthzRequest, state: &dyn AppConte
             authz_req.object.value.truncate(2);
             authz_req.object.namespace = state.agent_id().as_account_id().to_string();
         }
+        Some([classrooms, _, priorities, _])
+            if classrooms == "classrooms" && priorities == "priorities" =>
+        {
+            authz_req.object.value.truncate(2);
+            authz_req.object.namespace = state.agent_id().as_account_id().to_string();
+        }
         _ => {}
     }
 }
@@ -485,6 +491,47 @@ fn test_extract_rtc_id() {
     let r = extract_rtc_id("ms.webinar.testing01.foxford.ru::14aa9730-26e1-487c-9153-bc8cb28d8eb0")
         .expect("Failed to extract rtc_id");
     assert_eq!(r, "14aa9730-26e1-487c-9153-bc8cb28d8eb0");
+}
+
+#[tokio::test]
+async fn test_transform_tq_authz_request() {
+    use crate::test_helpers::prelude::TestAuthz;
+    use crate::test_helpers::state::TestState;
+
+    let test_state = TestState::new(TestAuthz::new()).await;
+    // ["classrooms", CLASSROOM_ID, "priorities", priority]::*
+    // becomes ["classrooms", CLASSROOM_ID]::*
+    let mut authz_req: AuthzRequest = serde_json::from_str(
+        r#"
+        {
+            "subject": {"namespace": "foobar", "value": "barbaz"},
+            "object": {"namespace": "foobar", "value": [ "classrooms", "uuid", "priorities", "some_priority"]},
+            "action": "list"
+        }
+    "#,
+    )
+    .unwrap();
+    transform_tq_authz_request(&mut authz_req, &test_state);
+
+    assert_eq!(authz_req.action, "list");
+    assert_eq!(authz_req.object.value, ["classrooms", "uuid"]);
+
+    // ["scopes", scope, "priorities", priority]::*
+    // becomes ["classrooms", CLASSROOM_ID]::*
+    let mut authz_req: AuthzRequest = serde_json::from_str(
+        r#"
+        {
+            "subject": {"namespace": "foobar", "value": "barbaz"},
+            "object": {"namespace": "foobar", "value": [ "scopes", "uuid", "priorities", "some_priority"]},
+            "action": "list"
+        }
+    "#,
+    )
+    .unwrap();
+    transform_tq_authz_request(&mut authz_req, &test_state);
+
+    assert_eq!(authz_req.action, "list");
+    assert_eq!(authz_req.object.value, ["scopes", "uuid"]);
 }
 
 #[test]
