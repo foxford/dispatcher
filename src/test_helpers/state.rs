@@ -253,7 +253,13 @@ impl TestPublisher {
     }
 
     pub fn flush(&self) -> Vec<OutgoingEnvelope> {
+<<<<<<< HEAD
         let mut messages_lock = self.messages.lock();
+=======
+        let mut messages_lock = self
+            .messages
+            .lock();
+>>>>>>> 5171e50 (use parking_lot::Mutex)
 
         (*messages_lock).drain(0..).collect::<Vec<_>>()
     }
@@ -268,7 +274,13 @@ impl Publisher for TestPublisher {
 
         parsed_message.set_topic(dump.topic());
 
+<<<<<<< HEAD
         let mut messages_lock = self.messages.lock();
+=======
+        let mut messages_lock = self
+            .messages
+            .lock();
+>>>>>>> 5171e50 (use parking_lot::Mutex)
 
         (*messages_lock).push(parsed_message);
         Ok(())
