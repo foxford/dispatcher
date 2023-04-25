@@ -39,11 +39,8 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::{
-        sync::Arc,
-        time::Duration,
-    };
     use parking_lot::Mutex;
+    use std::{sync::Arc, time::Duration};
 
     use super::single_retry;
 
