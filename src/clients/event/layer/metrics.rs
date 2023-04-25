@@ -1,6 +1,6 @@
+use parking_lot::RwLock;
 use std::collections::HashMap;
 use std::pin::Pin;
-use std::sync::RwLock;
 use std::task::{Context, Poll};
 
 use anyhow::Result;
