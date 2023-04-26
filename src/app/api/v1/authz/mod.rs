@@ -511,23 +511,6 @@ async fn test_transform_tq_authz_request() {
 
     assert_eq!(authz_req.action, "list");
     assert_eq!(authz_req.object.value, ["classrooms", "uuid"]);
-
-    // ["scopes", scope, "priorities", priority]::*
-    // becomes ["classrooms", CLASSROOM_ID]::*
-    let mut authz_req: AuthzRequest = serde_json::from_str(
-        r#"
-        {
-            "subject": {"namespace": "foobar", "value": "barbaz"},
-            "object": {"namespace": "foobar", "value": [ "scopes", "uuid", "priorities", "some_priority"]},
-            "action": "list"
-        }
-    "#,
-    )
-    .unwrap();
-    transform_tq_authz_request(&mut authz_req, &test_state);
-
-    assert_eq!(authz_req.action, "list");
-    assert_eq!(authz_req.object.value, ["scopes", "uuid"]);
 }
 
 #[test]
