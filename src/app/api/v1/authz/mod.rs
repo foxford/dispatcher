@@ -343,10 +343,6 @@ fn transform_storage_v1_authz_request(authz_req: &mut AuthzRequest, state: &dyn 
 
 fn transform_tq_authz_request(authz_req: &mut AuthzRequest, state: &dyn AppContext) {
     match authz_req.object.value.get(0..4) {
-        Some([scopes, _, priorities, _]) if scopes == "scopes" && priorities == "priorities" => {
-            authz_req.object.value.truncate(2);
-            authz_req.object.namespace = state.agent_id().as_account_id().to_string();
-        }
         Some([classrooms, _, priorities, _])
             if classrooms == "classrooms" && priorities == "priorities" =>
         {
@@ -515,23 +511,6 @@ async fn test_transform_tq_authz_request() {
 
     assert_eq!(authz_req.action, "list");
     assert_eq!(authz_req.object.value, ["classrooms", "uuid"]);
-
-    // ["scopes", scope, "priorities", priority]::*
-    // becomes ["classrooms", CLASSROOM_ID]::*
-    let mut authz_req: AuthzRequest = serde_json::from_str(
-        r#"
-        {
-            "subject": {"namespace": "foobar", "value": "barbaz"},
-            "object": {"namespace": "foobar", "value": [ "scopes", "uuid", "priorities", "some_priority"]},
-            "action": "list"
-        }
-    "#,
-    )
-    .unwrap();
-    transform_tq_authz_request(&mut authz_req, &test_state);
-
-    assert_eq!(authz_req.action, "list");
-    assert_eq!(authz_req.object.value, ["scopes", "uuid"]);
 }
 
 #[test]
