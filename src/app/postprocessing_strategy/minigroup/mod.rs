@@ -544,7 +544,8 @@ fn build_stream(
         // non-host's str: begin-----------------------------------------end (no pause at all)
         // For a non-host's stream we must apply the pause in the host's stream
         // Tq does that but it needs pauses, and these pauses are only present in og segments, not in modified segments
-        .segments(recording.modified_segments.to_owned())
+        .modified_segments(recording.modified_segments.to_owned())
+        .segments(recording.segments.to_owned())
         .pin_segments(pin_segments.into())
         .video_mute_segments(video_mute_segments.into())
         .audio_mute_segments(audio_mute_segments.into());
