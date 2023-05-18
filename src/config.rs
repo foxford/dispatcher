@@ -30,7 +30,6 @@ pub struct Config {
     #[serde(with = "humantime_serde")]
     pub retry_delay: Duration,
     pub turn_hosts: vec1::Vec1<TurnHost>,
-    pub short_namespace: Option<String>,
     pub frontend: HashMap<String, FrontendConfig>,
 }
 

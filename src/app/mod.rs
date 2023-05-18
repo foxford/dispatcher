@@ -242,7 +242,6 @@ mod api;
 mod authz;
 mod error;
 mod http;
-mod info;
 mod metrics;
 mod postprocessing_strategy;
 pub mod services;

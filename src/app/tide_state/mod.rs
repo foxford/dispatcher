@@ -22,7 +22,7 @@ use super::turn_host::TurnHostSelector;
 pub trait AppContext: Sync + Send {
     async fn get_conn(&self) -> Result<PoolConnection<Postgres>>;
     fn build_default_frontend_url(&self, tenant: &str, app: &str) -> Url;
-    fn build_default_frontend_url_new(&self, tenant: &str, app: &str) -> Url;
+    fn build_default_frontend_url_new(&self, tenant: &str, app: &str) -> Option<Url>;
     fn agent_id(&self) -> &AgentId;
     fn publisher(&self) -> &dyn Publisher;
     fn conference_client(&self) -> &dyn ConferenceClient;
@@ -104,17 +104,11 @@ impl AppContext for TideState {
         build_default_url(self.config.default_frontend_base.clone(), tenant, app)
     }
 
-    fn build_default_frontend_url_new(&self, tenant: &str, app: &str) -> Url {
-        if let Some(config) = self.config.frontend.get(tenant) {
-            build_tenant_url(config.base_url.clone(), app)
-        } else {
-            build_default_url_new(
-                self.config.default_frontend_base_new.clone(),
-                self.config.short_namespace.as_deref(),
-                tenant,
-                app,
-            )
-        }
+    fn build_default_frontend_url_new(&self, tenant: &str, app: &str) -> Option<Url> {
+        self.config
+            .frontend
+            .get(tenant)
+            .map(|config| build_tenant_url(config.base_url.clone(), app))
     }
 
     fn agent_id(&self) -> &AgentId {
@@ -165,15 +159,6 @@ fn build_default_url(mut url: Url, tenant: &str, app: &str) -> Url {
     if let Err(e) = url.set_host(host.as_deref()) {
         tracing::error!("Default url set_host failed, reason = {:?}", e);
     }
-    url
-}
-
-fn build_default_url_new(mut url: Url, ns: Option<&str>, tenant: &str, app: &str) -> Url {
-    let path = match ns {
-        Some(ns) => format!("/{}/{}-{}/{}/", ns, app, tenant, app),
-        None => format!("/{}-{}/{}/", app, tenant, app),
-    };
-    url.set_path(&path);
     url
 }
 

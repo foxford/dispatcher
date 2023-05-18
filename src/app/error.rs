@@ -40,6 +40,7 @@ pub enum ErrorKind {
     InternalFailure,
     CreationWhiteboardFailed,
     ClassAlreadyEstablished,
+    UnknownTenant,
 }
 
 impl ErrorKind {
@@ -189,6 +190,12 @@ impl From<ErrorKind> for ErrorKindProperties {
                 status: ResponseStatus::UNPROCESSABLE_ENTITY,
                 kind: "class_already_established",
                 title: "Class already established",
+                is_notify_sentry: false,
+            },
+            ErrorKind::UnknownTenant => ErrorKindProperties {
+                status: ResponseStatus::BAD_REQUEST,
+                kind: "unknown_tenant",
+                title: "Tenant not found in config",
                 is_notify_sentry: false,
             },
         }

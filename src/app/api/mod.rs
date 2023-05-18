@@ -1,10 +1,9 @@
 use std::sync::Arc;
 
 use anyhow::Context;
-use axum::extract::{Extension, Path, Query};
+use axum::extract::{Extension, Path};
 use http::{StatusCode, Uri};
 use hyper::{Body, Request, Response};
-use percent_encoding::{percent_encode, NON_ALPHANUMERIC};
 use serde_derive::Deserialize;
 use svc_agent::{
     mqtt::{
@@ -14,7 +13,6 @@ use svc_agent::{
 };
 use svc_utils::extractors::AccountIdExtractor;
 use tracing::error;
-use url::Url;
 
 use crate::app::api::v1::AppResult;
 use crate::app::authz::AuthzObject;
@@ -29,65 +27,6 @@ const FEATURE_POLICY: &str = "autoplay *; camera *; microphone *; display-captur
 #[derive(Deserialize)]
 pub struct RedirQuery {
     pub scope: String,
-}
-
-pub async fn redirect_to_frontend(
-    ctx: Extension<Arc<dyn AppContext>>,
-    Path((tenant, app)): Path<(String, String)>,
-    Query(query): Query<RedirQuery>,
-    request: Request<Body>,
-) -> AppResult {
-    let base_url = {
-        let conn = ctx.get_conn().await;
-        match conn {
-            Err(e) => {
-                error!("Failed to acquire conn: {}", e);
-                None
-            }
-            Ok(mut conn) => {
-                let fe =
-                    crate::db::frontend::FrontendByScopeQuery::new(query.scope, app.to_owned())
-                        .execute(&mut conn)
-                        .await;
-                match fe {
-                    Err(e) => {
-                        error!("Failed to find frontend: {}", e);
-                        None
-                    }
-                    Ok(Some(frontend)) => {
-                        let u = Url::parse(&frontend.url);
-                        u.ok()
-                    }
-                    Ok(None) => None,
-                }
-            }
-        }
-    };
-
-    let mut url = base_url.unwrap_or_else(|| ctx.build_default_frontend_url(&tenant, &app));
-
-    url.set_query(request.uri().query());
-
-    // Add dispatcher base URL as `backurl` get parameter.
-    let back_url = build_back_url(&request)?.to_string();
-
-    // Percent-encode it since it's being passed as a get parameter.
-    let urlencoded_back_url =
-        percent_encode(back_url.as_str().as_bytes(), NON_ALPHANUMERIC).to_string();
-
-    url.query_pairs_mut()
-        .append_pair("backurl", &urlencoded_back_url);
-
-    let url = url.to_string();
-
-    let response = Response::builder()
-        .status(307)
-        .header("Location", &url)
-        .header("Feature-Policy", FEATURE_POLICY)
-        .body(hyper::Body::empty())
-        .unwrap();
-
-    Ok(response)
 }
 
 pub async fn rollback(
