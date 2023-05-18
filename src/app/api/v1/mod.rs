@@ -137,7 +137,7 @@ pub async fn redirect_to_frontend(
 
     let mut url = base_url
         .or_else(|| ctx.build_default_frontend_url_new(&tenant, &app))
-        .ok_or(AppError::new(
+        .ok_or_else(|| AppError::new(
             AppErrorKind::UnknownTenant,
             anyhow!("tenant '{}' not found", tenant),
         ))?;
