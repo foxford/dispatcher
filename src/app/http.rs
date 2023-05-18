@@ -157,6 +157,7 @@ fn utils_router() -> Router {
             "/api/v1/account/properties/:property_id",
             get(account::read_property).put(account::update_property),
         )
+        .metered_route("/api/v1/account/:id/ban", post(account::ban))
         .metered_route(
             "/api/v1/transcoding/minigroup/:id/restart",
             post(restart_transcoding_minigroup),

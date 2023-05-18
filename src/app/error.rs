@@ -40,6 +40,8 @@ pub enum ErrorKind {
     InternalFailure,
     CreationWhiteboardFailed,
     ClassAlreadyEstablished,
+    OperationIdObsolete,
+    OperationInProgress,
 }
 
 impl ErrorKind {
@@ -189,6 +191,18 @@ impl From<ErrorKind> for ErrorKindProperties {
                 status: ResponseStatus::UNPROCESSABLE_ENTITY,
                 kind: "class_already_established",
                 title: "Class already established",
+                is_notify_sentry: false,
+            },
+            ErrorKind::OperationIdObsolete => ErrorKindProperties {
+                status: ResponseStatus::CONFLICT,
+                kind: "operation_id_obsolete",
+                title: "Operation id obsolete, should fetch latest state",
+                is_notify_sentry: false,
+            },
+            ErrorKind::OperationInProgress => ErrorKindProperties {
+                status: ResponseStatus::CONFLICT,
+                kind: "operation_in_progress",
+                title: "Operation is not completed yet, retry later",
                 is_notify_sentry: false,
             },
         }

@@ -1526,6 +1526,54 @@
     },
     "query": "\n                        SELECT\n                            id::text AS \"id!: String\"\n                        FROM class\n                        WHERE conference_room_id = $1\n                    "
   },
+  "822f926f43aa41ec0c5f772fb842755f8283283edf3c2c769506b3ed08a79607": {
+    "describe": {
+      "columns": [
+        {
+          "name": "user_account: _",
+          "ordinal": 0,
+          "type_info": {
+            "Custom": {
+              "kind": {
+                "Composite": [
+                  [
+                    "label",
+                    "Text"
+                  ],
+                  [
+                    "audience",
+                    "Text"
+                  ]
+                ]
+              },
+              "name": "account_id"
+            }
+          }
+        },
+        {
+          "name": "last_op_id: _",
+          "ordinal": 1,
+          "type_info": "Uuid"
+        },
+        {
+          "name": "last_op_done",
+          "ordinal": 2,
+          "type_info": "Bool"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Record"
+        ]
+      }
+    },
+    "query": "\n            SELECT\n                user_account AS \"user_account: _\",\n                last_op_id AS \"last_op_id: _\",\n                last_op_done\n            FROM ban_account_op\n            WHERE\n                user_account = $1\n            LIMIT 1;\n            "
+  },
   "ac4ac9431173165543dbc459bb3b2b9b4461f7016aa6d6967cc9f5f832f208bb": {
     "describe": {
       "columns": [
