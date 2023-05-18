@@ -191,7 +191,7 @@ impl AppContext for TestState {
         todo!()
     }
 
-    fn build_default_frontend_url_new(&self, _tenant: &str, _app: &str) -> Url {
+    fn build_default_frontend_url_new(&self, _tenant: &str, _app: &str) -> Option<Url> {
         todo!()
     }
 

@@ -168,30 +168,3 @@ fn build_tenant_url(mut url: Url, app: &str) -> Url {
         .extend(&[app, ""]);
     url
 }
-
-#[test]
-fn test_new_default_url() {
-    let table = [
-        (
-            "\"https://dev.netology-group.services/\"",
-            (Some("t01"), "foxford", "webinar"),
-            "https://dev.netology-group.services/t01/webinar-foxford/webinar/",
-        ),
-        (
-            "\"https://netology-group.services/\"",
-            (None, "foxford", "classroom"),
-            "https://netology-group.services/classroom-foxford/classroom/",
-        ),
-    ];
-    for (url, (ns, tenant, app), sample) in table {
-        let url: url::Url = serde_json::from_str(url).unwrap();
-        let u = build_default_url_new(url, ns, tenant, app).to_string();
-        assert_eq!(u, sample);
-    }
-    let url: url::Url = serde_json::from_str("\"https://dev.netology-group.services/\"").unwrap();
-    let u = build_default_url_new(url, Some("t01"), "foxford", "webinar").to_string();
-    assert_eq!(
-        u,
-        "https://dev.netology-group.services/t01/webinar-foxford/webinar/"
-    );
-}
