@@ -32,6 +32,7 @@ pub struct Config {
     pub turn_hosts: vec1::Vec1<TurnHost>,
     pub short_namespace: Option<String>,
     pub frontend: HashMap<String, FrontendConfig>,
+    pub nats: Option<svc_nats_client::Config>,
 }
 
 #[derive(Clone, Debug, Deserialize)]

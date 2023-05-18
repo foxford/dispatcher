@@ -67,6 +67,19 @@ pub async fn run(db: PgPool, authz_cache: Option<Box<dyn AuthzCache>>) -> Result
         agent.clone(),
         authz,
     );
+
+    let state = match &config.nats {
+        Some(cfg) => {
+            let nats_client = svc_nats_client::Client::new(cfg.clone())
+                .await
+                .context("nats client")?;
+            info!("Connected to nats");
+
+            state.add_nats_client(nats_client)
+        }
+        None => state,
+    };
+
     let state = Arc::new(state) as Arc<dyn AppContext>;
     let state_ = state.clone();
 

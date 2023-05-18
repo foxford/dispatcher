@@ -11,6 +11,9 @@ use svc_agent::{
     AgentId,
 };
 use svc_authz::ClientMap as Authz;
+use svc_nats_client::{
+    Event, Message, MessageStream, NatsClient, PublishError, SubscribeError, TermMessageError,
+};
 use url::Url;
 use vec1::{vec1, Vec1};
 
@@ -40,6 +43,7 @@ pub struct TestState {
     tq_client: Arc<MockTqClient>,
     authz: Authz,
     turn_host_selector: TurnHostSelector,
+    nats_client: Option<Arc<dyn NatsClient>>,
 }
 
 fn build_config() -> Config {
@@ -98,6 +102,23 @@ fn build_config() -> Config {
     serde_json::from_value::<Config>(config).expect("Failed to parse test config")
 }
 
+struct TestNatsClient;
+
+#[async_trait]
+impl NatsClient for TestNatsClient {
+    async fn publish(&self, _event: &Event) -> Result<(), PublishError> {
+        Ok(())
+    }
+
+    async fn subscribe(&self) -> Result<MessageStream, SubscribeError> {
+        unimplemented!()
+    }
+
+    async fn terminate(&self, _message: Message) -> Result<(), TermMessageError> {
+        unimplemented!()
+    }
+}
+
 impl TestState {
     pub async fn new(authz: TestAuthz) -> Self {
         let config = build_config();
@@ -116,6 +137,7 @@ impl TestState {
             event_client: Arc::new(MockEventClient::new()),
             tq_client: Arc::new(MockTqClient::new()),
             authz: authz.into(),
+            nats_client: Some(Arc::new(TestNatsClient {}) as Arc<dyn NatsClient>),
         }
     }
 
@@ -136,6 +158,7 @@ impl TestState {
             tq_client: Arc::new(MockTqClient::new()),
             authz: authz.into(),
             turn_host_selector: TurnHostSelector::new(&vec1!["turn.example.org".into()]),
+            nats_client: Some(Arc::new(TestNatsClient {}) as Arc<dyn NatsClient>),
         }
     }
 
@@ -233,6 +256,10 @@ impl AppContext for TestState {
 
     fn turn_host_selector(&self) -> &TurnHostSelector {
         &self.turn_host_selector
+    }
+
+    fn nats_client(&self) -> Option<&dyn NatsClient> {
+        self.nats_client.as_deref()
     }
 }
 

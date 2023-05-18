@@ -8,6 +8,7 @@ use svc_agent::error::Error as AgentError;
 use svc_agent::mqtt::{Agent, IntoPublishableMessage};
 use svc_agent::AgentId;
 use svc_authz::ClientMap as Authz;
+use svc_nats_client::NatsClient;
 use url::Url;
 
 use crate::clients::conference::ConferenceClient;
@@ -33,6 +34,7 @@ pub trait AppContext: Sync + Send {
     fn config(&self) -> &Config;
     fn agent(&self) -> Option<&Agent>;
     fn turn_host_selector(&self) -> &TurnHostSelector;
+    fn nats_client(&self) -> Option<&dyn NatsClient>;
 
     fn get_preroll_offset(&self, audience: &str) -> i64 {
         self.config()
@@ -64,6 +66,7 @@ pub struct TideState {
     tq_client: Arc<dyn TqClient>,
     authz: Authz,
     turn_host_selector: TurnHostSelector,
+    nats_client: Option<Arc<dyn NatsClient>>,
 }
 
 impl TideState {
@@ -87,6 +90,14 @@ impl TideState {
             tq_client,
             authz,
             turn_host_selector,
+            nats_client: None,
+        }
+    }
+
+    pub fn add_nats_client(self, nats_client: impl NatsClient + 'static) -> Self {
+        Self {
+            nats_client: Some(Arc::new(nats_client)),
+            ..self
         }
     }
 }
@@ -155,6 +166,10 @@ impl AppContext for TideState {
 
     fn turn_host_selector(&self) -> &TurnHostSelector {
         &self.turn_host_selector
+    }
+
+    fn nats_client(&self) -> Option<&dyn NatsClient> {
+        self.nats_client.as_deref()
     }
 }
 
