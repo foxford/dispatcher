@@ -1,5 +1,6 @@
 use sqlx::PgConnection;
 use svc_authn::AccountId;
+use svc_events::ban::BanIntentEventV1;
 use svc_nats_client::EventId;
 use uuid::Uuid;
 
@@ -22,13 +23,17 @@ pub async fn start(
     user_account: AccountId,
 ) -> Result<(), Error> {
     let event_id = get_next_event_id(conn).await?;
-    let event = svc_events::ban::BanIntentEventV1 {
+    let event = BanIntentEventV1 {
         ban,
         classroom_id: class.id(),
         user_account,
         op_id: Uuid::new_v4(),
     };
     nats::publish_event(ctx, class.id(), &event_id, event.into()).await
+}
+
+pub async fn handle(ctx: &dyn AppContext, intent: BanIntentEventV1) -> Result<(), Error> {
+    Ok(())
 }
 
 async fn get_next_event_id(conn: &mut PgConnection) -> Result<EventId, Error> {
