@@ -642,6 +642,7 @@ dependencies = [
  "svc-authn 0.7.0",
  "svc-authz",
  "svc-error 0.4.0",
+ "svc-events",
  "svc-nats-client",
  "svc-utils",
  "tokio",
@@ -2200,7 +2201,7 @@ version = "0.23.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "546b9b6f76c26c60ffbcf0b7136e15169fe13d43949b4aadb7c1edc1c3f3a26f"
 dependencies = [
- "sentry-anyhow 0.23.0",
+ "sentry-anyhow",
  "sentry-backtrace 0.23.0",
  "sentry-core 0.23.0",
  "tokio",
@@ -2222,20 +2223,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sentry"
-version = "0.31.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6c3d7f8bf7373e75222452fcdd9347d857452a92d0eec738f941bc4656c5b5df"
-dependencies = [
- "httpdate",
- "reqwest",
- "sentry-anyhow 0.31.0",
- "sentry-backtrace 0.31.0",
- "sentry-core 0.31.0",
- "tokio",
-]
-
-[[package]]
 name = "sentry-anyhow"
 version = "0.23.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2244,17 +2231,6 @@ dependencies = [
  "anyhow",
  "sentry-backtrace 0.23.0",
  "sentry-core 0.23.0",
-]
-
-[[package]]
-name = "sentry-anyhow"
-version = "0.31.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9ef7f47c57a1146d553b4976f20e8bba370195a88858bdf6945a63c529549236"
-dependencies = [
- "anyhow",
- "sentry-backtrace 0.31.0",
- "sentry-core 0.31.0",
 ]
 
 [[package]]
@@ -2279,18 +2255,6 @@ dependencies = [
  "once_cell",
  "regex",
  "sentry-core 0.27.0",
-]
-
-[[package]]
-name = "sentry-backtrace"
-version = "0.31.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "03b7cdefbdca51f1146f0f24a3cb4ecb6428951f030ff5c720cfb5c60bd174c0"
-dependencies = [
- "backtrace",
- "once_cell",
- "regex",
- "sentry-core 0.31.0",
 ]
 
 [[package]]
@@ -2334,19 +2298,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sentry-core"
-version = "0.31.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5e781b55761e47a60d1ff326ae8059de22b0e6b0cee68eab1c5912e4fb199a76"
-dependencies = [
- "once_cell",
- "rand",
- "sentry-types 0.31.0",
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "sentry-panic"
 version = "0.27.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2376,23 +2327,6 @@ name = "sentry-types"
 version = "0.27.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "823923ae5f54a729159d720aa12181673044ee5c79cbda3be09e56f885e5468f"
-dependencies = [
- "debugid 0.8.0",
- "getrandom",
- "hex",
- "serde",
- "serde_json",
- "thiserror",
- "time 0.3.21",
- "url 2.2.2",
- "uuid 1.3.3",
-]
-
-[[package]]
-name = "sentry-types"
-version = "0.31.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d642a04657cc77d8de52ae7c6d93a15cb02284eb219344a89c1e2b26bbaf578c"
 dependencies = [
  "debugid 0.8.0",
  "getrandom",
@@ -2958,36 +2892,32 @@ dependencies = [
  "http",
  "once_cell",
  "sentry 0.23.0",
- "sentry-anyhow 0.23.0",
+ "sentry-anyhow",
  "serde",
  "serde_derive",
  "sqlx 0.5.9",
- "svc-agent 0.19.4",
- "svc-authn 0.7.0",
+ "svc-agent 0.20.0",
+ "svc-authn 0.8.0",
  "svc-authz",
 ]
 
 [[package]]
-name = "svc-error"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3f841d7fd45d6f179e9f3765491fcb5eea100a5bbe50ea47faf3f262031966d9"
+name = "svc-events"
+version = "0.3.0"
+source = "git+https://github.com/foxford/svc-conference-events?branch=ULMS-1896/ban-events#8d3e390b0b98d6e07e90f96764e2f6a25374dd2e"
 dependencies = [
- "anyhow",
- "crossbeam-channel",
- "http",
- "once_cell",
- "sentry 0.31.0",
- "sentry-anyhow 0.31.0",
  "serde",
- "serde_derive",
+ "serde_json",
+ "svc-authn 0.7.0",
+ "thiserror",
+ "uuid 0.8.2",
 ]
 
 [[package]]
 name = "svc-nats-client"
-version = "0.2.0"
+version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ab57232e87e0c5c4d1ae2b810ffc971cdefd2cdf011d7c2a678cdc40a1a20c51"
+checksum = "7deb7c3dff073750c31aed6519c2a272ad35cc69d00425030b9177df711d6942"
 dependencies = [
  "anyhow",
  "async-nats",
@@ -2996,11 +2926,11 @@ dependencies = [
  "humantime-serde",
  "reqwest",
  "serde",
- "svc-agent 0.20.0",
- "svc-error 0.5.0",
+ "svc-agent 0.19.4",
+ "svc-error 0.4.0",
  "thiserror",
  "tracing",
- "uuid 1.3.3",
+ "uuid 0.8.2",
 ]
 
 [[package]]

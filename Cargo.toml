@@ -55,6 +55,8 @@ svc-error = { version = "0.4", features = [
     "sentry-extension",
     "sqlx",
 ] }
+svc-events = { git = "https://github.com/foxford/svc-conference-events", branch = "ULMS-1896/ban-events" }
+svc-nats-client = "0.1"
 svc-utils = { version = "0.6.0", features = ["log-middleware", "metrics-middleware", "cors-middleware", "authn-extractor"] }
 tokio = { version = "1.17", features = ["full"] }
 tower = { version = "0.4", features = [ "timeout" ] }
@@ -68,7 +70,6 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 url = { version = "2.2.1", features = ["serde"] }
 uuid = { version = "0.8", features = ["v4", "serde"] }
 vec1 = { version = "1.8.0", features = ["serde"] }
-svc-nats-client = "0.2.0"
 
 [dev-dependencies]
 lazy_static = "1.4"

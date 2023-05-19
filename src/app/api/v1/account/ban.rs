@@ -13,7 +13,7 @@ use crate::{
         api::v1::find_class,
         error::{ErrorExt, ErrorKind as AppErrorKind},
         metrics::AuthorizeMetrics,
-        AppContext, AuthzObject,
+        stage, AppContext, AuthzObject,
     },
     db::ban_account_op,
 };
@@ -68,8 +68,7 @@ pub async fn ban(
         }
     }
 
-    // schedule task to ourselves
-    // update ban account op
+    stage::ban_intent::start(ctx.as_ref(), &mut conn, payload.ban, &class, account_to_ban).await?;
 
     Ok(Response::builder().status(200).body(Body::empty()).unwrap())
 }

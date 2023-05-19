@@ -53,4 +53,5 @@ fn generate_correlation_data() -> String {
 
 pub mod conference;
 pub mod event;
+pub mod nats;
 pub mod tq;

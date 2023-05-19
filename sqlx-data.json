@@ -1574,6 +1574,24 @@
     },
     "query": "\n            SELECT\n                user_account AS \"user_account: _\",\n                last_op_id AS \"last_op_id: _\",\n                last_op_done\n            FROM ban_account_op\n            WHERE\n                user_account = $1\n            LIMIT 1;\n            "
   },
+  "a4fc28b7fa8a6a5f4051750a2447784a10a221632dbea080fe1d4c980de076fd": {
+    "describe": {
+      "columns": [
+        {
+          "name": "value!: i64",
+          "ordinal": 0,
+          "type_info": "Int8"
+        }
+      ],
+      "nullable": [
+        null
+      ],
+      "parameters": {
+        "Left": []
+      }
+    },
+    "query": "SELECT nextval('ban_entity_seq_id') as \"value!: i64\";"
+  },
   "ac4ac9431173165543dbc459bb3b2b9b4461f7016aa6d6967cc9f5f832f208bb": {
     "describe": {
       "columns": [

@@ -42,6 +42,8 @@ pub enum ErrorKind {
     ClassAlreadyEstablished,
     OperationIdObsolete,
     OperationInProgress,
+    NatsPublishFailed,
+    NatsClientNotFound,
 }
 
 impl ErrorKind {
@@ -204,6 +206,18 @@ impl From<ErrorKind> for ErrorKindProperties {
                 kind: "operation_in_progress",
                 title: "Operation is not completed yet, retry later",
                 is_notify_sentry: false,
+            },
+            ErrorKind::NatsPublishFailed => ErrorKindProperties {
+                status: ResponseStatus::UNPROCESSABLE_ENTITY,
+                kind: "nats_publish_failed",
+                title: "Nats publish failed",
+                is_notify_sentry: true,
+            },
+            ErrorKind::NatsClientNotFound => ErrorKindProperties {
+                status: ResponseStatus::FAILED_DEPENDENCY,
+                kind: "nats_client_not_found",
+                title: "Nats client not found",
+                is_notify_sentry: true,
             },
         }
     }

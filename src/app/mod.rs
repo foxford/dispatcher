@@ -253,7 +253,7 @@ fn build_tq_client(config: &Config, token: &str) -> Arc<dyn TqClient> {
 
 mod api;
 mod authz;
-mod error;
+pub mod error;
 mod http;
 mod info;
 mod metrics;
@@ -261,3 +261,4 @@ mod postprocessing_strategy;
 pub mod services;
 mod tide_state;
 pub mod turn_host;
+mod stage;
