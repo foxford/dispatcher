@@ -136,13 +136,9 @@ pub async fn redirect_to_frontend(
     };
 
     let mut url = base_url
-        .or_else(|| ctx.build_default_frontend_url_new(&tenant, &app))
-        .ok_or_else(|| {
-            AppError::new(
-                AppErrorKind::UnknownTenant,
-                anyhow!("tenant '{}' not found", tenant),
-            )
-        })?;
+        .map(Result::Ok)
+        .unwrap_or_else(|| ctx.build_default_frontend_url(&tenant, &app))
+        .map_err(|e| AppError::new(AppErrorKind::MissingTenant, e))?;
 
     url.set_query(request.uri().query());
 

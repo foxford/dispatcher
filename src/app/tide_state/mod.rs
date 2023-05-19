@@ -21,8 +21,7 @@ use super::turn_host::TurnHostSelector;
 #[async_trait]
 pub trait AppContext: Sync + Send {
     async fn get_conn(&self) -> Result<PoolConnection<Postgres>>;
-    fn build_default_frontend_url(&self, tenant: &str, app: &str) -> Url;
-    fn build_default_frontend_url_new(&self, tenant: &str, app: &str) -> Option<Url>;
+    fn build_default_frontend_url(&self, tenant: &str, app: &str) -> Result<Url>;
     fn agent_id(&self) -> &AgentId;
     fn publisher(&self) -> &dyn Publisher;
     fn conference_client(&self) -> &dyn ConferenceClient;
@@ -100,15 +99,12 @@ impl AppContext for TideState {
             .context("Failed to acquire DB connection")
     }
 
-    fn build_default_frontend_url(&self, tenant: &str, app: &str) -> Url {
-        build_default_url(self.config.default_frontend_base.clone(), tenant, app)
-    }
-
-    fn build_default_frontend_url_new(&self, tenant: &str, app: &str) -> Option<Url> {
+    fn build_default_frontend_url(&self, tenant: &str, app: &str) -> Result<Url> {
         self.config
             .frontend
             .get(tenant)
             .map(|config| build_tenant_url(config.base_url.clone(), app))
+            .ok_or_else(|| anyhow!("tenant '{}' not found", tenant))
     }
 
     fn agent_id(&self) -> &AgentId {
@@ -153,14 +149,6 @@ impl AppContext for TideState {
 }
 
 pub mod message_handler;
-
-fn build_default_url(mut url: Url, tenant: &str, app: &str) -> Url {
-    let host = url.host_str().map(|h| format!("{}.{}.{}", tenant, app, h));
-    if let Err(e) = url.set_host(host.as_deref()) {
-        tracing::error!("Default url set_host failed, reason = {:?}", e);
-    }
-    url
-}
 
 fn build_tenant_url(mut url: Url, app: &str) -> Url {
     url.path_segments_mut()
