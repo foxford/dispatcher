@@ -13,6 +13,27 @@ pub struct Object {
 }
 
 #[derive(Debug)]
+pub struct ListQuery {}
+
+impl ListQuery {
+    pub fn new() -> Self {
+        Self {}
+    }
+
+    pub async fn execute(self, conn: &mut PgConnection) -> sqlx::Result<Vec<Object>> {
+        sqlx::query_as!(
+            Object,
+            r#"
+            SELECT *
+            FROM frontend
+            "#,
+        )
+        .fetch_all(conn)
+        .await
+    }
+}
+
+#[derive(Debug)]
 pub(crate) struct FrontendByScopeQuery {
     scope: String,
     app: String,
