@@ -63,7 +63,9 @@ impl<'a> TaskWithOptions<'a> {
             Task::ConvertMjrDumpsToStream { .. } => {
                 self.to = settings.to.as_deref();
             }
-            _ => {}
+            Task::TranscodeMinigroupToHls { .. } => {
+                self.to = settings.to.as_deref();
+            }
         }
     }
 }
@@ -83,7 +85,6 @@ pub enum Task {
     TranscodeMinigroupToHls {
         streams: Vec<TranscodeMinigroupToHlsStream>,
         host_stream_id: Uuid,
-        to: String,
     },
     ConvertMjrDumpsToStream {
         mjr_dumps_uris: Vec<String>,
