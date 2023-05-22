@@ -51,7 +51,8 @@ pub async fn get_next_seq_id(conn: &mut PgConnection) -> sqlx::Result<NextSeqId>
 }
 
 /// Upsert works only if provided `last_op_id` equals to the one stored
-/// in database. Returns `None` if `last_op_id` in database differs.
+/// in database or `last_op_id` equals to `new_op_id`.
+/// Returns `None` if `last_op_id` in database differs.
 pub struct UpsertQuery {
     user_account: AccountId,
     op_done: bool,
@@ -60,6 +61,24 @@ pub struct UpsertQuery {
 }
 
 impl UpsertQuery {
+    pub fn new_operation(user_account: AccountId, last_op_id: Uuid, new_op_id: Uuid) -> Self {
+        Self {
+            user_account,
+            op_done: false,
+            last_op_id,
+            new_op_id,
+        }
+    }
+
+    pub fn new_complete(user_account: AccountId, op_id: Uuid) -> Self {
+        Self {
+            user_account,
+            op_done: true,
+            last_op_id: op_id,
+            new_op_id: op_id,
+        }
+    }
+
     pub async fn execute(self, conn: &mut PgConnection) -> sqlx::Result<Option<Object>> {
         sqlx::query_as!(
             Object,
@@ -71,13 +90,15 @@ impl UpsertQuery {
                 last_op_done = EXCLUDED.last_op_done,
                 last_op_id   = EXCLUDED.last_op_id
             WHERE
+                -- allow to 'complete' operation iff there's no change in last_op_id
+                -- or allow to do upsert without real changes so we can process
+                -- the same message twice
+                ban_account_op.last_op_id = EXCLUDED.last_op_id OR
                 -- allow change op id iff the previous operation is completed
                 (
                     ban_account_op.last_op_id = $4 AND
                     ban_account_op.last_op_done = true
-                ) OR
-                -- allow to 'complete' operation iff there's no change in last_op_id
-                ban_account_op.last_op_id = EXCLUDED.last_op_id
+                )
             RETURNING
                 user_account AS "user_account: _",
                 last_op_id,

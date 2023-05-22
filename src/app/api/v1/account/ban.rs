@@ -22,6 +22,7 @@ use super::AppResult;
 
 #[derive(Deserialize)]
 pub struct BanPayload {
+    // TODO: maybe Option?
     last_seen_op_id: Uuid,
     ban: bool,
     class_id: Uuid,
@@ -68,7 +69,15 @@ pub async fn ban(
         }
     }
 
-    stage::ban_intent::start(ctx.as_ref(), &mut conn, payload.ban, &class, account_to_ban).await?;
+    stage::ban_intent::start(
+        ctx.as_ref(),
+        &mut conn,
+        payload.ban,
+        &class,
+        account_to_ban,
+        payload.last_seen_op_id,
+    )
+    .await?;
 
     Ok(Response::builder().status(200).body(Body::empty()).unwrap())
 }

@@ -1195,7 +1195,7 @@
     },
     "query": "\n            UPDATE recording\n            SET modified_segments =\n                CASE\n                    WHEN created_by = $3 THEN $2\n                    ELSE segments\n                END,\n                adjusted_at = NOW()\n            WHERE class_id = $1 AND deleted_at IS NULL\n            RETURNING\n                id,\n                class_id,\n                rtc_id,\n                stream_uri,\n                segments AS \"segments!: Option<Segments>\",\n                started_at,\n                modified_segments AS \"modified_segments!: Option<Segments>\",\n                created_at,\n                adjusted_at,\n                transcoded_at,\n                created_by AS \"created_by: AgentId\",\n                deleted_at\n            "
   },
-  "6d53d0fb1e17234db5c1b2718ae6af81892d8ea0f9695b03c7f96ed39cf66a21": {
+  "6eeb28486097dd038afd6cfa21a1fa8cd5976caeb32c834290f8d3cad348065f": {
     "describe": {
       "columns": [
         {
@@ -1260,7 +1260,7 @@
         ]
       }
     },
-    "query": "\n            INSERT INTO ban_account_op (user_account, last_op_id, last_op_done)\n            VALUES ($1, $2, $3)\n            ON CONFLICT (user_account) DO UPDATE\n            SET\n                last_op_done = EXCLUDED.last_op_done,\n                last_op_id   = EXCLUDED.last_op_id\n            WHERE\n                -- allow change op id iff the previous operation is completed\n                (\n                    ban_account_op.last_op_id = $4 AND\n                    ban_account_op.last_op_done = true\n                ) OR\n                -- allow to 'complete' operation iff there's no change in last_op_id\n                ban_account_op.last_op_id = EXCLUDED.last_op_id\n            RETURNING\n                user_account AS \"user_account: _\",\n                last_op_id,\n                last_op_done\n            "
+    "query": "\n            INSERT INTO ban_account_op (user_account, last_op_id, last_op_done)\n            VALUES ($1, $2, $3)\n            ON CONFLICT (user_account) DO UPDATE\n            SET\n                last_op_done = EXCLUDED.last_op_done,\n                last_op_id   = EXCLUDED.last_op_id\n            WHERE\n                -- allow to 'complete' operation iff there's no change in last_op_id\n                -- or allow to do upsert without real changes so we can process\n                -- the same message twice\n                ban_account_op.last_op_id = EXCLUDED.last_op_id OR\n                -- allow change op id iff the previous operation is completed\n                (\n                    ban_account_op.last_op_id = $4 AND\n                    ban_account_op.last_op_done = true\n                )\n            RETURNING\n                user_account AS \"user_account: _\",\n                last_op_id,\n                last_op_done\n            "
   },
   "7296ad8d156f41d717c88c4f20c012bc010531d460776813fd70b3141485aabe": {
     "describe": {
