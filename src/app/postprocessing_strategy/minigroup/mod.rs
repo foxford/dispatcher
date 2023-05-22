@@ -451,11 +451,23 @@ async fn send_transcoding_task(
         .collect::<Result<Vec<_>, _>>()?;
 
     let host_stream_id = host_stream.rtc_id;
+    let audience = minigroup.audience();
+    let to = ctx
+        .config()
+        .tq_client
+        .audience_settings
+        .get(audience)
+        .ok_or_else(|| anyhow!("missing audient('{}') in config", audience))?
+        .to
+        .as_ref()
+        .ok_or_else(|| anyhow!("missing 'to' field in audience('{}') config", audience))?
+        .clone();
 
     // Create a tq task.
     let task = TqTask::TranscodeMinigroupToHls {
         streams,
         host_stream_id,
+        to,
     };
 
     ctx.tq_client()

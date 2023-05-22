@@ -83,6 +83,7 @@ pub enum Task {
     TranscodeMinigroupToHls {
         streams: Vec<TranscodeMinigroupToHlsStream>,
         host_stream_id: Uuid,
+        to: String,
     },
     ConvertMjrDumpsToStream {
         mjr_dumps_uris: Vec<String>,
