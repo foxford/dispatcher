@@ -1,1 +1,0 @@
-CREATE SEQUENCE IF NOT EXISTS ban_entity_seq_id;

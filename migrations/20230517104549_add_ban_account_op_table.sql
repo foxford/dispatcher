@@ -3,3 +3,5 @@ CREATE TABLE IF NOT EXISTS ban_account_op (
     last_op_id uuid NOT NULL,
     last_op_done boolean NOT NULL DEFAULT false
 );
+
+CREATE SEQUENCE IF NOT EXISTS ban_entity_seq_id;
