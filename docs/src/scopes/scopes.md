@@ -8,6 +8,7 @@ Expected to serve different frontends based on different scopes.
 Is constructed from `default_frontend_base` by replacing its host with `{:tenant}.{:app}.{:default_frontend_base.host}`
 
 ### Routes
+
 Path                                  | Method  | Description
 ------------------------------------- | ------- | ------------------
 /info/scopes                          | GET     | List of all scopes
