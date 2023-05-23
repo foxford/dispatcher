@@ -2795,7 +2795,7 @@ dependencies = [
 [[package]]
 name = "svc-nats-client"
 version = "0.2.0"
-source = "git+https://github.com/foxford/svc-nats-client/?branch=ULMS-1896/add-consumer-move-event-id#b8867a7e26f2105ab453dc963109f9ba933bbbbe"
+source = "git+https://github.com/foxford/svc-nats-client/?branch=ULMS-1896/add-consumer-move-event-id#a6953d7429a5438964e17a6a1c5d373356ae64d8"
 dependencies = [
  "anyhow",
  "async-nats",

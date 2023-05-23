@@ -33,6 +33,7 @@ pub struct Config {
     pub short_namespace: Option<String>,
     pub frontend: HashMap<String, FrontendConfig>,
     pub nats: Option<svc_nats_client::Config>,
+    pub nats_consumer: Option<svc_nats_client::ConsumerConfig>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
