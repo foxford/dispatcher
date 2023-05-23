@@ -1,5 +1,7 @@
-use svc_events::ban::{BanEventV1, BanIntentEventV1};
-use svc_nats_client::EventId;
+use svc_events::{
+    ban::{BanEventV1, BanIntentEventV1},
+    EventId,
+};
 
 use crate::{
     app::{error::Error, AppContext},

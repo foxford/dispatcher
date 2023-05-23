@@ -1,7 +1,6 @@
 use uuid::Uuid;
 
-use svc_events::Event;
-use svc_nats_client::EventId;
+use svc_events::{Event, EventId};
 
 use crate::app::{
     error::{Error, ErrorExt, ErrorKind as AppErrorKind},

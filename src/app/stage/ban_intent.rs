@@ -1,7 +1,6 @@
 use sqlx::PgConnection;
 use svc_authn::AccountId;
-use svc_events::ban::BanIntentEventV1;
-use svc_nats_client::EventId;
+use svc_events::{ban::BanIntentEventV1, EventId};
 use uuid::Uuid;
 
 use crate::{
