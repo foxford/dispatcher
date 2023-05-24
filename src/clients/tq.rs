@@ -63,7 +63,9 @@ impl<'a> TaskWithOptions<'a> {
             Task::ConvertMjrDumpsToStream { .. } => {
                 self.to = settings.to.as_deref();
             }
-            _ => {}
+            Task::TranscodeMinigroupToHls { .. } => {
+                self.to = settings.to.as_deref();
+            }
         }
     }
 }
