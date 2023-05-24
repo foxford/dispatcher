@@ -39,10 +39,8 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::{
-        sync::{Arc, Mutex},
-        time::Duration,
-    };
+    use parking_lot::Mutex;
+    use std::{sync::Arc, time::Duration};
 
     use super::single_retry;
 
@@ -52,7 +50,7 @@ mod tests {
         let create_fut = || {
             let call_count = call_count.clone();
             async move {
-                let mut mutex_guard = call_count.lock().unwrap();
+                let mut mutex_guard = call_count.lock();
                 *mutex_guard += 1;
                 if *mutex_guard == 1 {
                     Err(())
@@ -64,7 +62,7 @@ mod tests {
 
         let result = single_retry(create_fut, Duration::from_secs(10000)).await;
 
-        let guard = call_count.lock().unwrap();
+        let guard = call_count.lock();
         assert_eq!(*guard, 2);
         assert!(result.is_ok());
     }
@@ -75,7 +73,7 @@ mod tests {
         let create_fut = || {
             let call_count = call_count.clone();
             async move {
-                let mut mutex_guard = call_count.lock().unwrap();
+                let mut mutex_guard = call_count.lock();
                 *mutex_guard += 1;
                 if *mutex_guard == 1 {
                     Err::<(), _>(*mutex_guard)
@@ -87,7 +85,7 @@ mod tests {
 
         let result = single_retry(create_fut, Duration::from_secs(10000)).await;
 
-        let guard = call_count.lock().unwrap();
+        let guard = call_count.lock();
         assert_eq!(*guard, 2);
         assert_eq!(result, Err(2));
     }
@@ -99,7 +97,7 @@ mod tests {
             let call_count = call_count.clone();
             async move {
                 let call_count = {
-                    let mut mutex_guard = call_count.lock().unwrap();
+                    let mut mutex_guard = call_count.lock();
                     *mutex_guard += 1;
                     *mutex_guard
                 };
@@ -114,7 +112,7 @@ mod tests {
 
         let result = single_retry(create_fut, Duration::from_millis(1)).await;
 
-        let guard = call_count.lock().unwrap();
+        let guard = call_count.lock();
         assert_eq!(*guard, 2);
         assert!(result.is_ok());
     }
@@ -126,7 +124,7 @@ mod tests {
             let call_count = call_count.clone();
             async move {
                 let call_count = {
-                    let mut mutex_guard = call_count.lock().unwrap();
+                    let mut mutex_guard = call_count.lock();
                     *mutex_guard += 1;
                     *mutex_guard
                 };
@@ -140,7 +138,7 @@ mod tests {
 
         let result = single_retry(create_fut, Duration::from_millis(1)).await;
 
-        let guard = call_count.lock().unwrap();
+        let guard = call_count.lock();
         assert_eq!(*guard, 1);
         assert!(result.is_ok());
     }

@@ -447,6 +447,7 @@ dependencies = [
  "lazy_static",
  "mockall",
  "once_cell",
+ "parking_lot 0.12.0",
  "percent-encoding 2.1.0",
  "pin-utils",
  "prometheus",
