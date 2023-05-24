@@ -64,7 +64,7 @@ pub async fn ban(
             return Err(AppErrorKind::OperationIdObsolete.into());
         }
 
-        if !op.last_op_done {
+        if !op.complete() {
             return Err(AppErrorKind::OperationInProgress.into());
         }
     }

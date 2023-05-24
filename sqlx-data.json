@@ -1195,73 +1195,6 @@
     },
     "query": "\n            UPDATE recording\n            SET modified_segments =\n                CASE\n                    WHEN created_by = $3 THEN $2\n                    ELSE segments\n                END,\n                adjusted_at = NOW()\n            WHERE class_id = $1 AND deleted_at IS NULL\n            RETURNING\n                id,\n                class_id,\n                rtc_id,\n                stream_uri,\n                segments AS \"segments!: Option<Segments>\",\n                started_at,\n                modified_segments AS \"modified_segments!: Option<Segments>\",\n                created_at,\n                adjusted_at,\n                transcoded_at,\n                created_by AS \"created_by: AgentId\",\n                deleted_at\n            "
   },
-  "6eeb28486097dd038afd6cfa21a1fa8cd5976caeb32c834290f8d3cad348065f": {
-    "describe": {
-      "columns": [
-        {
-          "name": "user_account: _",
-          "ordinal": 0,
-          "type_info": {
-            "Custom": {
-              "kind": {
-                "Composite": [
-                  [
-                    "label",
-                    "Text"
-                  ],
-                  [
-                    "audience",
-                    "Text"
-                  ]
-                ]
-              },
-              "name": "account_id"
-            }
-          }
-        },
-        {
-          "name": "last_op_id",
-          "ordinal": 1,
-          "type_info": "Uuid"
-        },
-        {
-          "name": "last_op_done",
-          "ordinal": 2,
-          "type_info": "Bool"
-        }
-      ],
-      "nullable": [
-        false,
-        false,
-        false
-      ],
-      "parameters": {
-        "Left": [
-          {
-            "Custom": {
-              "kind": {
-                "Composite": [
-                  [
-                    "label",
-                    "Text"
-                  ],
-                  [
-                    "audience",
-                    "Text"
-                  ]
-                ]
-              },
-              "name": "account_id"
-            }
-          },
-          "Uuid",
-          "Bool",
-          "Uuid"
-        ]
-      }
-    },
-    "query": "\n            INSERT INTO ban_account_op (user_account, last_op_id, last_op_done)\n            VALUES ($1, $2, $3)\n            ON CONFLICT (user_account) DO UPDATE\n            SET\n                last_op_done = EXCLUDED.last_op_done,\n                last_op_id   = EXCLUDED.last_op_id\n            WHERE\n                -- allow to 'complete' operation iff there's no change in last_op_id\n                -- or allow to do upsert without real changes so we can process\n                -- the same message twice\n                ban_account_op.last_op_id = EXCLUDED.last_op_id OR\n                -- allow change op id iff the previous operation is completed\n                (\n                    ban_account_op.last_op_id = $4 AND\n                    ban_account_op.last_op_done = true\n                )\n            RETURNING\n                user_account AS \"user_account: _\",\n                last_op_id,\n                last_op_done\n            "
-  },
   "7296ad8d156f41d717c88c4f20c012bc010531d460776813fd70b3141485aabe": {
     "describe": {
       "columns": [
@@ -1593,7 +1526,7 @@
     },
     "query": "\n                        SELECT\n                            id::text AS \"id!: String\"\n                        FROM class\n                        WHERE conference_room_id = $1\n                    "
   },
-  "822f926f43aa41ec0c5f772fb842755f8283283edf3c2c769506b3ed08a79607": {
+  "8cdcd79a99763311030cf8cdb85effaf8031104a08a3b118bdaaf33c4269980f": {
     "describe": {
       "columns": [
         {
@@ -1623,12 +1556,18 @@
           "type_info": "Uuid"
         },
         {
-          "name": "last_op_done",
+          "name": "video_complete",
           "ordinal": 2,
+          "type_info": "Bool"
+        },
+        {
+          "name": "event_access_complete",
+          "ordinal": 3,
           "type_info": "Bool"
         }
       ],
       "nullable": [
+        false,
         false,
         false,
         false
@@ -1639,7 +1578,7 @@
         ]
       }
     },
-    "query": "\n            SELECT\n                user_account AS \"user_account: _\",\n                last_op_id AS \"last_op_id: _\",\n                last_op_done\n            FROM ban_account_op\n            WHERE\n                user_account = $1\n            LIMIT 1;\n            "
+    "query": "\n            SELECT\n                user_account AS \"user_account: _\",\n                last_op_id AS \"last_op_id: _\",\n                video_complete,\n                event_access_complete\n            FROM ban_account_op\n            WHERE\n                user_account = $1\n            LIMIT 1;\n            "
   },
   "a4fc28b7fa8a6a5f4051750a2447784a10a221632dbea080fe1d4c980de076fd": {
     "describe": {
@@ -1813,6 +1752,80 @@
       }
     },
     "query": "\n            INSERT INTO recording (class_id, rtc_id, segments, modified_segments, stream_uri, started_at, adjusted_at, transcoded_at, created_by)\n            VALUES ($1, $2, $3, $4, $5, NOW(), NOW(), NOW(), $6)\n            RETURNING\n                id,\n                class_id,\n                rtc_id,\n                stream_uri,\n                segments AS \"segments!: Option<Segments>\",\n                started_at,\n                modified_segments AS \"modified_segments!: Option<Segments>\",\n                created_at,\n                adjusted_at,\n                transcoded_at,\n                created_by AS \"created_by: AgentId\",\n                deleted_at\n            "
+  },
+  "ad5a4328c5367ea842463346d51759c429921081fb8c9c8e103970d77209ff10": {
+    "describe": {
+      "columns": [
+        {
+          "name": "user_account: _",
+          "ordinal": 0,
+          "type_info": {
+            "Custom": {
+              "kind": {
+                "Composite": [
+                  [
+                    "label",
+                    "Text"
+                  ],
+                  [
+                    "audience",
+                    "Text"
+                  ]
+                ]
+              },
+              "name": "account_id"
+            }
+          }
+        },
+        {
+          "name": "last_op_id",
+          "ordinal": 1,
+          "type_info": "Uuid"
+        },
+        {
+          "name": "video_complete",
+          "ordinal": 2,
+          "type_info": "Bool"
+        },
+        {
+          "name": "event_access_complete",
+          "ordinal": 3,
+          "type_info": "Bool"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false,
+        false
+      ],
+      "parameters": {
+        "Left": [
+          {
+            "Custom": {
+              "kind": {
+                "Composite": [
+                  [
+                    "label",
+                    "Text"
+                  ],
+                  [
+                    "audience",
+                    "Text"
+                  ]
+                ]
+              },
+              "name": "account_id"
+            }
+          },
+          "Uuid",
+          "Bool",
+          "Bool",
+          "Uuid"
+        ]
+      }
+    },
+    "query": "\n            INSERT INTO ban_account_op (user_account, last_op_id, video_complete, event_access_complete)\n            VALUES ($1, $2, COALESCE($3, false), COALESCE($4, false))\n            ON CONFLICT (user_account) DO UPDATE\n            SET\n                video_complete        = COALESCE(EXCLUDED.video_complete, ban_account_op.video_complete),\n                event_access_complete = COALESCE(EXCLUDED.event_access_complete, ban_account_op.event_access_complete),\n                last_op_id            = EXCLUDED.last_op_id\n            WHERE\n                -- allow to 'complete' operation iff there's no change in last_op_id\n                -- or allow to do upsert without real changes so we can process\n                -- the same message twice\n                ban_account_op.last_op_id = EXCLUDED.last_op_id OR\n                -- allow change op id iff the previous operation is completed\n                (\n                    ban_account_op.last_op_id            = $5 AND\n                    ban_account_op.video_complete        = true AND\n                    ban_account_op.event_access_complete = true\n                )\n            RETURNING\n                user_account AS \"user_account: _\",\n                last_op_id,\n                video_complete,\n                event_access_complete\n            "
   },
   "c67188dde7672c71f7e14a0ef09047934fbf808e5541e1b35c88004f36c16c8b": {
     "describe": {

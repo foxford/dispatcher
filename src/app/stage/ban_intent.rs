@@ -12,6 +12,8 @@ use crate::{
     db::{self, ban_account_op},
 };
 
+use super::{FailureKind, HandleMsgFailure};
+
 const ENTITY_TYPE: &str = "ban-intent";
 
 pub async fn start(
@@ -37,11 +39,12 @@ pub async fn handle(
     ctx: &dyn AppContext,
     intent: BanIntentEventV1,
     intent_id: EventId,
-) -> Result<(), Error> {
+) -> Result<(), HandleMsgFailure<Error>> {
     let mut conn = ctx
         .get_conn()
         .await
-        .error(AppErrorKind::DbConnAcquisitionFailed)?;
+        .error(AppErrorKind::DbConnAcquisitionFailed)
+        .transient()?;
 
     // We need to update db here first, then schedule next stage, then acknowledge
     // current message. In case if we fail somewhere in between, we can continue
@@ -55,11 +58,15 @@ pub async fn handle(
     )
     .execute(&mut conn)
     .await
-    .error(AppErrorKind::DbQueryFailed)?
+    .error(AppErrorKind::DbQueryFailed)
+    .transient()?
     // failed to upsert -- we've lost the race
-    .ok_or(Error::from(AppErrorKind::OperationIdObsolete))?;
+    .ok_or(Error::from(AppErrorKind::OperationIdObsolete))
+    .permanent()?;
 
-    super::ban::start(ctx, intent, intent_id).await?;
+    super::ban::start(ctx, intent, intent_id)
+        .await
+        .transient()?;
 
     Ok(())
 }

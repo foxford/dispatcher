@@ -5,7 +5,14 @@ use uuid::Uuid;
 pub struct Object {
     pub user_account: AccountId,
     pub last_op_id: Uuid,
-    pub last_op_done: bool,
+    pub video_complete: bool,
+    pub event_access_complete: bool,
+}
+
+impl Object {
+    pub fn complete(&self) -> bool {
+        self.video_complete && self.event_access_complete
+    }
 }
 
 pub struct ReadQuery<'a> {
@@ -24,7 +31,8 @@ impl<'a> ReadQuery<'a> {
             SELECT
                 user_account AS "user_account: _",
                 last_op_id AS "last_op_id: _",
-                last_op_done
+                video_complete,
+                event_access_complete
             FROM ban_account_op
             WHERE
                 user_account = $1
@@ -55,7 +63,8 @@ pub async fn get_next_seq_id(conn: &mut PgConnection) -> sqlx::Result<NextSeqId>
 /// Returns `None` if `last_op_id` in database differs.
 pub struct UpsertQuery {
     user_account: AccountId,
-    op_done: bool,
+    video_complete: Option<bool>,
+    event_access_complete: Option<bool>,
     last_op_id: Uuid,
     new_op_id: Uuid,
 }
@@ -64,16 +73,28 @@ impl UpsertQuery {
     pub fn new_operation(user_account: AccountId, last_op_id: Uuid, new_op_id: Uuid) -> Self {
         Self {
             user_account,
-            op_done: false,
+            video_complete: None,
+            event_access_complete: None,
             last_op_id,
             new_op_id,
         }
     }
 
-    pub fn new_complete(user_account: AccountId, op_id: Uuid) -> Self {
+    pub fn new_video_complete(user_account: AccountId, op_id: Uuid) -> Self {
         Self {
             user_account,
-            op_done: true,
+            video_complete: Some(true),
+            event_access_complete: None,
+            last_op_id: op_id,
+            new_op_id: op_id,
+        }
+    }
+
+    pub fn new_event_access_complete(user_account: AccountId, op_id: Uuid) -> Self {
+        Self {
+            user_account,
+            video_complete: None,
+            event_access_complete: Some(true),
             last_op_id: op_id,
             new_op_id: op_id,
         }
@@ -83,12 +104,13 @@ impl UpsertQuery {
         sqlx::query_as!(
             Object,
             r#"
-            INSERT INTO ban_account_op (user_account, last_op_id, last_op_done)
-            VALUES ($1, $2, $3)
+            INSERT INTO ban_account_op (user_account, last_op_id, video_complete, event_access_complete)
+            VALUES ($1, $2, COALESCE($3, false), COALESCE($4, false))
             ON CONFLICT (user_account) DO UPDATE
             SET
-                last_op_done = EXCLUDED.last_op_done,
-                last_op_id   = EXCLUDED.last_op_id
+                video_complete        = COALESCE(EXCLUDED.video_complete, ban_account_op.video_complete),
+                event_access_complete = COALESCE(EXCLUDED.event_access_complete, ban_account_op.event_access_complete),
+                last_op_id            = EXCLUDED.last_op_id
             WHERE
                 -- allow to 'complete' operation iff there's no change in last_op_id
                 -- or allow to do upsert without real changes so we can process
@@ -96,17 +118,20 @@ impl UpsertQuery {
                 ban_account_op.last_op_id = EXCLUDED.last_op_id OR
                 -- allow change op id iff the previous operation is completed
                 (
-                    ban_account_op.last_op_id = $4 AND
-                    ban_account_op.last_op_done = true
+                    ban_account_op.last_op_id            = $5 AND
+                    ban_account_op.video_complete        = true AND
+                    ban_account_op.event_access_complete = true
                 )
             RETURNING
                 user_account AS "user_account: _",
                 last_op_id,
-                last_op_done
+                video_complete,
+                event_access_complete
             "#,
             self.user_account as AccountId,
             self.new_op_id,
-            self.op_done,
+            self.video_complete,
+            self.event_access_complete,
             self.last_op_id
         )
         .fetch_optional(conn)

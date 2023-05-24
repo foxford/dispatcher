@@ -42,6 +42,7 @@ pub enum ErrorKind {
     ClassAlreadyEstablished,
     OperationIdObsolete,
     OperationInProgress,
+    OperationFailure,
     NatsPublishFailed,
     NatsClientNotFound,
 }
@@ -206,6 +207,12 @@ impl From<ErrorKind> for ErrorKindProperties {
                 kind: "operation_in_progress",
                 title: "Operation is not completed yet, retry later",
                 is_notify_sentry: false,
+            },
+            ErrorKind::OperationFailure => ErrorKindProperties {
+                status: ResponseStatus::INTERNAL_SERVER_ERROR,
+                kind: "operation_failure",
+                title: "Operation failed really bad",
+                is_notify_sentry: true,
             },
             ErrorKind::NatsPublishFailed => ErrorKindProperties {
                 status: ResponseStatus::UNPROCESSABLE_ENTITY,
