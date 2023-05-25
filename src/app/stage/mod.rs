@@ -9,7 +9,6 @@ use crate::db;
 use super::AppContext;
 
 pub mod ban;
-pub mod ban_intent;
 
 pub async fn route_message(
     ctx: Arc<dyn AppContext>,
@@ -91,10 +90,10 @@ async fn do_route_msg(
     let r = match event {
         Event::V1(e) => match e {
             EventV1::BanIntent(intent) => {
-                ban_intent::handle(ctx.as_ref(), intent, event_id.clone()).await
+                ban::handle_intent(ctx.as_ref(), intent, event_id.clone()).await
             }
             EventV1::BanVideoStreamingCompleted(event) => {
-                ban::handle_video_complete(ctx.as_ref(), event).await
+                ban::handle_video_streaming_banned(ctx.as_ref(), event).await
             }
             EventV1::BanCollaborationCompleted(event) => {
                 ban::handle_collaboration_banned(ctx.as_ref(), event).await

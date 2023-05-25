@@ -2783,7 +2783,7 @@ dependencies = [
 [[package]]
 name = "svc-events"
 version = "0.3.0"
-source = "git+https://github.com/foxford/svc-events?branch=ULMS-1896/ban-events#70aad419dd5bcdd9d6d001fe9d6e19a8546c74ba"
+source = "git+https://github.com/foxford/svc-events?branch=ULMS-1896/ban-events#0beb9d5d128cd66481615d637188e5c7922f822b"
 dependencies = [
  "serde",
  "serde_json",
@@ -2795,7 +2795,7 @@ dependencies = [
 [[package]]
 name = "svc-nats-client"
 version = "0.2.0"
-source = "git+https://github.com/foxford/svc-nats-client/?branch=ULMS-1896/add-consumer-move-event-id#90aec7aef0379e771cc7ebe8a2bd8d55f656bb6e"
+source = "git+https://github.com/foxford/svc-nats-client/?branch=ULMS-1896/add-consumer-move-event-id#3ac5ec6f41e0635a63a89e7070741a1b5bff3421"
 dependencies = [
  "anyhow",
  "async-nats",

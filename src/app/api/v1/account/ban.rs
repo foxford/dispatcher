@@ -69,7 +69,7 @@ pub async fn ban(
         }
     }
 
-    stage::ban_intent::start(
+    stage::ban::save_intent(
         ctx.as_ref(),
         &mut conn,
         payload.ban,
