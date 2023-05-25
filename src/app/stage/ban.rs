@@ -7,7 +7,6 @@ use svc_events::{
     },
     EventId,
 };
-use uuid::Uuid;
 
 use crate::{
     app::{
@@ -34,7 +33,7 @@ pub async fn save_intent(
     class: &db::class::Object,
     sender: AccountId,
     user_account: AccountId,
-    last_op_id: Uuid,
+    last_op_id: i64,
 ) -> Result<(), Error> {
     let event_id = get_next_event_id(conn).await?;
     let event = BanIntentV1 {
@@ -42,7 +41,6 @@ pub async fn save_intent(
         classroom_id: class.id(),
         user_account,
         last_op_id,
-        new_op_id: Uuid::new_v4(),
         sender,
     };
     nats::publish_event(ctx, class.id(), &event_id, event.into()).await
@@ -82,7 +80,7 @@ pub async fn handle_intent(
     let op = ban_account_op::UpsertQuery::new_operation(
         intent.user_account.clone(),
         intent.last_op_id,
-        intent.new_op_id,
+        intent_id.sequence_id(),
     )
     .execute(&mut conn)
     .await
@@ -115,20 +113,31 @@ pub async fn accept(
         intent_id.sequence_id(),
     )
         .into();
-    let event = BanAcceptedV1::from(intent);
+    let event = BanAcceptedV1 {
+        ban: intent.ban,
+        classroom_id: intent.classroom_id,
+        user_account: intent.user_account,
+        op_id: intent_id.sequence_id(),
+    };
+
     nats::publish_event(ctx, event.classroom_id, &event_id, event.into()).await
 }
 
 async fn reject(
     ctx: &dyn AppContext,
-    event: BanIntentV1,
-    original_event_id: &EventId,
+    intent: BanIntentV1,
+    intent_id: &EventId,
 ) -> Result<(), Error> {
-    let event = BanRejectedV1::from(event);
+    let event = BanRejectedV1 {
+        ban: intent.ban,
+        classroom_id: intent.classroom_id,
+        user_account: intent.user_account,
+        op_id: intent_id.sequence_id(),
+    };
     let event_id = (
         ENTITY_TYPE.to_owned(),
         REJECTED_OP.to_owned(),
-        original_event_id.sequence_id(),
+        intent_id.sequence_id(),
     )
         .into();
     // TODO: publish as personal notification

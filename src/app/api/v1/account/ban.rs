@@ -22,8 +22,7 @@ use super::AppResult;
 
 #[derive(Deserialize)]
 pub struct BanPayload {
-    // TODO: maybe Option?
-    last_seen_op_id: Uuid,
+    last_seen_op_id: i64,
     ban: bool,
     class_id: Uuid,
 }

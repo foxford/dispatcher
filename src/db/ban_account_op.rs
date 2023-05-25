@@ -1,10 +1,9 @@
 use sqlx::PgConnection;
 use svc_authn::AccountId;
-use uuid::Uuid;
 
 pub struct Object {
     pub user_account: AccountId,
-    pub last_op_id: Uuid,
+    pub last_op_id: i64,
     pub is_video_streaming_banned: bool,
     pub is_collaboration_banned: bool,
 }
@@ -65,12 +64,12 @@ pub struct UpsertQuery {
     user_account: AccountId,
     is_video_streaming_banned: Option<bool>,
     is_collaboration_banned: Option<bool>,
-    last_op_id: Uuid,
-    new_op_id: Uuid,
+    last_op_id: i64,
+    new_op_id: i64,
 }
 
 impl UpsertQuery {
-    pub fn new_operation(user_account: AccountId, last_op_id: Uuid, new_op_id: Uuid) -> Self {
+    pub fn new_operation(user_account: AccountId, last_op_id: i64, new_op_id: i64) -> Self {
         Self {
             user_account,
             is_video_streaming_banned: None,
@@ -80,7 +79,7 @@ impl UpsertQuery {
         }
     }
 
-    pub fn new_video_streaming_banned(user_account: AccountId, op_id: Uuid) -> Self {
+    pub fn new_video_streaming_banned(user_account: AccountId, op_id: i64) -> Self {
         Self {
             user_account,
             is_video_streaming_banned: Some(true),
@@ -90,7 +89,7 @@ impl UpsertQuery {
         }
     }
 
-    pub fn new_collaboration_banned(user_account: AccountId, op_id: Uuid) -> Self {
+    pub fn new_collaboration_banned(user_account: AccountId, op_id: i64) -> Self {
         Self {
             user_account,
             is_video_streaming_banned: None,
