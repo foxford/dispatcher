@@ -63,7 +63,7 @@ async fn do_route_msg(
         .permanent()?;
 
     let classroom_id = subject.classroom_id();
-    let room = {
+    let _room = {
         let mut conn = ctx
             .get_conn()
             .await
@@ -85,7 +85,7 @@ async fn do_route_msg(
     let headers = svc_nats_client::Headers::try_from(msg.headers.clone().unwrap_or_default())
         .context("parse nats headers")
         .permanent()?;
-    let agent_id = headers.sender_id();
+    let _agent_id = headers.sender_id();
     let event_id = headers.event_id();
 
     let r = match event {
@@ -93,16 +93,11 @@ async fn do_route_msg(
             EventV1::BanIntent(intent) => {
                 ban_intent::handle(ctx.as_ref(), intent, event_id.clone()).await
             }
-            EventV1::BanVideoComplete(video_complete) => {
-                ban::handle_video_complete(ctx.as_ref(), video_complete, event_id.clone()).await
+            EventV1::BanVideoStreamingCompleted(event) => {
+                ban::handle_video_complete(ctx.as_ref(), event).await
             }
-            EventV1::BanEventAccessComplete(event_access_complete) => {
-                ban::handle_event_access_complete(
-                    ctx.as_ref(),
-                    event_access_complete,
-                    event_id.clone(),
-                )
-                .await
+            EventV1::BanCollaborationCompleted(event) => {
+                ban::handle_collaboration_banned(ctx.as_ref(), event).await
             }
             _ => Ok(()),
         },
@@ -112,7 +107,7 @@ async fn do_route_msg(
         Ok(_) => Ok(()),
         Err(HandleMsgFailure::Transient(e)) => Err(HandleMsgFailure::Transient(anyhow!(e))),
         Err(HandleMsgFailure::Permanent(e)) => {
-            // TODO: send notification about error
+            e.notify_sentry();
             Err(HandleMsgFailure::Permanent(anyhow!(e)))
         }
     }

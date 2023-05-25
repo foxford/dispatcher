@@ -2783,7 +2783,7 @@ dependencies = [
 [[package]]
 name = "svc-events"
 version = "0.3.0"
-source = "git+https://github.com/foxford/svc-events?branch=ULMS-1896/ban-events#469baab9fbf245d9e584b8b335b5708361fb4d55"
+source = "git+https://github.com/foxford/svc-events?branch=ULMS-1896/ban-events#70aad419dd5bcdd9d6d001fe9d6e19a8546c74ba"
 dependencies = [
  "serde",
  "serde_json",

@@ -1,6 +1,6 @@
 use sqlx::PgConnection;
 use svc_authn::AccountId;
-use svc_events::{ban::BanIntentEventV1, EventId};
+use svc_events::{ban::BanIntentV1, EventId};
 use uuid::Uuid;
 
 use crate::{
@@ -21,23 +21,25 @@ pub async fn start(
     conn: &mut PgConnection,
     ban: bool,
     class: &db::class::Object,
+    sender: AccountId,
     user_account: AccountId,
     last_op_id: Uuid,
 ) -> Result<(), Error> {
     let event_id = get_next_event_id(conn).await?;
-    let event = BanIntentEventV1 {
+    let event = BanIntentV1 {
         ban,
         classroom_id: class.id(),
         user_account,
         last_op_id,
         new_op_id: Uuid::new_v4(),
+        sender,
     };
     nats::publish_event(ctx, class.id(), &event_id, event.into()).await
 }
 
 pub async fn handle(
     ctx: &dyn AppContext,
-    intent: BanIntentEventV1,
+    intent: BanIntentV1,
     intent_id: EventId,
 ) -> Result<(), HandleMsgFailure<Error>> {
     let mut conn = ctx
@@ -60,7 +62,7 @@ pub async fn handle(
     .await
     .error(AppErrorKind::DbQueryFailed)
     .transient()?
-    // failed to upsert -- we've lost the race
+    // failed to upsert -- we've lost the race -- need to send event here
     .ok_or(Error::from(AppErrorKind::OperationIdObsolete))
     .permanent()?;
 

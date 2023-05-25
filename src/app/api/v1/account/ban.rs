@@ -64,7 +64,7 @@ pub async fn ban(
             return Err(AppErrorKind::OperationIdObsolete.into());
         }
 
-        if !op.complete() {
+        if !op.is_completed() {
             return Err(AppErrorKind::OperationInProgress.into());
         }
     }
@@ -74,6 +74,7 @@ pub async fn ban(
         &mut conn,
         payload.ban,
         &class,
+        account_id,
         account_to_ban,
         payload.last_seen_op_id,
     )

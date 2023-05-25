@@ -5,13 +5,13 @@ use uuid::Uuid;
 pub struct Object {
     pub user_account: AccountId,
     pub last_op_id: Uuid,
-    pub video_complete: bool,
-    pub event_access_complete: bool,
+    pub is_video_streaming_banned: bool,
+    pub is_collaboration_banned: bool,
 }
 
 impl Object {
-    pub fn complete(&self) -> bool {
-        self.video_complete && self.event_access_complete
+    pub fn is_completed(&self) -> bool {
+        self.is_video_streaming_banned && self.is_collaboration_banned
     }
 }
 
@@ -31,8 +31,8 @@ impl<'a> ReadQuery<'a> {
             SELECT
                 user_account AS "user_account: _",
                 last_op_id AS "last_op_id: _",
-                video_complete,
-                event_access_complete
+                is_video_streaming_banned,
+                is_collaboration_banned
             FROM ban_account_op
             WHERE
                 user_account = $1
@@ -63,8 +63,8 @@ pub async fn get_next_seq_id(conn: &mut PgConnection) -> sqlx::Result<NextSeqId>
 /// Returns `None` if `last_op_id` in database differs.
 pub struct UpsertQuery {
     user_account: AccountId,
-    video_complete: Option<bool>,
-    event_access_complete: Option<bool>,
+    is_video_streaming_banned: Option<bool>,
+    is_collaboration_banned: Option<bool>,
     last_op_id: Uuid,
     new_op_id: Uuid,
 }
@@ -73,28 +73,28 @@ impl UpsertQuery {
     pub fn new_operation(user_account: AccountId, last_op_id: Uuid, new_op_id: Uuid) -> Self {
         Self {
             user_account,
-            video_complete: None,
-            event_access_complete: None,
+            is_video_streaming_banned: None,
+            is_collaboration_banned: None,
             last_op_id,
             new_op_id,
         }
     }
 
-    pub fn new_video_complete(user_account: AccountId, op_id: Uuid) -> Self {
+    pub fn new_video_streaming_banned(user_account: AccountId, op_id: Uuid) -> Self {
         Self {
             user_account,
-            video_complete: Some(true),
-            event_access_complete: None,
+            is_video_streaming_banned: Some(true),
+            is_collaboration_banned: None,
             last_op_id: op_id,
             new_op_id: op_id,
         }
     }
 
-    pub fn new_event_access_complete(user_account: AccountId, op_id: Uuid) -> Self {
+    pub fn new_collaboration_banned(user_account: AccountId, op_id: Uuid) -> Self {
         Self {
             user_account,
-            video_complete: None,
-            event_access_complete: Some(true),
+            is_video_streaming_banned: None,
+            is_collaboration_banned: Some(true),
             last_op_id: op_id,
             new_op_id: op_id,
         }
@@ -104,34 +104,34 @@ impl UpsertQuery {
         sqlx::query_as!(
             Object,
             r#"
-            INSERT INTO ban_account_op (user_account, last_op_id, video_complete, event_access_complete)
+            INSERT INTO ban_account_op (user_account, last_op_id, is_video_streaming_banned, is_collaboration_banned)
             VALUES ($1, $2, COALESCE($3, false), COALESCE($4, false))
             ON CONFLICT (user_account) DO UPDATE
             SET
-                video_complete        = COALESCE(EXCLUDED.video_complete, ban_account_op.video_complete),
-                event_access_complete = COALESCE(EXCLUDED.event_access_complete, ban_account_op.event_access_complete),
-                last_op_id            = EXCLUDED.last_op_id
+                is_video_streaming_banned = COALESCE(EXCLUDED.is_video_streaming_banned, ban_account_op.is_video_streaming_banned),
+                is_collaboration_banned   = COALESCE(EXCLUDED.is_collaboration_banned, ban_account_op.is_collaboration_banned),
+                last_op_id                = EXCLUDED.last_op_id
             WHERE
-                -- allow to 'complete' operation iff there's no change in last_op_id
+                -- allow to 'complete' operation if there's no change in last_op_id
                 -- or allow to do upsert without real changes so we can process
                 -- the same message twice
                 ban_account_op.last_op_id = EXCLUDED.last_op_id OR
-                -- allow change op id iff the previous operation is completed
+                -- allow change op id if the previous operation is completed
                 (
-                    ban_account_op.last_op_id            = $5 AND
-                    ban_account_op.video_complete        = true AND
-                    ban_account_op.event_access_complete = true
+                    ban_account_op.last_op_id                = $5 AND
+                    ban_account_op.is_video_streaming_banned = true AND
+                    ban_account_op.is_collaboration_banned   = true
                 )
             RETURNING
                 user_account AS "user_account: _",
                 last_op_id,
-                video_complete,
-                event_access_complete
+                is_video_streaming_banned,
+                is_collaboration_banned
             "#,
             self.user_account as AccountId,
             self.new_op_id,
-            self.video_complete,
-            self.event_access_complete,
+            self.is_video_streaming_banned,
+            self.is_collaboration_banned,
             self.last_op_id
         )
         .fetch_optional(conn)
