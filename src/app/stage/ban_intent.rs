@@ -1,6 +1,9 @@
 use sqlx::PgConnection;
 use svc_authn::AccountId;
-use svc_events::{ban::BanIntentV1, EventId};
+use svc_events::{
+    ban::{BanIntentV1, BanRejectedV1},
+    EventId,
+};
 use uuid::Uuid;
 
 use crate::{
@@ -53,7 +56,7 @@ pub async fn handle(
     // processing as if nothing happened -- subsequent upserts will be successful,
     // attempts to schedule the same message will fail (dedup).
 
-    ban_account_op::UpsertQuery::new_operation(
+    let op = ban_account_op::UpsertQuery::new_operation(
         intent.user_account.clone(),
         intent.last_op_id,
         intent.new_op_id,
@@ -61,16 +64,36 @@ pub async fn handle(
     .execute(&mut conn)
     .await
     .error(AppErrorKind::DbQueryFailed)
-    .transient()?
-    // failed to upsert -- we've lost the race -- need to send event here
-    .ok_or(Error::from(AppErrorKind::OperationIdObsolete))
-    .permanent()?;
+    .transient()?;
 
-    super::ban::start(ctx, intent, intent_id)
-        .await
-        .transient()?;
+    match op {
+        Some(_) => {
+            super::ban::start(ctx, intent, intent_id)
+                .await
+                .transient()?;
+        }
+        // failed to upsert -- we've lost the race
+        None => {
+            reject(ctx, intent, &intent_id).await.transient()?;
+        }
+    }
 
     Ok(())
+}
+
+async fn reject(
+    ctx: &dyn AppContext,
+    event: BanIntentV1,
+    original_event_id: &EventId,
+) -> Result<(), Error> {
+    let event = BanRejectedV1::from(event);
+    let event_id = (
+        "ban-intent-rejected".to_owned(),
+        original_event_id.sequence_id(),
+    )
+        .into();
+    // TODO: publish as personal notification
+    nats::publish_event(ctx, event.classroom_id, &event_id, event.into()).await
 }
 
 async fn get_next_event_id(conn: &mut PgConnection) -> Result<EventId, Error> {
