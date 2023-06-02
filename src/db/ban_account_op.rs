@@ -19,7 +19,7 @@ pub struct ReadQuery<'a> {
 }
 
 impl<'a> ReadQuery<'a> {
-    pub fn by_id(user_account: &'a AccountId) -> Self {
+    pub fn by_account_id(user_account: &'a AccountId) -> Self {
         Self { user_account }
     }
 

@@ -53,7 +53,7 @@ pub async fn ban(
         .await
         .error(AppErrorKind::DbConnAcquisitionFailed)?;
 
-    let last_ban_account_op = ban_account_op::ReadQuery::by_id(&account_to_ban)
+    let last_ban_account_op = ban_account_op::ReadQuery::by_account_id(&account_to_ban)
         .execute(&mut conn)
         .await
         .error(AppErrorKind::DbQueryFailed)?;
