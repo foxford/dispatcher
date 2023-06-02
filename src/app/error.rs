@@ -42,7 +42,7 @@ pub enum ErrorKind {
     ClassAlreadyEstablished,
     OperationIdObsolete,
     OperationInProgress,
-    OperationFailure,
+    OperationFailed,
     NatsPublishFailed,
     NatsClientNotFound,
 }
