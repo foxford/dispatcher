@@ -208,9 +208,9 @@ impl From<ErrorKind> for ErrorKindProperties {
                 title: "Operation is not completed yet, retry later",
                 is_notify_sentry: false,
             },
-            ErrorKind::OperationFailure => ErrorKindProperties {
+            ErrorKind::OperationFailed => ErrorKindProperties {
                 status: ResponseStatus::INTERNAL_SERVER_ERROR,
-                kind: "operation_failure",
+                kind: "operation_failed",
                 title: "Operation failed really bad",
                 is_notify_sentry: true,
             },

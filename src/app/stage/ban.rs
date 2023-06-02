@@ -162,7 +162,7 @@ pub async fn handle_video_streaming_banned(
     .await
     .error(AppErrorKind::DbQueryFailed)
     .transient()?
-    .ok_or(Error::from(AppErrorKind::OperationFailure))
+    .ok_or(Error::from(AppErrorKind::OperationFailed))
     .permanent()?;
 
     if op.is_completed() {
@@ -193,7 +193,7 @@ pub async fn handle_collaboration_banned(
     .await
     .error(AppErrorKind::DbQueryFailed)
     .transient()?
-    .ok_or(Error::from(AppErrorKind::OperationFailure))
+    .ok_or(Error::from(AppErrorKind::OperationFailed))
     .permanent()?;
 
     if op.is_completed() {
