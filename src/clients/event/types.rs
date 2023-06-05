@@ -140,7 +140,7 @@ pub trait MqttRequest: Clone + serde::Serialize {
 
     fn method(&self) -> &'static str;
     fn payload(&self) -> JsonValue {
-        serde_json::to_value(&self).unwrap()
+        serde_json::to_value(self).unwrap()
     }
 }
 

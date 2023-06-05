@@ -64,10 +64,11 @@ pub fn parse_segments(segments: &str) -> Result<(DateTime<Utc>, Segments)> {
         })
         .collect::<Vec<_>>();
     let absolute_started_at = {
-        let naive_datetime = NaiveDateTime::from_timestamp(
+        let naive_datetime = NaiveDateTime::from_timestamp_opt(
             absolute_started_at / 1000,
             ((absolute_started_at % 1000) * 1_000_000) as u32,
-        );
+        )
+        .ok_or(anyhow!("invalid or out-of-range datetime"))?;
 
         DateTime::<Utc>::from_utc(naive_datetime, Utc)
     };
