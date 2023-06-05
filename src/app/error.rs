@@ -241,11 +241,11 @@ impl IntoResponse for Error {
         let properties: ErrorKindProperties = self.kind.into();
 
         let span = tracing::Span::current();
-        span.record("kind", &properties.kind);
+        span.record("kind", properties.kind);
 
         if let Some(err) = &self.err {
             let detail = err.to_string();
-            span.record("detail", &detail.as_str());
+            span.record("detail", detail.as_str());
         }
 
         (properties.status, Json(&self.to_svc_error())).into_response()
