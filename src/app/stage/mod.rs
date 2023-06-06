@@ -3,7 +3,7 @@ use std::{convert::TryFrom, str::FromStr, sync::Arc};
 use anyhow::Context;
 use svc_events::{Event, EventV1};
 use svc_nats_client::{
-    consumer::{FailureKind, HandleMessageFailure, FailureKindExt},
+    consumer::{FailureKind, FailureKindExt, HandleMessageFailure},
     Subject,
 };
 
