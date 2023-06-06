@@ -82,7 +82,11 @@ pub(crate) mod ts_seconds_bound_tuple {
         {
             let lt = match seq.next_element()? {
                 Some(Some(val)) => {
-                    let dt = DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(val, 0), Utc);
+                    let ndt = NaiveDateTime::from_timestamp_opt(val, 0).ok_or(
+                        de::Error::custom(format!("cannot convert {val} secs to NaiveDateTime")),
+                    )?;
+                    let dt = DateTime::<Utc>::from_utc(ndt, Utc);
+
                     Bound::Included(dt)
                 }
                 Some(None) => Bound::Unbounded,
@@ -91,7 +95,10 @@ pub(crate) mod ts_seconds_bound_tuple {
 
             let rt = match seq.next_element()? {
                 Some(Some(val)) => {
-                    let dt = DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(val, 0), Utc);
+                    let ndt = NaiveDateTime::from_timestamp_opt(val, 0).ok_or(
+                        de::Error::custom(format!("cannot convert {val} secs to NaiveDateTime")),
+                    )?;
+                    let dt = DateTime::<Utc>::from_utc(ndt, Utc);
                     Bound::Excluded(dt)
                 }
                 Some(None) => Bound::Unbounded,

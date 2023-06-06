@@ -1,4 +1,5 @@
-use std::sync::{Arc, Mutex};
+use parking_lot::Mutex;
+use std::sync::Arc;
 
 use anyhow::Result;
 use async_trait::async_trait;
@@ -279,10 +280,7 @@ impl TestPublisher {
     }
 
     pub fn flush(&self) -> Vec<OutgoingEnvelope> {
-        let mut messages_lock = self
-            .messages
-            .lock()
-            .expect("Failed to obtain messages lock");
+        let mut messages_lock = self.messages.lock();
 
         (*messages_lock).drain(0..).collect::<Vec<_>>()
     }
@@ -296,11 +294,7 @@ impl Publisher for TestPublisher {
             .expect("Failed to parse dumped message");
 
         parsed_message.set_topic(dump.topic());
-
-        let mut messages_lock = self
-            .messages
-            .lock()
-            .expect("Failed to obtain messages lock");
+        let mut messages_lock = self.messages.lock();
 
         (*messages_lock).push(parsed_message);
         Ok(())
