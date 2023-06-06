@@ -3012,8 +3012,7 @@ dependencies = [
 [[package]]
 name = "svc-events"
 version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "15432fcea5a7eaa54236ee253e2b573bd720ef6c94a7849be17804200830b7d5"
+source = "git+https://github.com/foxford/svc-events?branch=ULMS-1896/use-agent-id-intent#330d270763929832d32f9f15df448ac95322674a"
 dependencies = [
  "serde",
  "serde_json",
@@ -3026,7 +3025,7 @@ dependencies = [
 [[package]]
 name = "svc-nats-client"
 version = "0.4.0"
-source = "git+https://github.com/foxford/svc-nats-client/?branch=ULMS-1896/add-transient-permanent-errors#705d841c12fbc0b26233fb5935b362540d40ff80"
+source = "git+https://github.com/foxford/svc-nats-client/?branch=ULMS-1896/add-transient-permanent-errors#7d5ecf35b2cb6d2278ff48b5bfb65cc969a20b8a"
 dependencies = [
  "anyhow",
  "async-nats",

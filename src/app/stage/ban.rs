@@ -1,4 +1,5 @@
 use sqlx::PgConnection;
+use svc_agent::AgentId;
 use svc_authn::AccountId;
 use svc_events::{
     ban::{
@@ -31,7 +32,7 @@ pub async fn save_intent(
     conn: &mut PgConnection,
     ban: bool,
     class: &db::class::Object,
-    sender: AccountId,
+    sender: AgentId,
     target_account: AccountId,
     last_operation_id: i64,
 ) -> Result<(), Error> {
@@ -43,7 +44,14 @@ pub async fn save_intent(
         target_account,
         last_operation_id,
     };
-    nats::publish_event(ctx, class.id(), &event_id, event.into()).await
+    nats::publish_event(
+        ctx,
+        class.id(),
+        &event_id,
+        event.into(),
+        nats::Options::default(),
+    )
+    .await
 }
 
 async fn get_next_event_id(conn: &mut PgConnection) -> Result<EventId, Error> {
@@ -120,7 +128,14 @@ pub async fn accept(
         operation_id: intent_id.sequence_id(),
     };
 
-    nats::publish_event(ctx, event.classroom_id, &event_id, event.into()).await
+    nats::publish_event(
+        ctx,
+        event.classroom_id,
+        &event_id,
+        event.into(),
+        nats::Options::default(),
+    )
+    .await
 }
 
 async fn reject(
@@ -140,8 +155,14 @@ async fn reject(
         intent_id.sequence_id(),
     )
         .into();
-    // TODO: publish as personal notification
-    nats::publish_event(ctx, event.classroom_id, &event_id, event.into()).await
+    nats::publish_event(
+        ctx,
+        event.classroom_id,
+        &event_id,
+        event.into(),
+        nats::Options::default().receiver_id(intent.sender),
+    )
+    .await
 }
 
 pub async fn handle_video_streaming_banned(
@@ -218,5 +239,12 @@ async fn finish(
     )
         .into();
     let event: BanCompletedV1 = event.into();
-    nats::publish_event(ctx, event.classroom_id, &event_id, event.into()).await
+    nats::publish_event(
+        ctx,
+        event.classroom_id,
+        &event_id,
+        event.into(),
+        nats::Options::default(),
+    )
+    .await
 }

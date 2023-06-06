@@ -3,10 +3,10 @@ use std::sync::Arc;
 use axum::{extract::Path, response::Response, Extension, Json};
 use hyper::Body;
 use serde_derive::Deserialize;
-use svc_authn::AccountId;
+use svc_authn::{AccountId, Authenticable};
 use uuid::Uuid;
 
-use svc_utils::extractors::AccountIdExtractor;
+use svc_utils::extractors::AgentIdExtractor;
 
 use crate::{
     app::{
@@ -30,7 +30,7 @@ pub struct BanPayload {
 pub async fn ban(
     Extension(ctx): Extension<Arc<dyn AppContext>>,
     Path(account_to_ban): Path<AccountId>,
-    AccountIdExtractor(account_id): AccountIdExtractor,
+    AgentIdExtractor(agent_id): AgentIdExtractor,
     Json(payload): Json<BanPayload>,
 ) -> AppResult {
     let class = find_class(ctx.as_ref(), payload.class_id)
@@ -41,7 +41,7 @@ pub async fn ban(
     ctx.authz()
         .authorize(
             class.audience().to_owned(),
-            account_id.clone(),
+            agent_id.as_account_id().clone(),
             object,
             "update".into(),
         )
@@ -73,7 +73,7 @@ pub async fn ban(
         &mut conn,
         payload.ban,
         &class,
-        account_id,
+        agent_id,
         account_to_ban,
         payload.last_seen_op_id,
     )
