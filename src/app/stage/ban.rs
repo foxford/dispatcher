@@ -17,7 +17,7 @@ use crate::{
     db::{self, ban_account_op},
 };
 
-use super::{FailureKind, HandleMsgFailure};
+use super::{FailureKind, HandleMessageFailure};
 
 const ENTITY_TYPE: &str = "ban";
 
@@ -65,7 +65,7 @@ pub async fn handle_intent(
     ctx: &dyn AppContext,
     intent: BanIntentV1,
     intent_id: EventId,
-) -> Result<(), HandleMsgFailure<Error>> {
+) -> Result<(), HandleMessageFailure<Error>> {
     let mut conn = ctx
         .get_conn()
         .await
@@ -147,7 +147,7 @@ async fn reject(
 pub async fn handle_video_streaming_banned(
     ctx: &dyn AppContext,
     video_streaming_banned: BanVideoStreamingCompletedV1,
-) -> Result<(), HandleMsgFailure<Error>> {
+) -> Result<(), HandleMessageFailure<Error>> {
     let mut conn = ctx
         .get_conn()
         .await
@@ -178,7 +178,7 @@ pub async fn handle_video_streaming_banned(
 pub async fn handle_collaboration_banned(
     ctx: &dyn AppContext,
     collaboration_banned: BanCollaborationCompletedV1,
-) -> Result<(), HandleMsgFailure<Error>> {
+) -> Result<(), HandleMessageFailure<Error>> {
     let mut conn = ctx
         .get_conn()
         .await

@@ -2,7 +2,10 @@ use std::{convert::TryFrom, str::FromStr, sync::Arc};
 
 use anyhow::Context;
 use svc_events::{Event, EventV1};
-use svc_nats_client::{consumer::HandleMessageOutcome, Subject};
+use svc_nats_client::{
+    consumer::{FailureKind, HandleMessageFailure, FailureKindExt},
+    Subject,
+};
 
 use crate::db;
 
@@ -13,46 +16,7 @@ pub mod ban;
 pub async fn route_message(
     ctx: Arc<dyn AppContext>,
     msg: Arc<svc_nats_client::Message>,
-) -> HandleMessageOutcome {
-    match do_route_msg(ctx, msg).await {
-        Ok(_) => HandleMessageOutcome::Processed,
-        Err(HandleMsgFailure::Transient(e)) => {
-            tracing::error!(%e, "transient failure, retrying");
-            HandleMessageOutcome::ProcessLater
-        }
-        Err(HandleMsgFailure::Permanent(e)) => {
-            tracing::error!(%e, "permanent failure, won't process");
-            HandleMessageOutcome::WontProcess
-        }
-    }
-}
-
-pub enum HandleMsgFailure<E> {
-    Transient(E),
-    Permanent(E),
-}
-
-trait FailureKind<T, E> {
-    /// This error can be fixed by retrying later.
-    fn transient(self) -> Result<T, HandleMsgFailure<E>>;
-    /// This error can't be fixed by retrying later (parse failure, unknown id, etc).
-    fn permanent(self) -> Result<T, HandleMsgFailure<E>>;
-}
-
-impl<T, E> FailureKind<T, E> for Result<T, E> {
-    fn transient(self) -> Result<T, HandleMsgFailure<E>> {
-        self.map_err(|e| HandleMsgFailure::Transient(e))
-    }
-
-    fn permanent(self) -> Result<T, HandleMsgFailure<E>> {
-        self.map_err(|e| HandleMsgFailure::Permanent(e))
-    }
-}
-
-async fn do_route_msg(
-    ctx: Arc<dyn AppContext>,
-    msg: Arc<svc_nats_client::Message>,
-) -> Result<(), HandleMsgFailure<anyhow::Error>> {
+) -> Result<(), HandleMessageFailure<anyhow::Error>> {
     let subject = Subject::from_str(&msg.subject)
         .context("parse nats subject")
         .permanent()?;
@@ -102,12 +66,5 @@ async fn do_route_msg(
         },
     };
 
-    match r {
-        Ok(_) => Ok(()),
-        Err(HandleMsgFailure::Transient(e)) => Err(HandleMsgFailure::Transient(anyhow!(e))),
-        Err(HandleMsgFailure::Permanent(e)) => {
-            e.notify_sentry();
-            Err(HandleMsgFailure::Permanent(anyhow!(e)))
-        }
-    }
+    FailureKindExt::map_err(r, |e| anyhow::anyhow!(e))
 }

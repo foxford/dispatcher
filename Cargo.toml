@@ -57,7 +57,7 @@ svc-error = { version = "0.5", features = [
     "sqlx",
 ] }
 svc-events = "0.7"
-svc-nats-client = { git = "https://github.com/foxford/svc-nats-client/", branch = "ULMS-1896/add-consumer-move-event-id" }
+svc-nats-client = { git = "https://github.com/foxford/svc-nats-client/", branch = "ULMS-1896/add-transient-permanent-errors" }
 svc-utils = { version = "0.7", features = ["log-middleware", "metrics-middleware", "cors-middleware", "authn-extractor"] }
 tokio = { version = "1.28", features = ["full"] }
 tower = { version = "0.4", features = [ "timeout" ] }
