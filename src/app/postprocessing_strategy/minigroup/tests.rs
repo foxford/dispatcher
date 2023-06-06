@@ -969,19 +969,19 @@ mod collect_pinned_events {
                 .room_id(event_room_id)
                 .set(PIN_EVENT_TYPE.to_string())
                 .data(EventData::Pin(PinEventData::new(agent_id.to_owned())))
-                .occurred_at(2041237_463_815)
+                .occurred_at(2_041_237_463_815)
                 .build(),
             EventBuilder::new()
                 .room_id(event_room_id)
                 .set(PIN_EVENT_TYPE.to_string())
                 .data(EventData::Pin(PinEventData::new(agent_id.to_owned())))
-                .occurred_at(2041238_581_600)
+                .occurred_at(2_041_238_581_600)
                 .build(),
             EventBuilder::new()
                 .room_id(event_room_id)
                 .set(PIN_EVENT_TYPE.to_string())
                 .data(EventData::Pin(PinEventData::null()))
-                .occurred_at(2093817_792_770)
+                .occurred_at(2_093_817_792_770)
                 .build(),
         ];
 
@@ -1013,13 +1013,13 @@ mod collect_pinned_events {
                 .room_id(event_room_id)
                 .set(PIN_EVENT_TYPE.to_string())
                 .data(EventData::Pin(PinEventData::new(agent_id.to_owned())))
-                .occurred_at(3312020_000_001)
+                .occurred_at(3_312_020_000_001)
                 .build(),
             EventBuilder::new()
                 .room_id(event_room_id)
                 .set(PIN_EVENT_TYPE.to_string())
                 .data(EventData::Pin(PinEventData::null()))
-                .occurred_at(3312020_000_003)
+                .occurred_at(3_312_020_000_003)
                 .build(),
         ];
 

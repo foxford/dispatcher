@@ -221,7 +221,7 @@ mod tests {
             // Assert DB changes.
             let mut conn = state.get_conn().await.expect("Failed to get conn");
 
-            let new_webinar = WebinarReadQuery::by_scope(USR_AUDIENCE, &webinar.scope())
+            let new_webinar = WebinarReadQuery::by_scope(USR_AUDIENCE, webinar.scope())
                 .execute(&mut conn)
                 .await
                 .expect("Failed to fetch webinar")

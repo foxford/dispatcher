@@ -1,6 +1,6 @@
-pub const SVC_AUDIENCE: &'static str = "dev.svc.example.org";
-pub const USR_AUDIENCE: &'static str = "dev.usr.example.com";
-pub const TOKEN_ISSUER: &'static str = "iam.svc.example.com";
+pub const SVC_AUDIENCE: &str = "dev.svc.example.org";
+pub const USR_AUDIENCE: &str = "dev.usr.example.com";
+pub const TOKEN_ISSUER: &str = "iam.svc.example.com";
 pub const PUBKEY_PATH: &str = "data/keys/svc.public_key.p8.der.sample";
 
 pub mod prelude {

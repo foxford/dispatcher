@@ -244,7 +244,8 @@ mod tests {
 
         let webinar = {
             let mut conn = db_pool.get_conn().await;
-            let webinar = factory::Webinar::new(
+
+            factory::Webinar::new(
                 random_string(),
                 USR_AUDIENCE.to_string(),
                 (Bound::Unbounded, Bound::Unbounded).into(),
@@ -252,9 +253,7 @@ mod tests {
                 Uuid::new_v4(),
             )
             .insert(&mut conn)
-            .await;
-
-            webinar
+            .await
         };
 
         let mut authz = TestAuthz::new();
@@ -289,16 +288,15 @@ mod tests {
 
         let p2p = {
             let mut conn = db_pool.get_conn().await;
-            let p2p = factory::P2P::new(
+
+            factory::P2P::new(
                 random_string(),
                 USR_AUDIENCE.to_string(),
                 Uuid::new_v4(),
                 Uuid::new_v4(),
             )
             .insert(&mut conn)
-            .await;
-
-            p2p
+            .await
         };
 
         let mut authz = TestAuthz::new();
@@ -341,7 +339,8 @@ mod tests {
 
         let webinar = {
             let mut conn = db_pool.get_conn().await;
-            let webinar = factory::Webinar::new(
+
+            factory::Webinar::new(
                 random_string(),
                 USR_AUDIENCE.to_string(),
                 (Bound::Unbounded, Bound::Unbounded).into(),
@@ -350,9 +349,7 @@ mod tests {
             )
             .properties(properties)
             .insert(&mut conn)
-            .await;
-
-            webinar
+            .await
         };
 
         let mut authz = TestAuthz::new();

@@ -186,7 +186,7 @@ impl TestState {
     }
 
     pub fn set_turn_hosts(&mut self, hosts: &[&str]) {
-        let hosts = hosts.into_iter().map(|c| (*c).into()).collect::<Vec<_>>();
+        let hosts = hosts.iter().map(|c| (*c).into()).collect::<Vec<_>>();
         let hosts = Vec1::try_from_vec(hosts).unwrap();
         self.turn_host_selector = TurnHostSelector::new(&hosts);
     }

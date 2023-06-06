@@ -175,7 +175,7 @@ mod create_timestamp_tests {
         let body = response.into_body();
         let body = hyper::body::to_bytes(body).await.unwrap();
         let body = std::str::from_utf8(&body).unwrap();
-        let body = serde_json::from_str::<JsonValue>(&body).unwrap();
+        let body = serde_json::from_str::<JsonValue>(body).unwrap();
         let position = body.get("position").unwrap().as_i64().unwrap();
         assert_eq!(position, 50);
     }

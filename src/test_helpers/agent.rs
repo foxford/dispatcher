@@ -21,7 +21,7 @@ pub struct TestAgent {
 impl TestAgent {
     pub fn new(agent_label: &str, account_label: &str, audience: &str) -> Self {
         let account_id = AccountId::new(account_label, audience);
-        let agent_id = AgentId::new(agent_label, account_id.clone());
+        let agent_id = AgentId::new(agent_label, account_id);
         let address = Address::new(agent_id, API_VERSION);
         Self { address }
     }
@@ -31,11 +31,11 @@ impl TestAgent {
     }
 
     pub fn agent_id(&self) -> &AgentId {
-        &self.address.id()
+        self.address.id()
     }
 
     pub fn account_id(&self) -> &AccountId {
-        &self.address.id().as_account_id()
+        self.address.id().as_account_id()
     }
 
     pub fn token(&self) -> String {

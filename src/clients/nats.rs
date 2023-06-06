@@ -10,6 +10,7 @@ use crate::app::{
 
 const SUBJECT_PREFIX: &str = "classroom";
 
+#[derive(Default)]
 pub struct Options {
     receiver_id: Option<AgentId>,
 }
@@ -18,14 +19,7 @@ impl Options {
     pub fn receiver_id(self, r_id: AgentId) -> Self {
         Self {
             receiver_id: Some(r_id),
-            ..self
         }
-    }
-}
-
-impl Default for Options {
-    fn default() -> Self {
-        Self { receiver_id: None }
     }
 }
 
