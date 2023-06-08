@@ -11,6 +11,7 @@ spec:
   selector:
     matchLabels:
       {{- include "dispatcher.selectorLabels" . | nindent 6 }}
+  minReadySeconds: 5
   template:
     metadata:
       annotations:
@@ -48,7 +49,7 @@ spec:
               port: {{ .Values.clusterService.ports.http }}
             initialDelaySeconds: 5
             periodSeconds: 5
-          startupProbe:
+          readinessProbe:
             httpGet:
               path: /healthz
               port: {{ .Values.clusterService.ports.http }}
