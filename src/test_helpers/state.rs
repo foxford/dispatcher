@@ -145,9 +145,9 @@ impl TestState {
             .tq_client
             .audience_settings
             .entry(audience.to_owned())
-            .and_modify(|v| v.preroll_offset = Some(value))
+            .and_modify(|v| v.preroll_offset = value)
             .or_insert_with(|| TqAudienceSettings {
-                preroll_offset: Some(value),
+                preroll_offset: value,
                 ..Default::default()
             });
     }

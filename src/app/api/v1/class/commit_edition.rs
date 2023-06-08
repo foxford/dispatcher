@@ -57,7 +57,7 @@ async fn do_commit_edition(
         .tq_client
         .audience_settings
         .get(audience)
-        .and_then(|s| s.preroll_offset)
+        .map(|s| s.preroll_offset)
         .unwrap_or_default();
 
     state

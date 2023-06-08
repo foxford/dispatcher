@@ -38,7 +38,7 @@ pub trait AppContext: Sync + Send {
             .tq_client
             .audience_settings
             .get(audience)
-            .and_then(|c| c.preroll_offset)
+            .map(|c| c.preroll_offset)
             .unwrap_or(0)
     }
 }
