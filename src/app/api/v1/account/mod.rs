@@ -4,9 +4,7 @@ use axum::{extract::Path, Extension};
 use svc_agent::AccountId;
 use svc_utils::extractors::AccountIdExtractor;
 
-mod ban;
-
-pub use ban::ban;
+pub mod ban;
 
 use crate::{
     app::{

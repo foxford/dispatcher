@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use axum::{extract::Path, response::Response, Extension, Json};
 use hyper::Body;
-use serde_derive::Deserialize;
+use serde_derive::{Deserialize, Serialize};
 use svc_authn::{AccountId, Authenticable};
 use uuid::Uuid;
 
@@ -10,7 +10,7 @@ use svc_utils::extractors::AgentIdExtractor;
 
 use crate::{
     app::{
-        api::v1::find_class,
+        api::{v1::find_class, IntoJsonResponse},
         error::{ErrorExt, ErrorKind as AppErrorKind},
         metrics::AuthorizeMetrics,
         stage, AppContext, AuthzObject,
@@ -80,4 +80,33 @@ pub async fn ban(
     .await?;
 
     Ok(Response::builder().status(200).body(Body::empty()).unwrap())
+}
+
+#[derive(Serialize)]
+pub struct GetLastBanOperationResponse {
+    last_seen_op_id: i64,
+}
+
+pub async fn get_last_ban_operation(
+    Extension(ctx): Extension<Arc<dyn AppContext>>,
+    Path(account_to_ban): Path<AccountId>,
+) -> AppResult {
+    let mut conn = ctx
+        .get_conn()
+        .await
+        .error(AppErrorKind::DbConnAcquisitionFailed)?;
+
+    let last_ban_account_op = ban_account_op::ReadQuery::by_account_id(&account_to_ban)
+        .execute(&mut conn)
+        .await
+        .error(AppErrorKind::DbQueryFailed)?;
+
+    let r = GetLastBanOperationResponse {
+        last_seen_op_id: last_ban_account_op.map(|l| l.last_op_id).unwrap_or(0),
+    };
+
+    r.into_json_response(
+        "failed to serialize last ban operation",
+        http::StatusCode::OK,
+    )
 }
