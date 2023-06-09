@@ -13,7 +13,7 @@ pub struct Object {
 }
 
 #[derive(Debug)]
-pub(crate) struct ListQuery {}
+pub struct ListQuery {}
 
 impl ListQuery {
     pub fn new() -> Self {

@@ -45,6 +45,7 @@ pub enum ErrorKind {
     OperationFailed,
     NatsPublishFailed,
     NatsClientNotFound,
+    MissingTenant,
 }
 
 impl ErrorKind {
@@ -225,6 +226,12 @@ impl From<ErrorKind> for ErrorKindProperties {
                 kind: "nats_client_not_found",
                 title: "Nats client not found",
                 is_notify_sentry: true,
+            },
+            ErrorKind::MissingTenant => ErrorKindProperties {
+                status: ResponseStatus::BAD_REQUEST,
+                kind: "missing_tenant",
+                title: "Tenant not found in config",
+                is_notify_sentry: false,
             },
         }
     }

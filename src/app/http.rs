@@ -23,10 +23,7 @@ use super::api::v1::{
     account, minigroup::restart_transcoding as restart_transcoding_minigroup,
     webinar::restart_transcoding as restart_transcoding_webinar,
 };
-use super::api::{
-    redirect_to_frontend, rollback, v1::create_event, v1::healthz,
-    v1::redirect_to_frontend as redirect_to_frontend2,
-};
+use super::api::{rollback, v1::create_event, v1::healthz, v1::redirect_to_frontend};
 use super::info::{list_frontends, list_scopes};
 use super::{api::v1::authz::proxy as proxy_authz, error::ErrorExt};
 
@@ -51,17 +48,12 @@ fn redirects_router() -> Router {
     Router::new()
         .metered_route("/info/scopes", get(list_scopes))
         .metered_route("/info/frontends", get(list_frontends))
-        .metered_route(
-            "/redirs/tenants/:tenant/apps/:app",
-            get(redirect_to_frontend),
-        )
-        .metered_route("/api/scopes/:scope/rollback", post(rollback))
         .metered_route("/healthz", get(healthz))
         .metered_route("/api/v1/scopes/:scope/rollback", post(rollback))
-        .metered_route("/api/v1/redirs", get(redirect_to_frontend2))
+        .metered_route("/api/v1/redirs", get(redirect_to_frontend))
         .metered_route(
             "/api/v1/redirs/tenants/:tenant/apps/:app",
-            get(redirect_to_frontend2),
+            get(redirect_to_frontend),
         )
 }
 
