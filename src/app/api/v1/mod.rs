@@ -135,7 +135,10 @@ pub async fn redirect_to_frontend(
         }
     };
 
-    let mut url = base_url.unwrap_or_else(|| ctx.build_default_frontend_url_new(&tenant, &app));
+    let mut url = base_url
+        .map(Result::Ok)
+        .unwrap_or_else(|| ctx.build_default_frontend_url(&tenant, &app))
+        .map_err(|e| AppError::new(AppErrorKind::MissingTenant, e))?;
 
     url.set_query(request.uri().query());
 

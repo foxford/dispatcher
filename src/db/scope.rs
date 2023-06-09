@@ -15,7 +15,7 @@ pub struct Object {
 }
 
 #[derive(Debug)]
-pub(crate) struct ListQuery {}
+pub struct ListQuery {}
 
 impl ListQuery {
     pub fn new() -> Self {
@@ -36,16 +36,16 @@ impl ListQuery {
 }
 
 #[derive(Debug)]
-pub(crate) struct DeleteQuery {
+pub struct DeleteQuery {
     scope: String,
 }
 
 impl DeleteQuery {
-    pub(crate) fn new(scope: String) -> Self {
+    pub fn new(scope: String) -> Self {
         Self { scope }
     }
 
-    pub(crate) async fn execute(self, conn: &mut PgConnection) -> sqlx::Result<()> {
+    pub async fn execute(self, conn: &mut PgConnection) -> sqlx::Result<()> {
         sqlx::query!("DELETE FROM scope WHERE scope = $1", self.scope)
             .execute(conn)
             .await

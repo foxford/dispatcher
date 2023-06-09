@@ -57,7 +57,7 @@ async fn test_api_rollback() {
             .expect("Failed to seed scope");
     }
 
-    let path = format!("/api/scopes/{}/rollback", scope);
+    let path = format!("/api/v1/scopes/{}/rollback", scope);
 
     let req = Request::post(path)
         .header("Authorization", format!("Bearer {}", token))
@@ -65,7 +65,7 @@ async fn test_api_rollback() {
         .unwrap();
     let resp = app.oneshot(req).await.unwrap();
 
-    //assert_eq!(resp.status(), 200);
+    assert_eq!(resp.status(), 200);
     let body = hyper::body::to_bytes(resp.into_body()).await.unwrap();
     assert_eq!(&body[..], b"Ok");
 }
