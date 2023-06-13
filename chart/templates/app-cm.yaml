@@ -98,6 +98,26 @@ data:
     {{- end }}
     {{- end }}
 
+    {{- with .Values.nats }}
+    {{- println "" }}
+    [nats]
+    url = {{ .url | quote }}
+    creds = {{ .creds | quote }}
+    subscribe.stream = {{ .subscribe.stream | quote }}
+    subscribe.consumer = {{ .subscribe.consumer | quote }}
+    subscribe.batch = {{ .subscribe.batch }}
+    subscribe.idle_heartbeat = {{ .subscribe.idle_heartbeat | quote }}
+    {{- end }}
+
+    {{- with .Values.nats_consumer }}
+    {{- println "" }}
+    [nats_consumer]
+    suspend_interval = {{ .suspend_interval | quote }}
+    max_suspend_interval = {{ .max_suspend_interval | quote }}
+    suspend_sentry_interval = {{ .suspend_sentry_interval | quote }}
+    resubscribe_interval = {{ .resubscribe_interval | quote }}
+    {{- end }}
+
     [storage]
     {{- if .Values.app.storage }}
     base_url = {{ .Values.app.storage.url | quote }}

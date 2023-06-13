@@ -48,6 +48,9 @@ clusterService:
     http: 8080
     metrics: 8888
 
+nats: {}
+nats_consumer: {}
+
 tls:
   secretName: tls-certificates
 
