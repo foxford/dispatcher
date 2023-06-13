@@ -103,10 +103,10 @@ data:
     [nats]
     url = {{ .url | quote }}
     creds = {{ .creds | quote }}
-    subscribe.stream = {{ .subscribe.stream | quote }}
-    subscribe.consumer = {{ .subscribe.consumer | quote }}
-    subscribe.batch = {{ .subscribe.batch }}
-    subscribe.idle_heartbeat = {{ .subscribe.idle_heartbeat | quote }}
+    subscribe_durable.stream = {{ .subscribe_durable.stream | quote }}
+    subscribe_durable.consumer = {{ .subscribe_durable.consumer | quote }}
+    subscribe_durable.batch = {{ .subscribe_durable.batch }}
+    subscribe_durable.idle_heartbeat = {{ .subscribe_durable.idle_heartbeat | quote }}
     {{- end }}
 
     {{- with .Values.nats_consumer }}
