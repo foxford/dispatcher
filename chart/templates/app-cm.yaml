@@ -82,15 +82,9 @@ data:
     {{- range .Values.app.audiences }}
     {{- if hasKey . "tq" }}
     [tq_client.audience_settings.{{ include "dispatcher.tenantObjectAudience" (list $.Release.Namespace .audience) | quote }}]
-    {{- if hasKey .tq "preroll" }}
     preroll = {{ .tq.preroll | quote }}
-    {{- end }}
-    {{- if hasKey .tq "postroll" }}
     postroll = {{ .tq.postroll | quote }}
-    {{- end }}
-    {{- if hasKey .tq "watermark" }}
     watermark = {{ .tq.watermark | quote }}
-    {{- end }}
     {{- if hasKey .tq "to" }}
     to = {{ .tq.to | quote }}
     {{- end }}

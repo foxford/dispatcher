@@ -68,10 +68,10 @@ pub struct TqClientConfig {
 #[derive(Clone, Debug, Deserialize, Default)]
 pub struct TqAudienceSettings {
     pub to: Option<String>,
-    pub preroll: Option<String>,
-    pub postroll: Option<String>,
-    pub watermark: Option<String>,
-    pub preroll_offset: Option<i64>,
+    pub preroll: String,
+    pub postroll: String,
+    pub watermark: String,
+    pub preroll_offset: i64,
 }
 
 #[derive(Clone, Debug, Deserialize)]

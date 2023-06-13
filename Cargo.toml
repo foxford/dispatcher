@@ -1,6 +1,6 @@
 [package]
 name = "dispatcher"
-version = "0.4.23"
+version = "0.4.24"
 authors = ["Andrei Nesterov <ae.nesterov@gmail.com>"]
 description = "Service managing classrooms"
 readme = "README.md"

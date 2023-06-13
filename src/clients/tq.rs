@@ -56,15 +56,18 @@ impl<'a> TaskWithOptions<'a> {
         match self.task {
             Task::TranscodeStreamToHls { .. } => {
                 self.to = settings.to.as_deref();
-                self.preroll = settings.preroll.as_deref();
-                self.postroll = settings.postroll.as_deref();
-                self.watermark = settings.watermark.as_deref();
+                self.preroll = Some(&settings.preroll);
+                self.postroll = Some(&settings.postroll);
+                self.watermark = Some(&settings.watermark);
             }
             Task::ConvertMjrDumpsToStream { .. } => {
                 self.to = settings.to.as_deref();
             }
             Task::TranscodeMinigroupToHls { .. } => {
                 self.to = settings.to.as_deref();
+                self.preroll = Some(&settings.preroll);
+                self.postroll = Some(&settings.postroll);
+                self.watermark = Some(&settings.watermark);
             }
         }
     }
