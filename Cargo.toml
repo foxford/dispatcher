@@ -72,7 +72,7 @@ parking_lot = "0.12"
 
 [dev-dependencies]
 lazy_static = "1.4"
-mockall = "0.9.1"
+mockall = "0.11.4"
 
 [dependencies.dotenv]
 version = "0.15"
