@@ -2,8 +2,6 @@ id = "dispatcher.dev.svc.example.org"
 agent_label = "alpha"
 broker_id = "mqtt-gateway.dev.svc.example.org"
 
-default_frontend_base = "http://test.example.org"
-
 [frontend."example"]
 base_url = "https://apps.example.com"
 
