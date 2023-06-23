@@ -104,13 +104,6 @@ Ingress path.
 {{- end }}
 
 {{/*
-Storage url.
-*/}}
-{{- define "dispatcher.defaultStorageUrl" -}}
-    {{ printf "https://%s/%s/storage" .Values.ingress.host (include "dispatcher.ingressPathNamespace" .) | quote }}
-{{- end }}
-
-{{/*
 Create volumeMount name from audience and secret name
 */}}
 {{- define "dispatcher.volumeMountName" -}}

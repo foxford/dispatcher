@@ -15,7 +15,7 @@ data:
     retry_delay = "2 seconds"
 
     default_frontend_base = "https://ignore/"
-    default_frontend_base_new = "https://{{ .Values.ingress.host }}/"
+    default_frontend_base_new = "https://{{ .Values.app.frontend.default.base_url }}/"
 
     {{- if .Values.app.turn }}
     turn_hosts = [
@@ -93,11 +93,7 @@ data:
     {{- end }}
 
     [storage]
-    {{- if .Values.app.storage }}
     base_url = {{ .Values.app.storage.url | quote }}
-    {{- else}}
-    base_url = {{ (include "dispatcher.defaultStorageUrl" .) }}
-    {{- end }}
 
     ##
     ## ULMS

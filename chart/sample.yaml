@@ -39,14 +39,18 @@ app:
         watermark: https://storage.net/logo.png
       mqtt_events: true
   frontend:
+    default:
+      base_url: https://foo.bar
     foo:
       base_url: https://apps.foo.bar
   turn:
     hosts:
       - turn.foo.bar:3478
   storage:
-    url: https://test.org/webinar/storage
+    url: https://foo.bar/webinar/storage
 ingress:
-  host: test.net
+  hosts:
+    - foo.bar
+    - bar.foo
 sentry:
   dsn: https://test@foo.bar/123
