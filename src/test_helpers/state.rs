@@ -51,8 +51,6 @@ fn build_config() -> Config {
         "id": id,
         "agent_label": "alpha",
         "broker_id": broker_id,
-        "default_frontend_base": "http://testing01.example.org",
-        "default_frontend_base_new": "http://dev.example.org",
         "frontend": {
             "example": {
                 "base_url": "https://apps.example.com",

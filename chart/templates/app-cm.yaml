@@ -14,9 +14,6 @@ data:
 
     retry_delay = "2 seconds"
 
-    default_frontend_base = "https://ignore/"
-    default_frontend_base_new = "https://{{ .Values.ingress.host }}/"
-
     {{- if .Values.app.turn }}
     turn_hosts = [
       {{- range .Values.app.turn.hosts }}
