@@ -502,13 +502,11 @@ mod tests {
 
     #[tokio::test]
     async fn property_filters_query_params_parser() {
-        fn check<T: serde::de::DeserializeOwned + PartialEq + std::fmt::Debug>(
+        fn check<T: ::serde::de::DeserializeOwned + PartialEq + std::fmt::Debug>(
             uri: impl AsRef<str>,
             value: T,
         ) {
-            let req = axum::extract::RequestParts::new(
-                http::Request::builder().uri(uri.as_ref()).body(()).unwrap(),
-            );
+            let req = http::Request::builder().uri(uri.as_ref()).body(()).unwrap();
             assert_eq!(
                 serde_qs::from_str::<T>(req.uri().query().unwrap_or_default()).unwrap(),
                 value

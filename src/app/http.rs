@@ -5,6 +5,7 @@ use axum::{
     extract::{rejection::JsonRejection, Extension, FromRequest},
     routing::{get, post, Router},
 };
+use http::Request;
 use svc_utils::middleware::{CorsLayer, LogLayer, MeteredRoute};
 
 use super::api::v1::class::{
@@ -163,17 +164,16 @@ fn utils_router() -> Router {
 pub struct Json<T>(pub T);
 
 #[async_trait]
-impl<B, T> FromRequest<B> for Json<T>
+impl<S, B, T> FromRequest<S, B> for Json<T>
 where
-    axum::Json<T>: FromRequest<B, Rejection = JsonRejection>,
+    axum::Json<T>: FromRequest<S, B, Rejection = JsonRejection>,
     B: Send + 'static,
+    S: Sync,
 {
     type Rejection = super::error::Error;
 
-    async fn from_request(
-        req: &mut axum::extract::RequestParts<B>,
-    ) -> Result<Self, Self::Rejection> {
-        match axum::Json::<T>::from_request(req).await {
+    async fn from_request(req: Request<B>, state: &S) -> Result<Self, Self::Rejection> {
+        match axum::Json::<T>::from_request(req, state).await {
             Ok(value) => Ok(Self(value.0)),
             Err(rejection) => {
                 let kind = match rejection {
