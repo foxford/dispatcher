@@ -243,11 +243,11 @@ mod tests {
             state
                 .event_client_mock()
                 .expect_create_room()
-                .withf(move |_time, _audience, _, _tags, cid| {
-                    assert_eq!(*cid, Some(classroom_id));
+                .withf(move |payload| {
+                    assert_eq!(payload.classroom_id, Some(classroom_id));
                     true
                 })
-                .returning(move |_, _, _, _, _| Ok(event_room_id));
+                .returning(move |_| Ok(event_room_id));
 
             state
                 .event_client_mock()

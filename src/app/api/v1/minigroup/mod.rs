@@ -416,14 +416,8 @@ mod tests {
             state
                 .event_client_mock()
                 .expect_create_room()
-                .with(
-                    pred::always(),
-                    pred::always(),
-                    pred::always(),
-                    pred::always(),
-                    pred::always(),
-                )
-                .returning(move |_, _, _, _, _| Ok(event_room_id));
+                .with(pred::always())
+                .returning(move |_| Ok(event_room_id));
 
             state
                 .event_client_mock()

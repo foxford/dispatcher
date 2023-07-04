@@ -4,7 +4,7 @@ use serde_json::Value as JsonValue;
 use svc_agent::AgentId;
 use uuid::Uuid;
 
-use crate::db::class::BoundedDateTimeTuple;
+use crate::db::class::{BoundedDateTimeTuple, ClassType};
 use crate::db::recording::Segments;
 
 #[allow(dead_code)]
@@ -157,6 +157,7 @@ pub struct EventRoomCreatePayload {
     pub tags: Option<JsonValue>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub classroom_id: Option<Uuid>,
+    pub kind: ClassType,
 }
 
 impl MqttRequest for EventRoomCreatePayload {
