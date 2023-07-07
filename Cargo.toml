@@ -56,7 +56,7 @@ svc-error = { version = "0.5", features = [
     "sentry-extension",
     "sqlx",
 ] }
-svc-utils = { version = "0.7", features = ["log-middleware", "metrics-middleware", "cors-middleware", "authn-extractor"] }
+svc-utils = { version = "0.8", features = ["log-middleware", "metrics-middleware", "cors-middleware", "authn-extractor"] }
 tokio = { version = "1.28", features = ["full"] }
 tower = { version = "0.4", features = [ "timeout" ] }
 tracing = "0.1"
