@@ -118,3 +118,18 @@ Create volumeMount name from audience and secret name
 {{- $secret := index . 1 -}}
 {{- printf "%s-%s-secret" $audience $secret | replace "." "-" | trunc 63 | trimSuffix "-" }}
 {{- end }}
+
+{{/*
+Generate path to file in S3 `apps-data` bucket
+*/}}
+{{- define "dispatcher.appsDataS3Path" -}}
+{{- $namespace := index . 0 -}}
+{{- $tenant := index . 1 -}}
+{{- $file := index . 2 -}}
+{{- $namespaceEnv := regexSplit "-" $namespace -1 | first -}}
+{{- $env := "dev"}}
+{{- if eq $namespaceEnv "p" }}
+{{- $env := "prod"}}
+{{- end }}
+{{- list "s3://apps-data" $env "defaults" $tenant $file | compact | join "/" }}
+{{- end }}
