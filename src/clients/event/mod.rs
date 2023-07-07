@@ -8,7 +8,6 @@ use uuid::Uuid;
 
 pub use self::types::*;
 use super::{generate_correlation_data, ClientError};
-use crate::db::class::BoundedDateTimeTuple;
 use crate::db::recording::Segments;
 
 const MAX_EVENT_LIST_PAGES: u64 = 10;
@@ -21,14 +20,7 @@ const EVENT_LIST_LIMIT: u64 = 100;
 pub trait EventClient: Sync + Send {
     async fn read_room(&self, id: Uuid) -> Result<EventRoomResponse, ClientError>;
 
-    async fn create_room(
-        &self,
-        time: BoundedDateTimeTuple,
-        audience: String,
-        preserve_history: Option<bool>,
-        tags: Option<JsonValue>,
-        classroom_id: Option<Uuid>,
-    ) -> Result<Uuid, ClientError>;
+    async fn create_room(&self, payload: EventRoomCreatePayload) -> Result<Uuid, ClientError>;
 
     async fn update_room(&self, id: Uuid, update: RoomUpdate) -> Result<(), ClientError>;
 

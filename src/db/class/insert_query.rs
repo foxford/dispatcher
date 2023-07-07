@@ -70,6 +70,10 @@ impl crate::app::services::Creatable for Dummy {
     fn rtc_sharing_policy(&self) -> Option<RtcSharingPolicy> {
         self.rtc_sharing_policy()
     }
+
+    fn kind(&self) -> ClassType {
+        self.kind
+    }
 }
 
 pub struct InsertQuery {

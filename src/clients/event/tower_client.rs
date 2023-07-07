@@ -12,7 +12,6 @@ use super::mqtt_client::{MqttBaseClient, MqttClient};
 use super::types::*;
 use super::{ClientError, EventClient};
 use super::{EVENT_LIST_LIMIT, MAX_EVENT_LIST_PAGES};
-use crate::db::class::BoundedDateTimeTuple;
 use crate::db::recording::Segments;
 
 struct TowerClientInner {
@@ -118,23 +117,8 @@ impl EventClient for TowerClient {
         self.inner.read_room(EventRoomReadPayload { id }).await
     }
 
-    async fn create_room(
-        &self,
-        time: BoundedDateTimeTuple,
-        audience: String,
-        preserve_history: Option<bool>,
-        tags: Option<JsonValue>,
-        classroom_id: Option<Uuid>,
-    ) -> Result<Uuid, ClientError> {
-        self.inner
-            .create_room(EventRoomCreatePayload {
-                audience,
-                time,
-                preserve_history,
-                tags,
-                classroom_id,
-            })
-            .await
+    async fn create_room(&self, payload: EventRoomCreatePayload) -> Result<Uuid, ClientError> {
+        self.inner.create_room(payload).await
     }
 
     async fn update_room(&self, id: Uuid, update: RoomUpdate) -> Result<(), ClientError> {

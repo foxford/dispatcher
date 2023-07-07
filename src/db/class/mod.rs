@@ -73,7 +73,7 @@ impl sqlx::Type<sqlx::Postgres> for KeyValueProperties {
     }
 }
 
-#[derive(Clone, Copy, Debug, sqlx::Type, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, sqlx::Type, PartialEq, Eq, Serialize)]
 #[sqlx(type_name = "class_type", rename_all = "lowercase")]
 pub enum ClassType {
     Webinar,
@@ -279,6 +279,10 @@ impl crate::app::services::Creatable for Object {
     }
     fn rtc_sharing_policy(&self) -> Option<RtcSharingPolicy> {
         self.rtc_sharing_policy()
+    }
+
+    fn kind(&self) -> ClassType {
+        self.kind
     }
 }
 
