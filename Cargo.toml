@@ -46,7 +46,7 @@ sqlx = { version = "0.6", features = [
     "bigdecimal",
     "runtime-tokio-native-tls",
 ] }
-svc-agent = { version = "0.20", features = ["sqlx"] }
+svc-agent = { version = "0.21", features = ["sqlx"] }
 svc-authn = { version = "0.8", features = ["jose", "sqlx"] }
 svc-authz = "0.12"
 svc-error = { version = "0.5", features = [
