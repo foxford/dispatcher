@@ -107,8 +107,8 @@ impl UpsertQuery {
             VALUES ($1, $2, COALESCE($3, false), COALESCE($4, false))
             ON CONFLICT (user_account) DO UPDATE
             SET
-                is_video_streaming_banned = COALESCE(EXCLUDED.is_video_streaming_banned, ban_account_op.is_video_streaming_banned),
-                is_collaboration_banned   = COALESCE(EXCLUDED.is_collaboration_banned, ban_account_op.is_collaboration_banned),
+                is_video_streaming_banned = COALESCE($3, ban_account_op.is_video_streaming_banned),
+                is_collaboration_banned   = COALESCE($4, ban_account_op.is_collaboration_banned),
                 last_op_id                = EXCLUDED.last_op_id
             WHERE
                 -- allow to 'complete' operation if there's no change in last_op_id

@@ -835,80 +835,6 @@
     },
     "query": "\n            SELECT\n                user_account AS \"user_account: _\",\n                last_op_id AS \"last_op_id: _\",\n                is_video_streaming_banned,\n                is_collaboration_banned\n            FROM ban_account_op\n            WHERE\n                user_account = $1\n            LIMIT 1;\n            "
   },
-  "5a9a081e5b9f08f8558f4549b51dc1183af3da3e34c7de7e5c2bbac6590c0e17": {
-    "describe": {
-      "columns": [
-        {
-          "name": "user_account: _",
-          "ordinal": 0,
-          "type_info": {
-            "Custom": {
-              "kind": {
-                "Composite": [
-                  [
-                    "label",
-                    "Text"
-                  ],
-                  [
-                    "audience",
-                    "Text"
-                  ]
-                ]
-              },
-              "name": "account_id"
-            }
-          }
-        },
-        {
-          "name": "last_op_id",
-          "ordinal": 1,
-          "type_info": "Int8"
-        },
-        {
-          "name": "is_video_streaming_banned",
-          "ordinal": 2,
-          "type_info": "Bool"
-        },
-        {
-          "name": "is_collaboration_banned",
-          "ordinal": 3,
-          "type_info": "Bool"
-        }
-      ],
-      "nullable": [
-        false,
-        false,
-        false,
-        false
-      ],
-      "parameters": {
-        "Left": [
-          {
-            "Custom": {
-              "kind": {
-                "Composite": [
-                  [
-                    "label",
-                    "Text"
-                  ],
-                  [
-                    "audience",
-                    "Text"
-                  ]
-                ]
-              },
-              "name": "account_id"
-            }
-          },
-          "Int8",
-          "Bool",
-          "Bool",
-          "Int8"
-        ]
-      }
-    },
-    "query": "\n            INSERT INTO ban_account_op (user_account, last_op_id, is_video_streaming_banned, is_collaboration_banned)\n            VALUES ($1, $2, COALESCE($3, false), COALESCE($4, false))\n            ON CONFLICT (user_account) DO UPDATE\n            SET\n                is_video_streaming_banned = COALESCE(EXCLUDED.is_video_streaming_banned, ban_account_op.is_video_streaming_banned),\n                is_collaboration_banned   = COALESCE(EXCLUDED.is_collaboration_banned, ban_account_op.is_collaboration_banned),\n                last_op_id                = EXCLUDED.last_op_id\n            WHERE\n                -- allow to 'complete' operation if there's no change in last_op_id\n                -- or allow to do upsert without real changes so we can process\n                -- the same message twice\n                ban_account_op.last_op_id = EXCLUDED.last_op_id OR\n                -- allow change op id if the previous operation is completed\n                (\n                    ban_account_op.last_op_id                = $5 AND\n                    ban_account_op.is_video_streaming_banned = true AND\n                    ban_account_op.is_collaboration_banned   = true\n                )\n            RETURNING\n                user_account AS \"user_account: _\",\n                last_op_id,\n                is_video_streaming_banned,\n                is_collaboration_banned\n            "
-  },
   "6016a361f9fb26d49797872a086033a34a01b4f1038125486a47c0cc8713e209": {
     "describe": {
       "columns": [
@@ -1948,6 +1874,80 @@
       }
     },
     "query": "\n            INSERT INTO class (\n                scope, audience, time, tags, preserve_history, kind,\n                conference_room_id, event_room_id,\n                original_event_room_id, modified_event_room_id, reserve, room_events_uri,\n                established, properties, original_class_id\n            )\n            VALUES ($1, $2, $3, $4, $5, $6::class_type, $7, $8, $9, $10, $11, $12, $13, $14, $15)\n            ON CONFLICT (scope, audience)\n            DO UPDATE\n            SET time = EXCLUDED.time,\n                tags = EXCLUDED.tags,\n                preserve_history = EXCLUDED.preserve_history,\n                reserve = EXCLUDED.reserve,\n                properties = EXCLUDED.properties\n            WHERE class.established = 'f'\n            RETURNING\n                id,\n                kind AS \"kind!: ClassType\",\n                scope,\n                time AS \"time!: Time\",\n                audience,\n                created_at,\n                tags,\n                preserve_history,\n                reserve,\n                properties AS \"properties: _\",\n                original_class_id,\n                content_id\n            "
+  },
+  "c6ce697aaad621b2230880c9d46251dffd92dc490f5473cd2ca32a8627dae130": {
+    "describe": {
+      "columns": [
+        {
+          "name": "user_account: _",
+          "ordinal": 0,
+          "type_info": {
+            "Custom": {
+              "kind": {
+                "Composite": [
+                  [
+                    "label",
+                    "Text"
+                  ],
+                  [
+                    "audience",
+                    "Text"
+                  ]
+                ]
+              },
+              "name": "account_id"
+            }
+          }
+        },
+        {
+          "name": "last_op_id",
+          "ordinal": 1,
+          "type_info": "Int8"
+        },
+        {
+          "name": "is_video_streaming_banned",
+          "ordinal": 2,
+          "type_info": "Bool"
+        },
+        {
+          "name": "is_collaboration_banned",
+          "ordinal": 3,
+          "type_info": "Bool"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false,
+        false
+      ],
+      "parameters": {
+        "Left": [
+          {
+            "Custom": {
+              "kind": {
+                "Composite": [
+                  [
+                    "label",
+                    "Text"
+                  ],
+                  [
+                    "audience",
+                    "Text"
+                  ]
+                ]
+              },
+              "name": "account_id"
+            }
+          },
+          "Int8",
+          "Bool",
+          "Bool",
+          "Int8"
+        ]
+      }
+    },
+    "query": "\n            INSERT INTO ban_account_op (user_account, last_op_id, is_video_streaming_banned, is_collaboration_banned)\n            VALUES ($1, $2, COALESCE($3, false), COALESCE($4, false))\n            ON CONFLICT (user_account) DO UPDATE\n            SET\n                is_video_streaming_banned = COALESCE($3, ban_account_op.is_video_streaming_banned),\n                is_collaboration_banned   = COALESCE($4, ban_account_op.is_collaboration_banned),\n                last_op_id                = EXCLUDED.last_op_id\n            WHERE\n                -- allow to 'complete' operation if there's no change in last_op_id\n                -- or allow to do upsert without real changes so we can process\n                -- the same message twice\n                ban_account_op.last_op_id = EXCLUDED.last_op_id OR\n                -- allow change op id if the previous operation is completed\n                (\n                    ban_account_op.last_op_id                = $5 AND\n                    ban_account_op.is_video_streaming_banned = true AND\n                    ban_account_op.is_collaboration_banned   = true\n                )\n            RETURNING\n                user_account AS \"user_account: _\",\n                last_op_id,\n                is_video_streaming_banned,\n                is_collaboration_banned\n            "
   },
   "c7386d4717720730d7762fbcf2d24c5d0f508b246e987f4666684bf37b27ddc2": {
     "describe": {
