@@ -129,7 +129,7 @@ Generate path to file in S3 `apps-data` bucket
 {{- $namespaceEnv := regexSplit "-" $namespace -1 | first -}}
 {{- $env := "dev"}}
 {{- if eq $namespaceEnv "p" }}
-{{- $env := "prod"}}
+{{- $env = "prod"}}
 {{- end }}
 {{- list "s3://apps-data" $env "defaults" $tenant $file | compact | join "/" }}
 {{- end }}
