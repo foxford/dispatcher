@@ -9,11 +9,11 @@ use crate::app::api::v1::AppError;
 use crate::app::error::ErrorExt;
 use crate::app::error::ErrorKind as AppErrorKind;
 use crate::app::AppContext;
-use crate::clients::event::LockedTypes;
+use crate::clients::event::{EventRoomCreatePayload, LockedTypes};
 use crate::clients::{
     conference::RoomUpdate as ConfRoomUpdate, event::RoomUpdate as EventRoomUpdate,
 };
-use crate::db::class::{BoundedDateTimeTuple, RtcSharingPolicy};
+use crate::db::class::{BoundedDateTimeTuple, ClassType, RtcSharingPolicy};
 
 pub async fn update_classroom_id(
     state: &dyn AppContext,
@@ -50,13 +50,14 @@ pub async fn create_event_room(
 ) -> Result<Uuid, AppError> {
     state
         .event_client()
-        .create_room(
-            (Bound::Included(Utc::now()), Bound::Unbounded),
-            webinar.audience().to_owned(),
-            Some(true),
-            webinar.tags().map(ToOwned::to_owned),
-            Some(webinar.id()),
-        )
+        .create_room(EventRoomCreatePayload {
+            audience: webinar.audience().to_owned(),
+            time: (Bound::Included(Utc::now()), Bound::Unbounded),
+            preserve_history: Some(true),
+            tags: webinar.tags().map(ToOwned::to_owned),
+            classroom_id: Some(webinar.id()),
+            kind: webinar.kind(),
+        })
         .await
         .context("Request to event")
         .error(AppErrorKind::MqttRequestFailed)
@@ -109,6 +110,7 @@ pub trait Creatable {
     fn reserve(&self) -> Option<i32>;
     fn tags(&self) -> Option<&serde_json::Value>;
     fn rtc_sharing_policy(&self) -> Option<RtcSharingPolicy>;
+    fn kind(&self) -> ClassType;
 }
 
 pub async fn lock_interaction(state: &dyn AppContext, event_room_id: Uuid, types: LockedTypes) {

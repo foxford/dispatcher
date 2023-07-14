@@ -21,7 +21,6 @@ use uuid::Uuid;
 use super::types::*;
 use super::{generate_correlation_data, ClientError, EventClient};
 use super::{EVENT_LIST_LIMIT, MAX_EVENT_LIST_PAGES};
-use crate::db::class::BoundedDateTimeTuple;
 use crate::db::recording::Segments;
 
 pub struct MqttEventClient {
@@ -91,23 +90,9 @@ impl EventClient for MqttEventClient {
         Ok(payload.extract_payload())
     }
 
-    async fn create_room(
-        &self,
-        time: BoundedDateTimeTuple,
-        audience: String,
-        preserve_history: Option<bool>,
-        tags: Option<JsonValue>,
-        classroom_id: Option<Uuid>,
-    ) -> Result<Uuid, ClientError> {
+    async fn create_room(&self, payload: EventRoomCreatePayload) -> Result<Uuid, ClientError> {
         let reqp = self.build_reqp("room.create")?;
 
-        let payload = EventRoomCreatePayload {
-            audience,
-            time,
-            preserve_history,
-            tags,
-            classroom_id,
-        };
         let msg = if let OutgoingMessage::Request(msg) =
             OutgoingRequest::multicast(payload, reqp, &self.event_account_id, &self.api_version)
         {

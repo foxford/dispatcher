@@ -56,8 +56,6 @@ fn build_config() -> Config {
         "id": id,
         "agent_label": "alpha",
         "broker_id": broker_id,
-        "default_frontend_base": "http://testing01.example.org",
-        "default_frontend_base_new": "http://dev.example.org",
         "frontend": {
             "example": {
                 "base_url": "https://apps.example.com",
@@ -178,9 +176,9 @@ impl TestState {
             .tq_client
             .audience_settings
             .entry(audience.to_owned())
-            .and_modify(|v| v.preroll_offset = Some(value))
+            .and_modify(|v| v.preroll_offset = value)
             .or_insert_with(|| TqAudienceSettings {
-                preroll_offset: Some(value),
+                preroll_offset: value,
                 ..Default::default()
             });
     }

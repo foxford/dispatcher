@@ -14,9 +14,6 @@ data:
 
     retry_delay = "2 seconds"
 
-    default_frontend_base = "https://ignore/"
-    default_frontend_base_new = "https://{{ .Values.ingress.host }}/"
-
     {{- if .Values.app.turn }}
     turn_hosts = [
       {{- range .Values.app.turn.hosts }}
@@ -82,15 +79,9 @@ data:
     {{- range .Values.app.audiences }}
     {{- if hasKey . "tq" }}
     [tq_client.audience_settings.{{ include "dispatcher.tenantObjectAudience" (list $.Release.Namespace .audience) | quote }}]
-    {{- if hasKey .tq "preroll" }}
-    preroll = {{ .tq.preroll | quote }}
-    {{- end }}
-    {{- if hasKey .tq "postroll" }}
-    postroll = {{ .tq.postroll | quote }}
-    {{- end }}
-    {{- if hasKey .tq "watermark" }}
-    watermark = {{ .tq.watermark | quote }}
-    {{- end }}
+    preroll = {{ include "dispatcher.appsDataS3Path" (list $.Release.Namespace .audience "preroll.mp4") | quote }}
+    postroll = {{ include "dispatcher.appsDataS3Path" (list $.Release.Namespace .audience "postroll.mp4") | quote }}
+    watermark = {{ include "dispatcher.appsDataS3Path" (list $.Release.Namespace .audience "watermark.png") | quote }}
     {{- if hasKey .tq "to" }}
     to = {{ .tq.to | quote }}
     {{- end }}

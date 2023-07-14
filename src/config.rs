@@ -16,8 +16,6 @@ pub struct Config {
     pub agent_label: String,
     pub broker_id: AccountId,
     pub mqtt: AgentConfig,
-    pub default_frontend_base: url::Url,
-    pub default_frontend_base_new: url::Url,
     pub sentry: Option<SentryConfig>,
     pub http: HttpConfig,
     pub conference_client: MqttServiceConfig,
@@ -70,10 +68,10 @@ pub struct TqClientConfig {
 #[derive(Clone, Debug, Deserialize, Default)]
 pub struct TqAudienceSettings {
     pub to: Option<String>,
-    pub preroll: Option<String>,
-    pub postroll: Option<String>,
-    pub watermark: Option<String>,
-    pub preroll_offset: Option<i64>,
+    pub preroll: String,
+    pub postroll: String,
+    pub watermark: String,
+    pub preroll_offset: i64,
 }
 
 #[derive(Clone, Debug, Deserialize)]
