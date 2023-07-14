@@ -22,6 +22,7 @@ pub async fn create_pool(
 pub mod account;
 pub mod authz;
 pub mod ban_account_op;
+pub mod ban_history;
 pub mod class;
 pub mod frontend;
 pub mod record_timestamp;

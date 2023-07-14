@@ -15,7 +15,7 @@ use crate::{
         AppContext,
     },
     clients::nats,
-    db::{self, ban_account_op},
+    db::{self, ban_account_op, ban_history},
 };
 
 use super::{FailureKind, HandleMessageFailure};
@@ -96,7 +96,29 @@ pub async fn handle_intent(
     .transient()?;
 
     match op {
-        Some(_) => {
+        Some(op) => {
+            if intent.ban {
+                ban_history::InsertQuery::new(
+                    intent.classroom_id,
+                    &intent.target_account,
+                    op.last_op_id,
+                )
+                .execute(&mut conn)
+                .await
+                .error(AppErrorKind::DbQueryFailed)
+                .transient()?;
+            } else {
+                ban_history::FinishBanQuery::new(
+                    intent.classroom_id,
+                    &intent.target_account,
+                    op.last_op_id,
+                )
+                .execute(&mut conn)
+                .await
+                .error(AppErrorKind::DbQueryFailed)
+                .transient()?;
+            }
+
             super::ban::accept(ctx, intent, intent_id)
                 .await
                 .transient()?;
@@ -121,6 +143,7 @@ pub async fn accept(
         intent_id.sequence_id(),
     )
         .into();
+
     let event = BanAcceptedV1 {
         ban: intent.ban,
         classroom_id: intent.classroom_id,

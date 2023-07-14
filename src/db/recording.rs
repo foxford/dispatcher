@@ -123,20 +123,26 @@ impl RecordingListQuery {
             Object,
             r#"
             SELECT
-                id,
-                class_id,
-                rtc_id,
-                stream_uri,
-                segments AS "segments!: Option<Segments>",
-                modified_segments AS "modified_segments!: Option<Segments>",
-                started_at,
-                created_at,
-                adjusted_at,
-                transcoded_at,
-                created_by AS "created_by: AgentId",
-                deleted_at
-            FROM recording
-            WHERE class_id = $1 AND deleted_at IS NULL
+                r.id,
+                r.class_id,
+                r.rtc_id,
+                r.stream_uri,
+                r.segments AS "segments!: Option<Segments>",
+                r.modified_segments AS "modified_segments!: Option<Segments>",
+                r.started_at,
+                r.created_at,
+                r.adjusted_at,
+                r.transcoded_at,
+                r.created_by AS "created_by: AgentId",
+                r.deleted_at
+            FROM recording AS r
+            LEFT JOIN ban_history AS bh
+            ON  r.class_id = bh.class_id
+            AND bh.target_account = (r.created_by).account_id
+            WHERE
+                r.class_id = $1
+            AND r.deleted_at IS NULL
+            AND bh.banned_operation_id IS NULL
             "#,
             self.class_id
         )
