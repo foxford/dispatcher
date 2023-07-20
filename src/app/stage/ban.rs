@@ -198,7 +198,7 @@ pub async fn handle_video_streaming_banned(
         .error(AppErrorKind::DbConnAcquisitionFailed)
         .transient()?;
 
-    let op = ban_account_op::UpsertQuery::new_video_streaming_banned(
+    let op = ban_account_op::UpdateQuery::new_video_streaming_banned(
         video_streaming_banned.target_account.clone(),
         video_streaming_banned.operation_id,
     )
@@ -229,7 +229,7 @@ pub async fn handle_collaboration_banned(
         .error(AppErrorKind::DbConnAcquisitionFailed)
         .transient()?;
 
-    let op = ban_account_op::UpsertQuery::new_collaboration_banned(
+    let op = ban_account_op::UpdateQuery::new_collaboration_banned(
         collaboration_banned.target_account.clone(),
         collaboration_banned.operation_id,
     )
@@ -270,4 +270,365 @@ async fn finish(
         nats::Options::default(),
     )
     .await
+}
+
+#[cfg(test)]
+mod tests {
+    use svc_events::{Event, EventV1};
+
+    use super::*;
+
+    use crate::app::AppContext;
+    use crate::test_helpers::prelude::*;
+
+    #[sqlx::test]
+    async fn handles_intents(pool: sqlx::PgPool) {
+        let state = TestState::new(pool, TestAuthz::new()).await;
+
+        let minigroup = {
+            let mut conn = state.get_conn().await.expect("Failed to fetch connection");
+            factory::Minigroup::new(
+                random_string(),
+                USR_AUDIENCE.to_string(),
+                (Bound::Unbounded, Bound::Unbounded).into(),
+                Uuid::new_v4(),
+                Uuid::new_v4(),
+            )
+            .insert(&mut conn)
+            .await
+        };
+
+        let agent1 = TestAgent::new("web", "user1", USR_AUDIENCE);
+
+        let intent = BanIntentV1 {
+            classroom_id: minigroup.id(),
+            ban: true,
+            sender: agent1.agent_id().clone(),
+            last_operation_id: 0,
+            target_account: agent1.account_id().clone(),
+        };
+        let intent_id: EventId = ("ban".to_string(), "intent".to_string(), 0).into();
+
+        handle_intent(&state, intent.clone(), intent_id)
+            .await
+            .expect("failed to handle intent");
+
+        {
+            let pub_reqs = state.inspect_nats_client().get_publish_requests();
+            assert_eq!(pub_reqs.len(), 1);
+
+            let payload = serde_json::from_slice::<Event>(&pub_reqs[0].payload)
+                .expect("failed to parse event");
+            assert!(matches!(payload, Event::V1(EventV1::BanAccepted(..))));
+        }
+
+        // should fail b/c we already started an operation with another sequence id
+        let intent_id: EventId = ("ban".to_string(), "intent".to_string(), 1).into();
+
+        handle_intent(&state, intent.clone(), intent_id)
+            .await
+            .expect("failed to handle intent");
+
+        {
+            let pub_reqs = state.inspect_nats_client().get_publish_requests();
+            assert_eq!(pub_reqs.len(), 2);
+
+            let payload = serde_json::from_slice::<Event>(&pub_reqs[1].payload)
+                .expect("failed to parse event");
+            assert!(matches!(payload, Event::V1(EventV1::BanRejected(..))));
+        }
+    }
+
+    #[sqlx::test]
+    async fn fails_to_handle_video_streaming_banned_if_there_was_no_intent(pool: sqlx::PgPool) {
+        let state = TestState::new(pool, TestAuthz::new()).await;
+        let agent1 = TestAgent::new("web", "user1", USR_AUDIENCE);
+
+        let video_streaming_banned = BanVideoStreamingCompletedV1 {
+            ban: true,
+            classroom_id: Uuid::new_v4(),
+            target_account: agent1.account_id().clone(),
+            operation_id: 0,
+            parent: ("ban".to_owned(), "accepted".to_owned(), 0).into(),
+        };
+
+        let r = handle_video_streaming_banned(&state, video_streaming_banned).await;
+        assert!(matches!(
+            r,
+            Err(HandleMessageFailure::Permanent(
+                e @ crate::app::error::Error { .. }
+            )) if e.kind() == AppErrorKind::OperationFailed
+        ));
+
+        {
+            let mut conn = state.get_conn().await.expect("Failed to fetch connection");
+            let r = db::ban_account_op::ReadQuery::by_account_id(agent1.account_id())
+                .execute(&mut conn)
+                .await
+                .expect("failed to fetch ban account op entry");
+            assert!(r.is_none());
+        }
+
+        {
+            let pub_reqs = state.inspect_nats_client().get_publish_requests();
+            assert_eq!(pub_reqs.len(), 0);
+        }
+    }
+
+    #[sqlx::test]
+    async fn fails_to_handle_collaboration_banned_if_there_was_no_intent(pool: sqlx::PgPool) {
+        let state = TestState::new(pool, TestAuthz::new()).await;
+        let agent1 = TestAgent::new("web", "user1", USR_AUDIENCE);
+
+        let collaboration_banned = BanCollaborationCompletedV1 {
+            ban: true,
+            classroom_id: Uuid::new_v4(),
+            target_account: agent1.account_id().clone(),
+            operation_id: 0,
+            parent: ("ban".to_owned(), "accepted".to_owned(), 0).into(),
+        };
+
+        let r = handle_collaboration_banned(&state, collaboration_banned).await;
+        assert!(matches!(
+            r,
+            Err(HandleMessageFailure::Permanent(
+                e @ crate::app::error::Error { .. }
+            )) if e.kind() == AppErrorKind::OperationFailed
+        ));
+
+        {
+            let mut conn = state.get_conn().await.expect("Failed to fetch connection");
+            let r = db::ban_account_op::ReadQuery::by_account_id(agent1.account_id())
+                .execute(&mut conn)
+                .await
+                .expect("failed to fetch ban account op entry");
+            assert!(r.is_none());
+        }
+
+        {
+            let pub_reqs = state.inspect_nats_client().get_publish_requests();
+            assert_eq!(pub_reqs.len(), 0);
+        }
+    }
+
+    #[sqlx::test]
+    async fn handles_video_streaming_banned(pool: sqlx::PgPool) {
+        let state = TestState::new(pool, TestAuthz::new()).await;
+
+        let minigroup = {
+            let mut conn = state.get_conn().await.expect("Failed to fetch connection");
+            factory::Minigroup::new(
+                random_string(),
+                USR_AUDIENCE.to_string(),
+                (Bound::Unbounded, Bound::Unbounded).into(),
+                Uuid::new_v4(),
+                Uuid::new_v4(),
+            )
+            .insert(&mut conn)
+            .await
+        };
+
+        let agent1 = TestAgent::new("web", "user-video", USR_AUDIENCE);
+
+        {
+            let mut conn = state.get_conn().await.expect("Failed to fetch connection");
+            db::ban_account_op::UpsertQuery::new_operation(agent1.account_id().clone(), 0, 0)
+                .execute(&mut conn)
+                .await
+                .expect("failed to run upsert query");
+        };
+
+        let video_streaming_banned = BanVideoStreamingCompletedV1 {
+            ban: true,
+            classroom_id: minigroup.id(),
+            target_account: agent1.account_id().clone(),
+            operation_id: 0,
+            parent: ("ban".to_owned(), "accepted".to_owned(), 0).into(),
+        };
+
+        handle_video_streaming_banned(&state, video_streaming_banned)
+            .await
+            .expect("failed to handle video streaming banned");
+
+        {
+            let mut conn = state.get_conn().await.expect("Failed to fetch connection");
+            let r = db::ban_account_op::ReadQuery::by_account_id(agent1.account_id())
+                .execute(&mut conn)
+                .await
+                .expect("failed to fetch ban account op entry");
+            assert!(matches!(
+                r,
+                Some(db::ban_account_op::Object {
+                    last_op_id: 0,
+                    is_video_streaming_banned: true,
+                    ..
+                })
+            ));
+        }
+
+        {
+            let pub_reqs = state.inspect_nats_client().get_publish_requests();
+            assert_eq!(pub_reqs.len(), 0);
+        }
+    }
+
+    #[sqlx::test]
+    async fn handles_collaboration_banned(pool: sqlx::PgPool) {
+        let state = TestState::new(pool, TestAuthz::new()).await;
+
+        let minigroup = {
+            let mut conn = state.get_conn().await.expect("Failed to fetch connection");
+            factory::Minigroup::new(
+                random_string(),
+                USR_AUDIENCE.to_string(),
+                (Bound::Unbounded, Bound::Unbounded).into(),
+                Uuid::new_v4(),
+                Uuid::new_v4(),
+            )
+            .insert(&mut conn)
+            .await
+        };
+
+        let agent1 = TestAgent::new("web", "user-collab", USR_AUDIENCE);
+
+        {
+            let mut conn = state.get_conn().await.expect("Failed to fetch connection");
+            db::ban_account_op::UpsertQuery::new_operation(agent1.account_id().clone(), 0, 0)
+                .execute(&mut conn)
+                .await
+                .expect("failed to run upsert query");
+        };
+
+        let collaboration_banned = BanCollaborationCompletedV1 {
+            ban: true,
+            classroom_id: minigroup.id(),
+            target_account: agent1.account_id().clone(),
+            operation_id: 0,
+            parent: ("ban".to_owned(), "accepted".to_owned(), 0).into(),
+        };
+
+        handle_collaboration_banned(&state, collaboration_banned)
+            .await
+            .expect("failed to handle collaboration banned");
+
+        {
+            let mut conn = state.get_conn().await.expect("Failed to fetch connection");
+            let r = db::ban_account_op::ReadQuery::by_account_id(agent1.account_id())
+                .execute(&mut conn)
+                .await
+                .expect("failed to fetch ban account op entry");
+            assert!(matches!(
+                r,
+                Some(db::ban_account_op::Object {
+                    last_op_id: 0,
+                    is_collaboration_banned: true,
+                    ..
+                })
+            ));
+        }
+
+        {
+            let pub_reqs = state.inspect_nats_client().get_publish_requests();
+            assert_eq!(pub_reqs.len(), 0);
+        }
+    }
+
+    #[sqlx::test]
+    async fn finishes_operation(pool: sqlx::PgPool) {
+        let state = TestState::new(pool, TestAuthz::new()).await;
+
+        let minigroup = {
+            let mut conn = state.get_conn().await.expect("Failed to fetch connection");
+            factory::Minigroup::new(
+                random_string(),
+                USR_AUDIENCE.to_string(),
+                (Bound::Unbounded, Bound::Unbounded).into(),
+                Uuid::new_v4(),
+                Uuid::new_v4(),
+            )
+            .insert(&mut conn)
+            .await
+        };
+
+        let agent1 = TestAgent::new("web", "user-finish", USR_AUDIENCE);
+
+        {
+            let mut conn = state.get_conn().await.expect("Failed to fetch connection");
+            db::ban_account_op::UpsertQuery::new_operation(agent1.account_id().clone(), 0, 0)
+                .execute(&mut conn)
+                .await
+                .expect("failed to run upsert query");
+        };
+
+        let video_streaming_banned = BanVideoStreamingCompletedV1 {
+            ban: true,
+            classroom_id: minigroup.id(),
+            target_account: agent1.account_id().clone(),
+            operation_id: 0,
+            parent: ("ban".to_owned(), "accepted".to_owned(), 0).into(),
+        };
+
+        handle_video_streaming_banned(&state, video_streaming_banned)
+            .await
+            .expect("failed to handle video streaming banned");
+
+        {
+            let mut conn = state.get_conn().await.expect("Failed to fetch connection");
+            let r = db::ban_account_op::ReadQuery::by_account_id(agent1.account_id())
+                .execute(&mut conn)
+                .await
+                .expect("failed to fetch ban account op entry");
+            assert!(matches!(
+                r,
+                Some(db::ban_account_op::Object {
+                    last_op_id: 0,
+                    is_video_streaming_banned: true,
+                    ..
+                })
+            ));
+        }
+
+        {
+            let pub_reqs = state.inspect_nats_client().get_publish_requests();
+            assert_eq!(pub_reqs.len(), 0);
+        }
+
+        let collaboration_banned = BanCollaborationCompletedV1 {
+            ban: true,
+            classroom_id: minigroup.id(),
+            target_account: agent1.account_id().clone(),
+            operation_id: 0,
+            parent: ("ban".to_owned(), "accepted".to_owned(), 0).into(),
+        };
+
+        handle_collaboration_banned(&state, collaboration_banned)
+            .await
+            .expect("failed to handle collaboration banned");
+
+        {
+            let mut conn = state.get_conn().await.expect("Failed to fetch connection");
+            let r = db::ban_account_op::ReadQuery::by_account_id(agent1.account_id())
+                .execute(&mut conn)
+                .await
+                .expect("failed to fetch ban account op entry");
+            assert!(matches!(
+                r,
+                Some(db::ban_account_op::Object {
+                    last_op_id: 0,
+                    is_collaboration_banned: true,
+                    is_video_streaming_banned: true,
+                    ..
+                })
+            ));
+        }
+
+        {
+            let pub_reqs = state.inspect_nats_client().get_publish_requests();
+            assert_eq!(pub_reqs.len(), 1);
+
+            let payload = serde_json::from_slice::<Event>(&pub_reqs[0].payload)
+                .expect("failed to parse event");
+            assert!(matches!(payload, Event::V1(EventV1::BanCompleted(..))));
+        }
+    }
 }

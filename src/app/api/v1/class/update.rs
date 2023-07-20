@@ -185,13 +185,13 @@ mod tests {
         let _update: ClassUpdate = serde_json::from_str(update).unwrap();
     }
 
-    #[tokio::test]
-    async fn update_webinar_unauthorized() {
+    #[sqlx::test]
+    async fn update_webinar_unauthorized(pool: sqlx::PgPool) {
         let agent = TestAgent::new("web", "user1", USR_AUDIENCE);
         let event_room_id = Uuid::new_v4();
         let conference_room_id = Uuid::new_v4();
 
-        let state = TestState::new(TestAuthz::new()).await;
+        let state = TestState::new(pool, TestAuthz::new()).await;
         let webinar = {
             let mut conn = state.get_conn().await.expect("Failed to fetch connection");
             factory::Webinar::new(
@@ -220,13 +220,13 @@ mod tests {
             .expect_err("Unexpectedly succeeded");
     }
 
-    #[tokio::test]
-    async fn update_webinar() {
+    #[sqlx::test]
+    async fn update_webinar(pool: sqlx::PgPool) {
         let agent = TestAgent::new("web", "user1", USR_AUDIENCE);
         let event_room_id = Uuid::new_v4();
         let conference_room_id = Uuid::new_v4();
 
-        let db_pool = TestDb::new().await;
+        let db_pool = TestDb::new(pool);
 
         let webinar = {
             let mut conn = db_pool.get_conn().await;

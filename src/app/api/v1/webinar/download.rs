@@ -79,11 +79,11 @@ mod tests {
     use chrono::{Duration, Utc};
     use hyper::body::to_bytes;
 
-    #[tokio::test]
-    async fn create_webinar_timestamp() {
+    #[sqlx::test]
+    async fn create_webinar_timestamp(pool: sqlx::PgPool) {
         let agent = TestAgent::new("web", "user1", USR_AUDIENCE);
 
-        let db_pool = TestDb::new().await;
+        let db_pool = TestDb::new(pool);
 
         let webinar = {
             let mut conn = db_pool.get_conn().await;

@@ -16,7 +16,7 @@ struct ErrorKindProperties {
     is_notify_sentry: bool,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ErrorKind {
     AccessDenied,
     AuthorizationFailed,
@@ -275,6 +275,11 @@ impl Error {
                 tracing::error!("Failed to send error to sentry, reason = {:?}", e);
             }
         }
+    }
+
+    #[cfg(test)]
+    pub fn kind(&self) -> ErrorKind {
+        self.kind
     }
 }
 

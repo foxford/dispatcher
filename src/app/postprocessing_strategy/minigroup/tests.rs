@@ -14,10 +14,10 @@ mod handle_upload {
     use super::super::super::PostprocessingStrategy;
     use super::super::*;
 
-    #[tokio::test]
-    async fn handle_upload_stream() {
+    #[sqlx::test]
+    async fn handle_upload_stream(pool: sqlx::PgPool) {
         let now = Utc::now();
-        let mut state = TestState::new(TestAuthz::new()).await;
+        let mut state = TestState::new(pool, TestAuthz::new()).await;
         let conference_room_id = Uuid::new_v4();
         let event_room_id = Uuid::new_v4();
         let agent1 = TestAgent::new("web", "user1", USR_AUDIENCE);
@@ -221,10 +221,10 @@ mod handle_upload {
         assert_eq!(&recording2.created_by, agent2.agent_id());
     }
 
-    #[tokio::test]
-    async fn handle_upload_mjr() {
+    #[sqlx::test]
+    async fn handle_upload_mjr(pool: sqlx::PgPool) {
         let now = Utc::now();
-        let mut state = TestState::new(TestAuthz::new()).await;
+        let mut state = TestState::new(pool, TestAuthz::new()).await;
         let conference_room_id = Uuid::new_v4();
         let event_room_id = Uuid::new_v4();
 
@@ -342,12 +342,12 @@ mod handle_adjust {
     use super::super::super::PostprocessingStrategy;
     use super::super::*;
 
-    #[tokio::test]
-    async fn handle_adjust() {
+    #[sqlx::test]
+    async fn handle_adjust(pool: sqlx::PgPool) {
         let now = Utc::now();
         let agent1 = TestAgent::new("web", "user1", USR_AUDIENCE);
         let agent2 = TestAgent::new("web", "user2", USR_AUDIENCE);
-        let mut state = TestState::new(TestAuthz::new()).await;
+        let mut state = TestState::new(pool, TestAuthz::new()).await;
         let event_room_id = Uuid::new_v4();
         let original_event_room_id = Uuid::new_v4();
         let modified_event_room_id = Uuid::new_v4();
@@ -582,12 +582,12 @@ mod handle_adjust {
         }
     }
 
-    #[tokio::test]
-    async fn handle_adjust_with_pin_and_unpin() {
+    #[sqlx::test]
+    async fn handle_adjust_with_pin_and_unpin(pool: sqlx::PgPool) {
         let now = Utc::now();
         let agent1 = TestAgent::new("web", "user1", USR_AUDIENCE);
         let agent2 = TestAgent::new("web", "user2", USR_AUDIENCE);
-        let mut state = TestState::new(TestAuthz::new()).await;
+        let mut state = TestState::new(pool, TestAuthz::new()).await;
         let event_room_id = Uuid::new_v4();
         let original_event_room_id = Uuid::new_v4();
         let modified_event_room_id = Uuid::new_v4();
@@ -822,12 +822,12 @@ mod handle_transcoding_completion {
     use super::super::super::PostprocessingStrategy;
     use super::super::*;
 
-    #[tokio::test]
-    async fn handle_transcoding_completion() {
+    #[sqlx::test]
+    async fn handle_transcoding_completion(pool: sqlx::PgPool) {
         let now = Utc::now();
         let agent1 = TestAgent::new("web", "user1", USR_AUDIENCE);
         let agent2 = TestAgent::new("web", "user2", USR_AUDIENCE);
-        let state = TestState::new(TestAuthz::new()).await;
+        let state = TestState::new(pool, TestAuthz::new()).await;
 
         // Insert a minigroup with recordings.
         let (minigroup, recording1, recording2) = {

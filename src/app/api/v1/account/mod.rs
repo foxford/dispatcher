@@ -126,11 +126,11 @@ mod tests {
     use super::*;
     use crate::test_helpers::prelude::*;
 
-    #[tokio::test]
-    async fn update_property() {
+    #[sqlx::test]
+    async fn update_property(pool: sqlx::PgPool) {
         let agent = TestAgent::new("web", "user1", USR_AUDIENCE);
 
-        let db_pool = TestDb::new().await;
+        let db_pool = TestDb::new(pool);
         let authz = TestAuthz::new();
         let state = TestState::new_with_pool(db_pool, authz);
         let state = Arc::new(state);
@@ -151,11 +151,11 @@ mod tests {
         assert!(props.contains_key(&property_id));
     }
 
-    #[tokio::test]
-    async fn read_property() {
+    #[sqlx::test]
+    async fn read_property(pool: sqlx::PgPool) {
         let agent = TestAgent::new("web", "user2", USR_AUDIENCE);
 
-        let db_pool = TestDb::new().await;
+        let db_pool = TestDb::new(pool);
         let authz = TestAuthz::new();
         let state = TestState::new_with_pool(db_pool, authz);
         let state = Arc::new(state);
@@ -185,11 +185,11 @@ mod tests {
         assert_eq!(property_value, expected_property_value);
     }
 
-    #[tokio::test]
-    async fn merge_properties() {
+    #[sqlx::test]
+    async fn merge_properties(pool: sqlx::PgPool) {
         let agent = TestAgent::new("web", "user3", USR_AUDIENCE);
 
-        let db_pool = TestDb::new().await;
+        let db_pool = TestDb::new(pool);
         let authz = TestAuthz::new();
         let state = TestState::new_with_pool(db_pool, authz);
         let state = Arc::new(state);
@@ -243,11 +243,11 @@ mod tests {
         assert_eq!(property_value, second_prop_value);
     }
 
-    #[tokio::test]
-    async fn overwrite_property() {
+    #[sqlx::test]
+    async fn overwrite_property(pool: sqlx::PgPool) {
         let agent = TestAgent::new("web", "user4", USR_AUDIENCE);
 
-        let db_pool = TestDb::new().await;
+        let db_pool = TestDb::new(pool);
         let authz = TestAuthz::new();
         let state = TestState::new_with_pool(db_pool, authz);
         let state = Arc::new(state);
@@ -300,11 +300,11 @@ mod tests {
         assert_eq!(property_value, second_prop_value);
     }
 
-    #[tokio::test]
-    async fn overwrite_property_complex() {
+    #[sqlx::test]
+    async fn overwrite_property_complex(pool: sqlx::PgPool) {
         let agent = TestAgent::new("web", "user5", USR_AUDIENCE);
 
-        let db_pool = TestDb::new().await;
+        let db_pool = TestDb::new(pool);
         let authz = TestAuthz::new();
         let state = TestState::new_with_pool(db_pool, authz);
         let state = Arc::new(state);

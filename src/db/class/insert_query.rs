@@ -214,9 +214,9 @@ mod tests {
     use super::*;
     use crate::test_helpers::prelude::*;
 
-    #[tokio::test]
-    async fn insert_already_established_webinar() {
-        let db = TestDb::new().await;
+    #[sqlx::test]
+    async fn insert_already_established_webinar(pool: sqlx::PgPool) {
+        let db = TestDb::new(pool);
         let mut conn = db.get_conn().await;
 
         let webinar = {
@@ -255,9 +255,9 @@ mod tests {
         assert_eq!(time.0, Bound::Unbounded);
     }
 
-    #[tokio::test]
-    async fn insert_not_established_webinar() {
-        let db = TestDb::new().await;
+    #[sqlx::test]
+    async fn insert_not_established_webinar(pool: sqlx::PgPool) {
+        let db = TestDb::new(pool);
         let mut conn = db.get_conn().await;
 
         let dummy = InsertQuery::new(

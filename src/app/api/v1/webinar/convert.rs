@@ -240,11 +240,11 @@ mod tests {
     use mockall::predicate as pred;
     use serde_json::{json, Value};
 
-    #[tokio::test]
-    async fn convert_webinar_unauthorized() {
+    #[sqlx::test]
+    async fn convert_webinar_unauthorized(pool: sqlx::PgPool) {
         let agent = TestAgent::new("web", "user1", USR_AUDIENCE);
 
-        let state = TestState::new(TestAuthz::new()).await;
+        let state = TestState::new(pool, TestAuthz::new()).await;
         let event_room_id = Uuid::new_v4();
         let conference_room_id = Uuid::new_v4();
 
@@ -269,14 +269,14 @@ mod tests {
             .expect_err("Unexpectedly succeeded");
     }
 
-    #[tokio::test]
-    async fn convert_webinar() {
+    #[sqlx::test]
+    async fn convert_webinar(pool: sqlx::PgPool) {
         let agent = TestAgent::new("web", "user1", USR_AUDIENCE);
 
         let mut authz = TestAuthz::new();
         authz.allow(agent.account_id(), vec!["classrooms"], "convert");
 
-        let mut state = TestState::new(authz).await;
+        let mut state = TestState::new(pool, authz).await;
         let event_room_id = Uuid::new_v4();
         let conference_room_id = Uuid::new_v4();
         convert_webinar_mocks(&mut state, event_room_id, conference_room_id);
@@ -313,14 +313,14 @@ mod tests {
         );
     }
 
-    #[tokio::test]
-    async fn convert_webinar_with_recording() {
+    #[sqlx::test]
+    async fn convert_webinar_with_recording(pool: sqlx::PgPool) {
         let agent = TestAgent::new("web", "user1", USR_AUDIENCE);
 
         let mut authz = TestAuthz::new();
         authz.allow(agent.account_id(), vec!["classrooms"], "convert");
 
-        let mut state = TestState::new(authz).await;
+        let mut state = TestState::new(pool, authz).await;
         let event_room_id = Uuid::new_v4();
         let conference_room_id = Uuid::new_v4();
         convert_webinar_mocks(&mut state, event_room_id, conference_room_id);
@@ -365,14 +365,14 @@ mod tests {
         );
     }
 
-    #[tokio::test]
-    async fn convert_webinar_unspecified_time() {
+    #[sqlx::test]
+    async fn convert_webinar_unspecified_time(pool: sqlx::PgPool) {
         let agent = TestAgent::new("web", "user1", USR_AUDIENCE);
 
         let mut authz = TestAuthz::new();
         authz.allow(agent.account_id(), vec!["classrooms"], "convert");
 
-        let mut state = TestState::new(authz).await;
+        let mut state = TestState::new(pool, authz).await;
         let event_room_id = Uuid::new_v4();
         let conference_room_id = Uuid::new_v4();
         convert_unspecified_time_webinar_mocks(&mut state, event_room_id, conference_room_id);

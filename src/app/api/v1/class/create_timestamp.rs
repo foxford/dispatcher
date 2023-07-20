@@ -74,11 +74,10 @@ mod create_timestamp_tests {
     use std::ops::Bound;
     use uuid::Uuid;
 
-    #[tokio::test]
-    async fn create_timestamp_unauthorized() {
+    #[sqlx::test]
+    async fn create_timestamp_unauthorized(pool: sqlx::PgPool) {
         let agent = TestAgent::new("web", "user1", USR_AUDIENCE);
-
-        let db_pool = TestDb::new().await;
+        let db_pool = TestDb::new(pool);
 
         let webinar = {
             let mut conn = db_pool.get_conn().await;
@@ -111,11 +110,10 @@ mod create_timestamp_tests {
         .expect_err("Unexpected success, should fail due to authz");
     }
 
-    #[tokio::test]
-    async fn create_webinar_timestamp() {
+    #[sqlx::test]
+    async fn create_webinar_timestamp(pool: sqlx::PgPool) {
         let agent = TestAgent::new("web", "user1", USR_AUDIENCE);
-
-        let db_pool = TestDb::new().await;
+        let db_pool = TestDb::new(pool);
 
         let webinar = {
             let mut conn = db_pool.get_conn().await;

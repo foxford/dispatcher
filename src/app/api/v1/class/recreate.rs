@@ -140,11 +140,11 @@ mod tests {
         use mockall::predicate as pred;
         use uuid::Uuid;
 
-        #[tokio::test]
-        async fn recreate_webinar_unauthorized() {
+        #[sqlx::test]
+        async fn recreate_webinar_unauthorized(pool: sqlx::PgPool) {
             let agent = TestAgent::new("web", "user1", USR_AUDIENCE);
 
-            let db_pool = TestDb::new().await;
+            let db_pool = TestDb::new(pool);
 
             let webinar = {
                 let mut conn = db_pool.get_conn().await;
@@ -172,14 +172,14 @@ mod tests {
                 .expect_err("Unexpected success, should fail due to authz");
         }
 
-        #[tokio::test]
-        async fn recreate_webinar() {
+        #[sqlx::test]
+        async fn recreate_webinar(pool: sqlx::PgPool) {
             let agent = TestAgent::new("web", "user1", USR_AUDIENCE);
 
             let recreated_event_room_id = Uuid::new_v4();
             let recreated_conference_room_id = Uuid::new_v4();
 
-            let db_pool = TestDb::new().await;
+            let db_pool = TestDb::new(pool);
 
             let webinar = {
                 let mut conn = db_pool.get_conn().await;

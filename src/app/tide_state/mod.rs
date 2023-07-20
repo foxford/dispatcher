@@ -33,7 +33,7 @@ pub trait AppContext: Sync + Send {
     fn config(&self) -> &Config;
     fn agent(&self) -> Option<&Agent>;
     fn turn_host_selector(&self) -> &TurnHostSelector;
-    fn nats_client(&self) -> Option<&dyn NatsClient>;
+    fn nats_client(&self) -> Option<Arc<dyn NatsClient>>;
 
     fn get_preroll_offset(&self, audience: &str) -> i64 {
         self.config()
@@ -158,8 +158,8 @@ impl AppContext for TideState {
         &self.turn_host_selector
     }
 
-    fn nats_client(&self) -> Option<&dyn NatsClient> {
-        self.nats_client.as_deref()
+    fn nats_client(&self) -> Option<Arc<dyn NatsClient>> {
+        self.nats_client.clone()
     }
 }
 
