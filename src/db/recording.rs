@@ -10,7 +10,7 @@ use serde_derive::{Deserialize, Serialize};
 ////////////////////////////////////////////////////////////////////////////////
 
 #[allow(dead_code)]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 pub struct Object {
     id: Uuid,
     class_id: Uuid,
@@ -27,7 +27,6 @@ pub struct Object {
 }
 
 impl Object {
-    #[cfg(test)]
     pub fn id(&self) -> Uuid {
         self.id
     }

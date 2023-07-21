@@ -38,6 +38,14 @@ pub trait EventClient: Sync + Send {
         offset: i64,
     ) -> Result<(), ClientError>;
 
+    async fn adjust_room_v2(
+        &self,
+        event_room_id: Uuid,
+        recordings: Vec<AdjustRecording>,
+        mute_events: Vec<ConfigSnapshot>,
+        offset: i64,
+    ) -> Result<(), ClientError>;
+
     async fn commit_edition(&self, edition_id: Uuid, offset: i64) -> Result<(), ClientError>;
 
     async fn create_event(&self, payload: JsonValue) -> Result<(), ClientError>;
@@ -72,6 +80,7 @@ pub trait EventClient: Sync + Send {
     }
 }
 
+use crate::clients::conference::ConfigSnapshot;
 pub use client::MqttEventClient;
 pub use tower_client::TowerClient;
 

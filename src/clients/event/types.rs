@@ -1,3 +1,4 @@
+use crate::clients::conference::ConfigSnapshot;
 use chrono::{DateTime, Utc};
 use serde_derive::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
@@ -97,17 +98,50 @@ impl RoomAdjust {
 #[derive(Deserialize)]
 #[serde(untagged)]
 pub enum RoomAdjustResult {
+    V1(RoomAdjustResultV1),
+    V2(RoomAdjustResultV2),
+}
+
+#[derive(Deserialize)]
+#[serde(untagged)]
+pub enum RoomAdjustResultV1 {
     Success {
         original_room_id: Uuid,
         modified_room_id: Uuid,
         #[serde(with = "crate::db::recording::serde::segments")]
         modified_segments: Segments,
-        #[serde(with = "crate::db::recording::serde::segments")]
-        cut_original_segments: Segments,
     },
     Error {
         error: JsonValue,
     },
+}
+
+#[derive(Deserialize)]
+#[serde(untagged)]
+pub enum RoomAdjustResultV2 {
+    Success {
+        original_room_id: Uuid,
+        modified_room_id: Uuid,
+        recordings: Vec<RecordingSegments>,
+        #[serde(with = "crate::serde::ts_seconds_bound_tuple")]
+        modified_room_time: BoundedDateTimeTuple,
+    },
+    Error {
+        error: JsonValue,
+    },
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RecordingSegments {
+    pub id: Uuid,
+    #[serde(with = "crate::db::recording::serde::segments")]
+    pub pin_segments: Segments,
+    #[serde(with = "crate::db::recording::serde::segments")]
+    pub modified_segments: Segments,
+    #[serde(with = "crate::db::recording::serde::segments")]
+    pub video_mute_segments: Segments,
+    #[serde(with = "crate::db::recording::serde::segments")]
+    pub audio_mute_segments: Segments,
 }
 
 impl From<RoomAdjust> for RoomAdjustResult {
@@ -193,6 +227,34 @@ pub struct EventAdjustPayload {
     #[serde(with = "crate::db::recording::serde::segments")]
     pub segments: Segments,
     pub offset: i64,
+}
+
+#[derive(Debug, Serialize, Clone)]
+pub struct AdjustRecording {
+    pub id: Uuid,
+    pub rtc_id: Uuid,
+    pub host: bool,
+    #[serde(with = "crate::db::recording::serde::segments")]
+    pub segments: Segments,
+    #[serde(with = "chrono::serde::ts_milliseconds")]
+    pub started_at: DateTime<Utc>,
+    pub created_by: AgentId,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct EventAdjustPayloadV2 {
+    pub id: Uuid,
+    pub recordings: Vec<AdjustRecording>,
+    pub mute_events: Vec<ConfigSnapshot>,
+    pub offset: i64,
+}
+
+impl MqttRequest for EventAdjustPayloadV2 {
+    type Response = EmptyResponse;
+
+    fn method(&self) -> &'static str {
+        "room.adjust.v2"
+    }
 }
 
 #[derive(Deserialize)]

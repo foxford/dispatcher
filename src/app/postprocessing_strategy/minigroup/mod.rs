@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::ops::Bound;
 use std::sync::Arc;
 
@@ -16,10 +17,11 @@ use svc_agent::{
 use tracing::{error, warn};
 use uuid::Uuid;
 
+use crate::clients::event::{AdjustRecording, RecordingSegments, RoomAdjustResultV2};
 use crate::clients::tq::{
     Priority, Task as TqTask, TranscodeMinigroupToHlsStream, TranscodeMinigroupToHlsSuccess,
 };
-use crate::db::class::Object as Class;
+use crate::db::class::{BoundedDateTimeTuple, Object as Class};
 use crate::db::recording::Segments;
 use crate::{app::AppContext, clients::conference::ConfigSnapshot};
 use crate::{
@@ -117,10 +119,33 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
             }
         };
 
-        call_adjust(
+        // Fetch writer config snapshots for building muted segments.
+        let mute_events = self
+            .ctx
+            .conference_client()
+            .read_config_snapshots(self.minigroup.conference_room_id())
+            .await
+            .context("Failed to get writer config snapshots for room")?;
+
+        let recordings = recordings
+            .iter()
+            .map(|r| AdjustRecording {
+                id: r.id(),
+                rtc_id: r.rtc_id(),
+                host: (host_recording.created_by == *r.created_by()),
+                // todo get rid of  unwrap()
+                segments: r.segments().unwrap().to_owned(),
+                // todo get rid of  unwrap()
+                started_at: r.started_at().unwrap(),
+                created_by: r.created_by().to_owned(),
+            })
+            .collect::<Vec<_>>();
+
+        call_adjust_v2(
             self.ctx.clone(),
             self.minigroup.event_room_id(),
-            host_recording,
+            recordings,
+            mute_events,
             self.ctx.get_preroll_offset(self.minigroup.audience()),
         )
         .await?;
@@ -128,12 +153,19 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
     }
 
     async fn handle_adjust(&self, room_adjust_result: RoomAdjustResult) -> Result<()> {
-        match room_adjust_result {
-            RoomAdjustResult::Success {
+        let result = match room_adjust_result {
+            RoomAdjustResult::V1(_) => {
+                bail!("unsupported adjust version")
+            }
+            RoomAdjustResult::V2(result) => result,
+        };
+
+        match result {
+            RoomAdjustResultV2::Success {
                 original_room_id,
                 modified_room_id,
-                cut_original_segments,
-                ..
+                recordings,
+                modified_room_time,
             } => {
                 // Find host stream id.
                 let host = match self.find_host(modified_room_id).await? {
@@ -148,7 +180,7 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
                 };
 
                 // Save adjust results to the DB and fetch recordings.
-                let recordings = {
+                let records = {
                     let mut conn = self.ctx.get_conn().await?;
 
                     let mut txn = conn
@@ -164,9 +196,11 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
 
                     q.execute(&mut txn).await?;
 
-                    let recordings = crate::db::recording::AdjustMinigroupUpdateQuery::new(
+                    // todo get host modified_segments and save them
+                    let records = crate::db::recording::AdjustMinigroupUpdateQuery::new(
                         self.minigroup.id(),
-                        cut_original_segments,
+                        // fixme
+                        Segments::empty(),
                         host.clone(),
                     )
                     .execute(&mut txn)
@@ -174,19 +208,21 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
 
                     txn.commit().await?;
 
-                    recordings
+                    records
                 };
 
                 send_transcoding_task(
                     &self.ctx,
                     &self.minigroup,
+                    records,
                     recordings,
+                    Some(modified_room_time),
                     modified_room_id,
                     Priority::Normal,
                 )
                 .await
             }
-            RoomAdjustResult::Error { error } => {
+            RoomAdjustResultV2::Error { error } => {
                 bail!("Adjust failed, err = {:#?}", error);
             }
         }
@@ -313,19 +349,15 @@ async fn insert_recordings(
     Ok(())
 }
 
-async fn call_adjust(
+async fn call_adjust_v2(
     ctx: Arc<dyn AppContext>,
     room_id: Uuid,
-    host_recording: ReadyRecording,
+    recordings: Vec<AdjustRecording>,
+    mute_events: Vec<ConfigSnapshot>,
     offset: i64,
 ) -> Result<()> {
     ctx.event_client()
-        .adjust_room(
-            room_id,
-            host_recording.started_at,
-            host_recording.segments,
-            offset,
-        )
+        .adjust_room_v2(room_id, recordings, mute_events, offset)
         .await
         .map_err(|err| anyhow!("Failed to adjust room, id = {}: {}", room_id, err))?;
 
@@ -355,6 +387,10 @@ pub async fn restart_transcoding(
         &ctx,
         &minigroup,
         recordings,
+        // fixme
+        vec![],
+        // fixme
+        None,
         modified_event_room_id,
         priority,
     )
@@ -365,6 +401,8 @@ async fn send_transcoding_task(
     ctx: &Arc<dyn AppContext>,
     minigroup: &Class,
     recordings: Vec<crate::db::recording::Object>,
+    recording_segments: Vec<RecordingSegments>,
+    modified_room_time: Option<BoundedDateTimeTuple>,
     modified_event_room_id: Uuid,
     priority: Priority,
 ) -> Result<()> {
@@ -383,6 +421,11 @@ async fn send_transcoding_task(
         .collect::<Option<Vec<_>>>()
         .ok_or_else(|| anyhow!("Not all recordings are ready"))?;
 
+    let recordings_map = recordings
+        .iter()
+        .map(|r| (r.id.to_owned(), r.to_owned()))
+        .collect::<HashMap<_, _>>();
+
     let maybe_host_recording = recordings
         .iter()
         .find(|recording| recording.created_by == host);
@@ -393,14 +436,8 @@ async fn send_transcoding_task(
         Some(recording) => recording,
     };
 
-    // Fetch event room opening time for events' offset calculation.
-    let modified_event_room = ctx
-        .event_client()
-        .read_room(modified_event_room_id)
-        .await
-        .context("Failed to read modified event room")?;
-
-    match modified_event_room.time {
+    // todo get rid of unwrap()
+    match modified_room_time.unwrap() {
         (Bound::Included(_), _) => (),
         _ => bail!("Wrong event room opening time"),
     };
@@ -416,37 +453,16 @@ async fn send_transcoding_task(
         .min_by(|a, b| a.started_at.cmp(&b.started_at))
         .ok_or_else(|| anyhow!("No recordings"))?;
 
-    // Fetch pin events for building pin segments.
-    let pin_events = ctx
-        .event_client()
-        .list_events(modified_event_room_id, PIN_EVENT_TYPE)
-        .await
-        .context("Failed to get pin events for room")?;
-
-    // Fetch writer config snapshots for building muted segments.
-    let mute_events = ctx
-        .conference_client()
-        .read_config_snapshots(minigroup.conference_room_id())
-        .await
-        .context("Failed to get writer config snapshots for room")?;
-
     // Build streams for template bindings.
-    let streams = recordings
+
+    let streams = recording_segments
         .iter()
-        .map(|recording| {
-            let event_room_offset = recording.started_at
-                - (host_stream.started_at
-                    - Duration::milliseconds(ctx.get_preroll_offset(minigroup.audience())));
+        .map(|r| {
+            // todo get rid of unwrap()
+            let recording = recordings_map.get(&r.id).unwrap();
 
             let recording_offset = recording.started_at - earliest_recording.started_at;
-
-            build_stream(
-                recording,
-                &pin_events,
-                event_room_offset,
-                recording_offset,
-                &mute_events,
-            )
+            build_stream(recording, r, recording_offset)
         })
         .collect::<Result<Vec<_>, _>>()?;
 
@@ -466,73 +482,9 @@ async fn send_transcoding_task(
 
 fn build_stream(
     recording: &ReadyRecording,
-    pin_events: &[Event],
-    event_room_offset: Duration,
+    recording_segments: &RecordingSegments,
     recording_offset: Duration,
-    configs_changes: &[ConfigSnapshot],
-) -> anyhow::Result<TranscodeMinigroupToHlsStream> {
-    let recording_end = match recording
-        .segments
-        .last()
-        .map(|range| range.end)
-        .ok_or_else(|| anyhow!("Recording segments have no end?"))?
-    {
-        Bound::Included(t) | Bound::Excluded(t) => t,
-        Bound::Unbounded => bail!("Unbounded recording end"),
-    };
-
-    let pin_segments = collect_pin_segments(
-        pin_events,
-        event_room_offset,
-        &recording.created_by,
-        recording_end,
-    );
-
-    // We need only changes for the recording that fall into recording span
-    let changes = configs_changes.iter().filter(|snapshot| {
-        let m = (snapshot.created_at - recording.started_at).num_milliseconds();
-        m > 0 && m < recording_end && snapshot.rtc_id == recording.rtc_id
-    });
-    let mut video_mute_start = None;
-    let mut audio_mute_start = None;
-    let mut video_mute_segments = vec![];
-    let mut audio_mute_segments = vec![];
-
-    for change in changes {
-        if change.send_video == Some(false) && video_mute_start.is_none() {
-            video_mute_start = Some(change);
-        }
-
-        if change.send_video == Some(true) && video_mute_start.is_some() {
-            let start = video_mute_start.take().unwrap();
-            let muted_at = (start.created_at - recording.started_at).num_milliseconds();
-            let unmuted_at = (change.created_at - recording.started_at).num_milliseconds();
-            video_mute_segments.push((Bound::Included(muted_at), Bound::Excluded(unmuted_at)));
-        }
-
-        if change.send_audio == Some(false) && audio_mute_start.is_none() {
-            audio_mute_start = Some(change);
-        }
-
-        if change.send_audio == Some(true) && audio_mute_start.is_some() {
-            let start = audio_mute_start.take().unwrap();
-            let muted_at = (start.created_at - recording.started_at).num_milliseconds();
-            let unmuted_at = (change.created_at - recording.started_at).num_milliseconds();
-            audio_mute_segments.push((Bound::Included(muted_at), Bound::Excluded(unmuted_at)));
-        }
-    }
-
-    // If last mute segment was left open, close it with recording end
-    if let Some(start) = video_mute_start {
-        let muted_at = (start.created_at - recording.started_at).num_milliseconds();
-        video_mute_segments.push((Bound::Included(muted_at), Bound::Excluded(recording_end)));
-    }
-
-    if let Some(start) = audio_mute_start {
-        let muted_at = (start.created_at - recording.started_at).num_milliseconds();
-        audio_mute_segments.push((Bound::Included(muted_at), Bound::Excluded(recording_end)));
-    }
-
+) -> Result<TranscodeMinigroupToHlsStream> {
     let v = TranscodeMinigroupToHlsStream::new(recording.rtc_id, recording.stream_uri.to_owned())
         .offset(recording_offset.num_milliseconds() as u64)
         // We pass not modified but original segments here, this is done because:
@@ -544,11 +496,11 @@ fn build_stream(
         // non-host's str: begin-----------------------------------------end (no pause at all)
         // For a non-host's stream we must apply the pause in the host's stream
         // Tq does that but it needs pauses, and these pauses are only present in og segments, not in modified segments
-        .modified_segments(recording.modified_segments.to_owned())
+        .modified_segments(recording_segments.modified_segments.to_owned())
         .segments(recording.segments.to_owned())
-        .pin_segments(pin_segments.into())
-        .video_mute_segments(video_mute_segments.into())
-        .audio_mute_segments(audio_mute_segments.into());
+        .pin_segments(recording_segments.pin_segments.into())
+        .video_mute_segments(recording_segments.video_mute_segments.into())
+        .audio_mute_segments(recording_segments.audio_mute_segments.into());
 
     Ok(v)
 }
@@ -608,6 +560,7 @@ fn collect_pin_segments(
 
 #[derive(Debug)]
 struct ReadyRecording {
+    id: Uuid,
     rtc_id: Uuid,
     stream_uri: String,
     segments: Segments,
@@ -619,6 +572,7 @@ struct ReadyRecording {
 impl ReadyRecording {
     fn from_db_object(recording: &crate::db::recording::Object) -> Option<Self> {
         Some(Self {
+            id: recording.id(),
             rtc_id: recording.rtc_id(),
             stream_uri: recording.stream_uri().cloned()?,
             segments: recording.segments().cloned()?,

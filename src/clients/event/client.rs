@@ -16,6 +16,7 @@ use svc_agent::{
     AccountId, AgentId, Subscription,
 };
 
+use crate::clients::conference::ConfigSnapshot;
 use uuid::Uuid;
 
 use super::types::*;
@@ -231,6 +232,52 @@ impl EventClient for MqttEventClient {
             }
         }
     }
+
+    async fn adjust_room_v2(
+        &self,
+        event_room_id: Uuid,
+        recordings: Vec<AdjustRecording>,
+        mute_events: Vec<ConfigSnapshot>,
+        offset: i64,
+    ) -> Result<(), ClientError> {
+        let reqp = self.build_reqp("room.adjust.v2")?;
+
+        let payload = EventAdjustPayloadV2 {
+            id: event_room_id,
+            recordings,
+            mute_events,
+            offset,
+        };
+        let msg = if let OutgoingMessage::Request(msg) =
+            OutgoingRequest::multicast(payload, reqp, &self.event_account_id, &self.api_version)
+        {
+            msg
+        } else {
+            unreachable!()
+        };
+
+        let request = self.dispatcher.request::<_, JsonValue>(msg);
+        let payload_result = if let Some(dur) = self.timeout {
+            tokio::time::timeout(dur, request)
+                .await
+                .map_err(|_e| ClientError::Timeout)?
+        } else {
+            request.await
+        };
+
+        let payload = payload_result.map_err(|e| ClientError::Payload(e.to_string()))?;
+
+        match payload.properties().status() {
+            ResponseStatus::ACCEPTED => Ok(()),
+            status => {
+                let e = format!("Wrong status, expected 202, got {:?}", status);
+                Err(ClientError::Payload(e))
+            }
+        }
+    }
+
+    // ,
+    //
 
     async fn commit_edition(&self, edition_id: Uuid, offset: i64) -> Result<(), ClientError> {
         let reqp = self.build_reqp("edition.commit")?;

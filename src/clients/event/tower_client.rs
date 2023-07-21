@@ -1,6 +1,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
+use crate::clients::conference::ConfigSnapshot;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use serde_json::Value as JsonValue;
@@ -20,6 +21,7 @@ struct TowerClientInner {
     update_room: MqttClient<EventRoomUpdatePayload>,
     update_locked_types: MqttClient<EventRoomLockedTypesPayload>,
     adjust_room: MqttClient<EventAdjustPayload>,
+    adjust_room_v2: MqttClient<EventAdjustPayloadV2>,
     commit_edition: MqttClient<EventCommitPayload>,
     create_event: MqttClient<EventCreateEventPayload>,
     list_events: MqttClient<EventListPayload>,
@@ -34,6 +36,7 @@ impl TowerClientInner {
             update_room: MqttClient::new(timeout, svc.clone()),
             update_locked_types: MqttClient::new(timeout, svc.clone()),
             adjust_room: MqttClient::new(timeout, svc.clone()),
+            adjust_room_v2: MqttClient::new(timeout, svc.clone()),
             commit_edition: MqttClient::new(timeout, svc.clone()),
             create_event: MqttClient::new(timeout, svc.clone()),
             list_events: MqttClient::new(timeout, svc.clone()),
@@ -69,6 +72,10 @@ impl TowerClientInner {
 
     async fn adjust_room(&self, payload: EventAdjustPayload) -> Result<(), ClientError> {
         self.adjust_room.clone().call(payload).await.map(|_v| ())
+    }
+
+    async fn adjust_room_v2(&self, payload: EventAdjustPayloadV2) -> Result<(), ClientError> {
+        self.adjust_room_v2.clone().call(payload).await.map(|_v| ())
     }
 
     async fn commit_edition(&self, payload: EventCommitPayload) -> Result<(), ClientError> {
@@ -153,6 +160,23 @@ impl EventClient for TowerClient {
                 id: event_room_id,
                 started_at,
                 segments,
+                offset,
+            })
+            .await
+    }
+
+    async fn adjust_room_v2(
+        &self,
+        event_room_id: Uuid,
+        recordings: Vec<AdjustRecording>,
+        mute_events: Vec<ConfigSnapshot>,
+        offset: i64,
+    ) -> Result<(), ClientError> {
+        self.inner
+            .adjust_room_v2(EventAdjustPayloadV2 {
+                id: event_room_id,
+                recordings,
+                mute_events,
                 offset,
             })
             .await

@@ -12,7 +12,7 @@ use svc_agent::mqtt::{
 use uuid::Uuid;
 
 use crate::app::AppContext;
-use crate::clients::event::RoomAdjustResult;
+use crate::clients::event::{RoomAdjustResult, RoomAdjustResultV1};
 use crate::clients::tq::Priority;
 use crate::db::class::{ClassType, Object as Class};
 use crate::{
@@ -64,12 +64,18 @@ impl super::PostprocessingStrategy for WebinarPostprocessingStrategy {
     }
 
     async fn handle_adjust(&self, room_adjust_result: RoomAdjustResult) -> Result<()> {
-        match room_adjust_result {
-            RoomAdjustResult::Success {
+        let result = match room_adjust_result {
+            RoomAdjustResult::V2(_) => {
+                bail!("unsupported adjust version")
+            }
+            RoomAdjustResult::V1(result) => result,
+        };
+
+        match result {
+            RoomAdjustResultV1::Success {
                 original_room_id,
                 modified_room_id,
                 modified_segments,
-                ..
             } => {
                 let recording = {
                     let mut conn = self.ctx.get_conn().await?;
@@ -107,7 +113,7 @@ impl super::PostprocessingStrategy for WebinarPostprocessingStrategy {
                 .await
                 .context("TqClient create task failed")
             }
-            RoomAdjustResult::Error { error } => {
+            RoomAdjustResultV1::Error { error } => {
                 bail!("Adjust failed, err = {:?}", error);
             }
         }

@@ -45,7 +45,7 @@ impl RoomUpdate {
     }
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ConfigSnapshot {
     pub send_video: Option<bool>,
     pub send_audio: Option<bool>,
