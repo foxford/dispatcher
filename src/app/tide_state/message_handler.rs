@@ -356,18 +356,21 @@ enum EditionCommitResult {
 
 impl EditionCommitResult {
     fn into_adjust_result(self) -> RoomAdjustResult {
+        // since editor is for webinars only, we can use v1
         match self {
             EditionCommitResult::Success {
                 source_room_id,
                 committed_room_id,
                 modified_segments,
-            } => RoomAdjustResult::Success {
+            } => RoomAdjustResult::V1(crate::clients::event::RoomAdjustResultV1::Success {
                 original_room_id: source_room_id,
                 modified_room_id: committed_room_id,
                 modified_segments,
-                cut_original_segments: vec![].into(),
-            },
-            EditionCommitResult::Error { error } => RoomAdjustResult::Error { error },
+            }),
+
+            EditionCommitResult::Error { error } => {
+                RoomAdjustResult::V1(crate::clients::event::RoomAdjustResultV1::Error { error })
+            }
         }
     }
 }

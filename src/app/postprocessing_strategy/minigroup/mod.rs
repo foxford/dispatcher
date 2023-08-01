@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::ops::Bound;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
@@ -21,11 +20,11 @@ use crate::clients::event::{AdjustRecording, RecordingSegments, RoomAdjustResult
 use crate::clients::tq::{
     Priority, Task as TqTask, TranscodeMinigroupToHlsStream, TranscodeMinigroupToHlsSuccess,
 };
-use crate::db::class::{BoundedDateTimeTuple, Object as Class};
+use crate::db::class::Object as Class;
 use crate::db::recording::Segments;
 use crate::{app::AppContext, clients::conference::ConfigSnapshot};
 use crate::{
-    clients::event::{Event, EventData, RoomAdjustResult},
+    clients::event::{EventData, RoomAdjustResult},
     db::class::ClassType,
 };
 
@@ -33,8 +32,6 @@ use super::{
     shared_helpers, MjrDumpsUploadReadyData, MjrDumpsUploadResult, TranscodeSuccess, UploadedStream,
 };
 
-const NS_IN_MS: i64 = 1_000_000;
-const PIN_EVENT_TYPE: &str = "pin";
 const HOST_EVENT_TYPE: &str = "host";
 
 pub(super) struct MinigroupPostprocessingStrategy {
@@ -129,15 +126,15 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
 
         let recordings = recordings
             .iter()
-            .map(|r| AdjustRecording {
-                id: r.id(),
-                rtc_id: r.rtc_id(),
-                host: (host_recording.created_by == *r.created_by()),
-                // todo get rid of  unwrap()
-                segments: r.segments().unwrap().to_owned(),
-                // todo get rid of  unwrap()
-                started_at: r.started_at().unwrap(),
-                created_by: r.created_by().to_owned(),
+            .filter_map(|r| {
+                Some(AdjustRecording {
+                    id: r.id(),
+                    rtc_id: r.rtc_id(),
+                    host: (host_recording.created_by == *r.created_by()),
+                    segments: r.segments()?.to_owned(),
+                    started_at: r.started_at()?,
+                    created_by: r.created_by().to_owned(),
+                })
             })
             .collect::<Vec<_>>();
 
@@ -164,8 +161,8 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
             RoomAdjustResultV2::Success {
                 original_room_id,
                 modified_room_id,
-                recordings,
-                modified_room_time,
+                recordings: record_segments,
+                ..
             } => {
                 // Find host stream id.
                 let host = match self.find_host(modified_room_id).await? {
@@ -196,11 +193,33 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
 
                     q.execute(&mut txn).await?;
 
-                    // todo get host modified_segments and save them
+                    let records =
+                        crate::db::recording::RecordingListQuery::new(self.minigroup.id())
+                            .execute(&mut txn)
+                            .await?;
+
+                    let host_record = records.iter().find(|r| *r.created_by() == host);
+                    let host_record = match host_record {
+                        Some(r) => r,
+                        None => {
+                            bail!("Host record is not found");
+                        }
+                    };
+
+                    let host_modified_segments = record_segments
+                        .iter()
+                        .find(|rs| rs.id == host_record.id())
+                        .map(|rs| rs.modified_segments.clone());
+                    let host_modified_segments = match host_modified_segments {
+                        Some(ss) => ss,
+                        None => {
+                            bail!("Host segments are not found");
+                        }
+                    };
+
                     let records = crate::db::recording::AdjustMinigroupUpdateQuery::new(
                         self.minigroup.id(),
-                        // fixme
-                        Segments::empty(),
+                        host_modified_segments,
                         host.clone(),
                     )
                     .execute(&mut txn)
@@ -215,8 +234,7 @@ impl super::PostprocessingStrategy for MinigroupPostprocessingStrategy {
                     &self.ctx,
                     &self.minigroup,
                     records,
-                    recordings,
-                    Some(modified_room_time),
+                    record_segments,
                     modified_room_id,
                     Priority::Normal,
                 )
@@ -321,7 +339,6 @@ async fn find_host(ctx: Arc<dyn AppContext>, event_room_id: Uuid) -> Result<Opti
     match host_events.first().map(|event| event.data()) {
         None => Ok(None),
         Some(EventData::Host(data)) => Ok(Some(data.agent_id().to_owned())),
-        Some(other) => bail!("Got unexpected host event data: {:?}", other),
     }
 }
 
@@ -389,8 +406,6 @@ pub async fn restart_transcoding(
         recordings,
         // fixme
         vec![],
-        // fixme
-        None,
         modified_event_room_id,
         priority,
     )
@@ -402,7 +417,6 @@ async fn send_transcoding_task(
     minigroup: &Class,
     recordings: Vec<crate::db::recording::Object>,
     recording_segments: Vec<RecordingSegments>,
-    modified_room_time: Option<BoundedDateTimeTuple>,
     modified_event_room_id: Uuid,
     priority: Priority,
 ) -> Result<()> {
@@ -436,12 +450,6 @@ async fn send_transcoding_task(
         Some(recording) => recording,
     };
 
-    // todo get rid of unwrap()
-    match modified_room_time.unwrap() {
-        (Bound::Included(_), _) => (),
-        _ => bail!("Wrong event room opening time"),
-    };
-
     ctx.event_client()
         .dump_room(modified_event_room_id)
         .await
@@ -457,12 +465,11 @@ async fn send_transcoding_task(
 
     let streams = recording_segments
         .iter()
-        .map(|r| {
-            // todo get rid of unwrap()
-            let recording = recordings_map.get(&r.id).unwrap();
+        .filter_map(|r| {
+            let recording = recordings_map.get(&r.id)?;
 
             let recording_offset = recording.started_at - earliest_recording.started_at;
-            build_stream(recording, r, recording_offset)
+            Some(build_stream(recording, r, recording_offset))
         })
         .collect::<Result<Vec<_>, _>>()?;
 
@@ -498,64 +505,11 @@ fn build_stream(
         // Tq does that but it needs pauses, and these pauses are only present in og segments, not in modified segments
         .modified_segments(recording_segments.modified_segments.to_owned())
         .segments(recording.segments.to_owned())
-        .pin_segments(recording_segments.pin_segments.into())
-        .video_mute_segments(recording_segments.video_mute_segments.into())
-        .audio_mute_segments(recording_segments.audio_mute_segments.into());
+        .pin_segments(recording_segments.pin_segments.clone())
+        .video_mute_segments(recording_segments.video_mute_segments.clone())
+        .audio_mute_segments(recording_segments.audio_mute_segments.clone());
 
     Ok(v)
-}
-
-fn collect_pin_segments(
-    pin_events: &[Event],
-    event_room_offset: Duration,
-    recording_created_by: &AgentId,
-    recording_end: i64,
-) -> Vec<(Bound<i64>, Bound<i64>)> {
-    let mut pin_segments = vec![];
-    let mut pin_start = None;
-
-    let mut add_segment = |start, end| {
-        if start <= end && start >= 0 && end <= recording_end {
-            pin_segments.push((Bound::Included(start), Bound::Excluded(end)));
-        }
-    };
-
-    for event in pin_events {
-        if let EventData::Pin(data) = event.data() {
-            // Shift from the event room's dimension to the recording's dimension.
-            let occurred_at =
-                event.occurred_at() as i64 / NS_IN_MS - event_room_offset.num_milliseconds();
-
-            if data
-                .agent_id()
-                .map(|aid| *aid == *recording_created_by)
-                .unwrap_or(false)
-            {
-                // Stream was pinned.
-                // Its possible that teacher pins someone twice in a row
-                // Do nothing in that case
-                if pin_start.is_none() {
-                    pin_start = Some(occurred_at);
-                }
-            } else if let Some(pinned_at) = pin_start {
-                // stream was unpinned
-                // its possible that pinned_at equals unpin's occurred_at after adjust
-                // we skip segments like that
-                if occurred_at > pinned_at {
-                    add_segment(pinned_at, occurred_at);
-                }
-                pin_start = None;
-            }
-        }
-    }
-
-    // If the stream hasn't got unpinned since some moment then add a pin segment to the end
-    // of the recording to keep it pinned.
-    if let Some(start) = pin_start {
-        add_segment(start, recording_end);
-    }
-
-    pin_segments
 }
 
 #[derive(Debug)]
@@ -564,6 +518,8 @@ struct ReadyRecording {
     rtc_id: Uuid,
     stream_uri: String,
     segments: Segments,
+    // TODO: remove this field if it's really not used
+    #[allow(unused)]
     modified_segments: Segments,
     started_at: DateTime<Utc>,
     created_by: AgentId,

@@ -39,31 +39,7 @@ impl Event {
 #[serde(tag = "type", content = "data")]
 #[serde(rename_all = "lowercase")]
 pub enum EventData {
-    Pin(PinEventData),
     Host(HostEventData),
-}
-
-#[derive(Clone, Debug, Deserialize)]
-pub struct PinEventData {
-    agent_id: Option<AgentId>,
-}
-
-impl PinEventData {
-    #[cfg(test)]
-    pub fn new(agent_id: AgentId) -> Self {
-        Self {
-            agent_id: Some(agent_id),
-        }
-    }
-
-    #[cfg(test)]
-    pub fn null() -> Self {
-        Self { agent_id: None }
-    }
-
-    pub fn agent_id(&self) -> Option<&AgentId> {
-        self.agent_id.as_ref()
-    }
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -456,11 +432,5 @@ pub mod test_helpers {
                 created_at: Utc::now(),
             }
         }
-    }
-
-    #[test]
-    fn parse_pin_data() {
-        serde_json::from_str::<PinEventData>(r#"{"agent_id": null}"#)
-            .expect("Failed to parse pin data");
     }
 }
