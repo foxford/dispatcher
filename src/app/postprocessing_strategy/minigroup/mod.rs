@@ -1,5 +1,5 @@
-use std::collections::HashMap;
 use std::sync::Arc;
+use std::{collections::HashMap, ops::Bound};
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
@@ -448,6 +448,18 @@ async fn send_transcoding_task(
         // Host has been set but there's no recording, skip transcoding.
         None => bail!("No host stream id in room"),
         Some(recording) => recording,
+    };
+
+    // Fetch event room opening time for events' offset calculation.
+    let modified_event_room = ctx
+        .event_client()
+        .read_room(modified_event_room_id)
+        .await
+        .context("Failed to read modified event room")?;
+
+    match modified_event_room.time {
+        (Bound::Included(_), _) => (),
+        _ => bail!("Wrong event room opening time"),
     };
 
     ctx.event_client()
