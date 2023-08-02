@@ -104,19 +104,21 @@ mod handle_upload {
 
         state
             .event_client_mock()
-            .expect_adjust_room()
+            .expect_adjust_room_v2()
             .withf(
                 move |room_id: &Uuid,
-                      started_at: &DateTime<Utc>,
-                      segments: &Segments,
+                      recordings: &Vec<AdjustRecording>,
+                      _mute_events: &Vec<ConfigSnapshot>,
                       offset: &i64| {
                     assert_eq!(*room_id, event_room_id);
+                    assert!(recordings[0].host);
                     assert_eq!(
-                        started_at.timestamp_millis(),
-                        started_at1.timestamp_millis()
+                        started_at1.timestamp_millis(),
+                        recordings[0].started_at.timestamp_millis()
                     );
-                    assert_eq!(segments, &expected_segments);
+                    assert_eq!(recordings[0].segments, expected_segments);
                     assert_eq!(*offset, 1234);
+
                     true
                 },
             )
@@ -151,6 +153,11 @@ mod handle_upload {
             id: rtc3_id,
             parsed_data: Err(anyhow!("Err")),
         };
+
+        state
+            .conference_client_mock()
+            .expect_read_config_snapshots()
+            .returning(|_| Ok(vec![]));
 
         let state = Arc::new(state);
 
