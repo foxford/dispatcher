@@ -474,12 +474,8 @@ mod handle_adjust {
         let uri1 = recording1.stream_uri().unwrap().clone();
         let uri2 = recording2.stream_uri().unwrap().clone();
 
-        let pin_segments1 = Segments::from(vec![
-            (Bound::Included(0), Bound::Excluded(1200000)),
-            (Bound::Included(1500000), Bound::Excluded(3000000)),
-        ]);
-        let pin_segments2 =
-            Segments::from(vec![(Bound::Included(600000), Bound::Excluded(900000))]);
+        let pin_segments1 = Segments::empty();
+        let pin_segments2 = Segments::empty();
 
         let expected_task = TqTask::TranscodeMinigroupToHls {
             streams: vec![
@@ -580,229 +576,231 @@ mod handle_adjust {
         }
     }
 
-    //     #[tokio::test]
-    //     async fn handle_adjust_with_pin_and_unpin() {
-    //         let now = Utc::now();
-    //         let agent1 = TestAgent::new("web", "user1", USR_AUDIENCE);
-    //         let agent2 = TestAgent::new("web", "user2", USR_AUDIENCE);
-    //         let mut state = TestState::new(TestAuthz::new()).await;
-    //         let event_room_id = Uuid::new_v4();
-    //         let original_event_room_id = Uuid::new_v4();
-    //         let modified_event_room_id = Uuid::new_v4();
-    //         let conference_room_id = Uuid::new_v4();
+    #[tokio::test]
+    async fn handle_adjust_with_pin_and_unpin() {
+        let now = Utc::now();
+        let agent1 = TestAgent::new("web", "user1", USR_AUDIENCE);
+        let agent2 = TestAgent::new("web", "user2", USR_AUDIENCE);
+        let mut state = TestState::new(TestAuthz::new()).await;
+        let event_room_id = Uuid::new_v4();
+        let original_event_room_id = Uuid::new_v4();
+        let modified_event_room_id = Uuid::new_v4();
+        let conference_room_id = Uuid::new_v4();
 
-    //         let original_host_segments: Segments = vec![
-    //             (Bound::Included(0), Bound::Excluded(1_500_000)),
-    //             (Bound::Included(1_800_000), Bound::Excluded(3_000_000)),
-    //         ]
-    //         .into();
+        let original_host_segments: Segments = vec![
+            (Bound::Included(0), Bound::Excluded(1_500_000)),
+            (Bound::Included(1_800_000), Bound::Excluded(3_000_000)),
+        ]
+        .into();
 
-    //         // assume there was single cut-stop at the beginning
-    //         let modified_segments: Segments =
-    //             vec![(Bound::Included(0), Bound::Excluded(2_697_000))].into();
+        // assume there was single cut-stop at the beginning
+        let cut_original_segments: Segments = vec![
+            (Bound::Included(3_000), Bound::Excluded(1_500_000)),
+            (Bound::Included(1_800_000), Bound::Excluded(3_000_000)),
+        ]
+        .into();
 
-    //         let cut_original_segments: Segments = vec![
-    //             (Bound::Included(3_000), Bound::Excluded(1_500_000)),
-    //             (Bound::Included(1_800_000), Bound::Excluded(3_000_000)),
-    //         ]
-    //         .into();
+        // Insert a minigroup with recordings.
+        let (minigroup, recording1, recording2) = {
+            let mut conn = state.get_conn().await.expect("Failed to get conn");
 
-    //         // Insert a minigroup with recordings.
-    //         let (minigroup, recording1, recording2) = {
-    //             let mut conn = state.get_conn().await.expect("Failed to get conn");
+            let time = (
+                Bound::Included(now - Duration::hours(1)),
+                Bound::Excluded(now - Duration::minutes(10)),
+            );
 
-    //             let time = (
-    //                 Bound::Included(now - Duration::hours(1)),
-    //                 Bound::Excluded(now - Duration::minutes(10)),
-    //             );
+            let minigroup_scope = format!("minigroup-{}", random_string());
 
-    //             let minigroup_scope = format!("minigroup-{}", random_string());
+            let minigroup = factory::Minigroup::new(
+                minigroup_scope,
+                USR_AUDIENCE.to_string(),
+                time.into(),
+                conference_room_id,
+                event_room_id,
+            )
+            .insert(&mut conn)
+            .await;
 
-    //             let minigroup = factory::Minigroup::new(
-    //                 minigroup_scope,
-    //                 USR_AUDIENCE.to_string(),
-    //                 time.into(),
-    //                 conference_room_id,
-    //                 event_room_id,
-    //             )
-    //             .insert(&mut conn)
-    //             .await;
+            let recording1 = factory::Recording::new(
+                minigroup.id(),
+                Uuid::new_v4(),
+                agent1.agent_id().to_owned(),
+            )
+            .segments(original_host_segments.clone())
+            .started_at(now - Duration::hours(1))
+            .stream_uri("s3://minigroup.origin.dev.example.com/rtc1.webm".to_string())
+            .insert(&mut conn)
+            .await;
 
-    //             let recording1 = factory::Recording::new(
-    //                 minigroup.id(),
-    //                 Uuid::new_v4(),
-    //                 agent1.agent_id().to_owned(),
-    //             )
-    //             .segments(original_host_segments.clone())
-    //             .started_at(now - Duration::hours(1))
-    //             .stream_uri("s3://minigroup.origin.dev.example.com/rtc1.webm".to_string())
-    //             .insert(&mut conn)
-    //             .await;
+            let recording2 = factory::Recording::new(
+                minigroup.id(),
+                Uuid::new_v4(),
+                agent2.agent_id().to_owned(),
+            )
+            .segments(vec![(Bound::Included(0), Bound::Excluded(2700000))].into())
+            .stream_uri("s3://minigroup.origin.dev.example.com/rtc2.webm".to_string())
+            .started_at(now - Duration::minutes(50))
+            .insert(&mut conn)
+            .await;
 
-    //             let recording2 = factory::Recording::new(
-    //                 minigroup.id(),
-    //                 Uuid::new_v4(),
-    //                 agent2.agent_id().to_owned(),
-    //             )
-    //             .segments(vec![(Bound::Included(0), Bound::Excluded(2700000))].into())
-    //             .stream_uri("s3://minigroup.origin.dev.example.com/rtc2.webm".to_string())
-    //             .started_at(now - Duration::minutes(50))
-    //             .insert(&mut conn)
-    //             .await;
+            (minigroup, recording1, recording2)
+        };
 
-    //             (minigroup, recording1, recording2)
-    //         };
+        let minigroup_id = minigroup.id();
 
-    //         let minigroup_id = minigroup.id();
+        state
+            .conference_client_mock()
+            .expect_read_config_snapshots()
+            .with(mockall::predicate::eq(conference_room_id))
+            .returning(move |_room_id| Ok(vec![]));
 
-    //         state
-    //             .conference_client_mock()
-    //             .expect_read_config_snapshots()
-    //             .with(mockall::predicate::eq(conference_room_id))
-    //             .returning(move |_room_id| Ok(vec![]));
+        // Set up event client mock.
+        let modified_room_time = (
+            Bound::Included(now - Duration::hours(1)),
+            Bound::Excluded(now - Duration::minutes(10)),
+        );
+        state
+            .event_client_mock()
+            .expect_read_room()
+            .with(mockall::predicate::eq(modified_event_room_id))
+            .returning(move |room_id| {
+                Ok(EventRoomResponse {
+                    id: room_id,
+                    time: modified_room_time,
+                    tags: None,
+                })
+            });
 
-    //         // Set up event client mock.
-    //         state
-    //             .event_client_mock()
-    //             .expect_read_room()
-    //             .with(mockall::predicate::eq(modified_event_room_id))
-    //             .returning(move |room_id| {
-    //                 Ok(EventRoomResponse {
-    //                     id: room_id,
-    //                     time: (
-    //                         Bound::Included(now - Duration::hours(1)),
-    //                         Bound::Excluded(now - Duration::minutes(10)),
-    //                     ),
-    //                     tags: None,
-    //                 })
-    //             });
+        state
+            .event_client_mock()
+            .expect_dump_room()
+            .with(mockall::predicate::eq(modified_event_room_id))
+            .returning(move |_room_id| Ok(()));
 
-    //         state
-    //             .event_client_mock()
-    //             .expect_dump_room()
-    //             .with(mockall::predicate::eq(modified_event_room_id))
-    //             .returning(move |_room_id| Ok(()));
+        state
+            .event_client_mock()
+            .expect_list_events()
+            .withf(move |room_id: &Uuid, _kind: &str| {
+                assert_eq!(*room_id, modified_event_room_id);
+                true
+            })
+            .returning(move |_, kind| match kind {
+                HOST_EVENT_TYPE => Ok(vec![EventBuilder::new()
+                    .room_id(modified_event_room_id)
+                    .set(HOST_EVENT_TYPE.to_string())
+                    .data(EventData::Host(HostEventData::new(
+                        agent1.agent_id().to_owned(),
+                    )))
+                    .occurred_at(0)
+                    .build()]),
+                other => panic!("Event client mock got unknown kind: {}", other),
+            });
 
-    //         state
-    //             .event_client_mock()
-    //             .expect_list_events()
-    //             .withf(move |room_id: &Uuid, _kind: &str| {
-    //                 assert_eq!(*room_id, modified_event_room_id);
-    //                 true
-    //             })
-    //             .returning(move |_, kind| match kind {
-    //                 PIN_EVENT_TYPE => Ok(vec![
-    //                     EventBuilder::new()
-    //                         .room_id(modified_event_room_id)
-    //                         .set(PIN_EVENT_TYPE.to_string())
-    //                         .data(EventData::Pin(PinEventData::new(
-    //                             agent1.agent_id().to_owned(),
-    //                         )))
-    //                         .occurred_at(0)
-    //                         .build(),
-    //                     EventBuilder::new()
-    //                         .room_id(modified_event_room_id)
-    //                         .set(PIN_EVENT_TYPE.to_string())
-    //                         .data(EventData::Pin(PinEventData::null()))
-    //                         .occurred_at(1000000000000)
-    //                         .build(),
-    //                 ]),
-    //                 HOST_EVENT_TYPE => Ok(vec![EventBuilder::new()
-    //                     .room_id(modified_event_room_id)
-    //                     .set(HOST_EVENT_TYPE.to_string())
-    //                     .data(EventData::Host(HostEventData::new(
-    //                         agent1.agent_id().to_owned(),
-    //                     )))
-    //                     .occurred_at(0)
-    //                     .build()]),
-    //                 other => panic!("Event client mock got unknown kind: {}", other),
-    //             });
+        // Set up tq client mock.
+        let uri1 = recording1.stream_uri().unwrap().to_string();
+        let uri2 = recording2.stream_uri().unwrap().to_string();
 
-    //         // Set up tq client mock.
-    //         let uri1 = recording1.stream_uri().unwrap().to_string();
-    //         let uri2 = recording2.stream_uri().unwrap().to_string();
+        let pin_segments1 = Segments::from(vec![(Bound::Included(0), Bound::Excluded(1_000_000))]);
+        let pin_segments2 = Segments::from(vec![]);
 
-    //         let expected_task = TqTask::TranscodeMinigroupToHls {
-    //             streams: vec![
-    //                 TranscodeMinigroupToHlsStream::new(recording1.rtc_id(), uri1)
-    //                     .offset(0)
-    //                     .segments(original_host_segments.clone())
-    //                     .modified_segments(cut_original_segments.clone())
-    //                     .pin_segments(vec![(Bound::Included(0), Bound::Excluded(1_000_000))].into()),
-    //                 TranscodeMinigroupToHlsStream::new(recording2.rtc_id(), uri2)
-    //                     .offset(600_000)
-    //                     .segments(recording2.segments().unwrap().to_owned())
-    //                     .modified_segments(recording2.segments().unwrap().to_owned())
-    //                     .pin_segments(vec![].into()),
-    //             ],
-    //             host_stream_id: recording1.rtc_id(),
-    //         };
+        let expected_task = TqTask::TranscodeMinigroupToHls {
+            streams: vec![
+                TranscodeMinigroupToHlsStream::new(recording1.rtc_id(), uri1)
+                    .offset(0)
+                    .segments(original_host_segments.clone())
+                    .modified_segments(cut_original_segments.clone())
+                    .pin_segments(pin_segments1.clone()),
+                TranscodeMinigroupToHlsStream::new(recording2.rtc_id(), uri2)
+                    .offset(600_000)
+                    .segments(recording2.segments().unwrap().to_owned())
+                    .modified_segments(recording2.segments().unwrap().to_owned())
+                    .pin_segments(pin_segments2.clone()),
+            ],
+            host_stream_id: recording1.rtc_id(),
+        };
 
-    //         state
-    //             .tq_client_mock()
-    //             .expect_create_task()
-    //             .withf(move |class: &Class, task: &TqTask, _p: &Priority| {
-    //                 assert_eq!(class.id(), minigroup_id);
-    //                 assert_eq!(task, &expected_task);
-    //                 true
-    //             })
-    //             .returning(|_, _, _| Ok(()));
+        state
+            .tq_client_mock()
+            .expect_create_task()
+            .withf(move |class: &Class, task: &TqTask, _p: &Priority| {
+                assert_eq!(class.id(), minigroup_id);
+                assert_eq!(task, &expected_task);
+                true
+            })
+            .returning(|_, _, _| Ok(()));
 
-    //         // Handle event room adjustment.
-    //         let state = Arc::new(state);
+        // Handle event room adjustment.
+        let state = Arc::new(state);
 
-    //         MinigroupPostprocessingStrategy::new(state.clone(), minigroup)
-    //             .handle_adjust(RoomAdjustResult::Success {
-    //                 original_room_id: original_event_room_id,
-    //                 modified_room_id: modified_event_room_id,
-    //                 cut_original_segments: cut_original_segments.clone(),
-    //                 modified_segments,
-    //             })
-    //             .await
-    //             .expect("Failed to handle event room adjustment");
+        let recordings = vec![
+            RecordingSegments {
+                id: recording1.id(),
+                pin_segments: pin_segments1,
+                modified_segments: cut_original_segments.clone(),
+                video_mute_segments: Segments::empty(),
+                audio_mute_segments: Segments::empty(),
+            },
+            RecordingSegments {
+                id: recording2.id(),
+                pin_segments: pin_segments2,
+                modified_segments: recording2.segments().cloned().unwrap(),
+                video_mute_segments: Segments::empty(),
+                audio_mute_segments: Segments::empty(),
+            },
+        ];
 
-    //         // Assert DB changes.
-    //         let mut conn = state.get_conn().await.expect("Failed to get conn");
+        MinigroupPostprocessingStrategy::new(state.clone(), minigroup)
+            .handle_adjust(RoomAdjustResult::V2(RoomAdjustResultV2::Success {
+                original_room_id: original_event_room_id,
+                modified_room_id: modified_event_room_id,
+                recordings,
+                modified_room_time,
+            }))
+            .await
+            .expect("Failed to handle event room adjustment");
 
-    //         let updated_minigroup = MinigroupReadQuery::by_id(minigroup_id)
-    //             .execute(&mut conn)
-    //             .await
-    //             .expect("Failed to fetch minigroup")
-    //             .expect("Minigroup not found");
+        // Assert DB changes.
+        let mut conn = state.get_conn().await.expect("Failed to get conn");
 
-    //         assert_eq!(
-    //             updated_minigroup.original_event_room_id(),
-    //             Some(original_event_room_id),
-    //         );
+        let updated_minigroup = MinigroupReadQuery::by_id(minigroup_id)
+            .execute(&mut conn)
+            .await
+            .expect("Failed to fetch minigroup")
+            .expect("Minigroup not found");
 
-    //         assert_eq!(
-    //             updated_minigroup.modified_event_room_id(),
-    //             Some(modified_event_room_id),
-    //         );
+        assert_eq!(
+            updated_minigroup.original_event_room_id(),
+            Some(original_event_room_id),
+        );
 
-    //         let recordings = RecordingListQuery::new(minigroup_id)
-    //             .execute(&mut conn)
-    //             .await
-    //             .expect("Failed to fetch recordings");
+        assert_eq!(
+            updated_minigroup.modified_event_room_id(),
+            Some(modified_event_room_id),
+        );
 
-    //         for recording in [&recording1, &recording2] {
-    //             let updated_recording = recordings
-    //                 .iter()
-    //                 .find(|r| r.id() == recording.id())
-    //                 .expect("Missing recording");
+        let recordings = RecordingListQuery::new(minigroup_id)
+            .execute(&mut conn)
+            .await
+            .expect("Failed to fetch recordings");
 
-    //             assert!(updated_recording.adjusted_at().is_some());
+        for recording in [&recording1, &recording2] {
+            let updated_recording = recordings
+                .iter()
+                .find(|r| r.id() == recording.id())
+                .expect("Missing recording");
 
-    //             assert_eq!(
-    //                 updated_recording.modified_segments(),
-    //                 if recording.id() == recording1.id() {
-    //                     Some(&cut_original_segments)
-    //                 } else {
-    //                     recording.segments()
-    //                 }
-    //             );
-    //         }
-    //     }
+            assert!(updated_recording.adjusted_at().is_some());
+
+            assert_eq!(
+                updated_recording.modified_segments(),
+                if recording.id() == recording1.id() {
+                    Some(&cut_original_segments)
+                } else {
+                    recording.segments()
+                }
+            );
+        }
+    }
 }
 
 mod handle_transcoding_completion {
