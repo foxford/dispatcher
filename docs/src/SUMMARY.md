@@ -16,3 +16,4 @@
         - [API](minigroups/api.md)
     - [Classes API](classes/api.md)
     - [Transcoding utils](utils/transcoding.md)
+    - [Ban](utils/ban.md)

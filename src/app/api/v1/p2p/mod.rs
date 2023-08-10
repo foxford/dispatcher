@@ -242,14 +242,14 @@ mod tests {
     use mockall::predicate as pred;
     use uuid::Uuid;
 
-    #[tokio::test]
-    async fn create_p2p() {
+    #[sqlx::test]
+    async fn create_p2p(pool: sqlx::PgPool) {
         let agent = TestAgent::new("web", "user1", USR_AUDIENCE);
 
         let mut authz = TestAuthz::new();
         authz.allow(agent.account_id(), vec!["classrooms"], "create");
 
-        let mut state = TestState::new(authz).await;
+        let mut state = TestState::new(pool, authz).await;
         let event_room_id = Uuid::new_v4();
         let conference_room_id = Uuid::new_v4();
 
@@ -279,11 +279,11 @@ mod tests {
             .expect("p2p not found");
     }
 
-    #[tokio::test]
-    async fn create_p2p_unauthorized() {
+    #[sqlx::test]
+    async fn create_p2p_unauthorized(pool: sqlx::PgPool) {
         let agent = TestAgent::new("web", "user1", USR_AUDIENCE);
 
-        let state = TestState::new(TestAuthz::new()).await;
+        let state = TestState::new(pool, TestAuthz::new()).await;
 
         let scope = random_string();
 
@@ -301,14 +301,14 @@ mod tests {
             .expect_err("Unexpectedly succeeded");
     }
 
-    #[tokio::test]
-    async fn create_p2p_with_properties() {
+    #[sqlx::test]
+    async fn create_p2p_with_properties(pool: sqlx::PgPool) {
         let agent = TestAgent::new("web", "user1", USR_AUDIENCE);
 
         let mut authz = TestAuthz::new();
         authz.allow(agent.account_id(), vec!["classrooms"], "create");
 
-        let mut state = TestState::new(authz).await;
+        let mut state = TestState::new(pool, authz).await;
         let event_room_id = Uuid::new_v4();
         let conference_room_id = Uuid::new_v4();
 

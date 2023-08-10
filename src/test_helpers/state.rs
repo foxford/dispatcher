@@ -1,5 +1,6 @@
 use parking_lot::Mutex;
 use std::sync::Arc;
+use svc_nats_client::test_helpers::TestNatsClient;
 
 use anyhow::Result;
 use async_trait::async_trait;
@@ -12,6 +13,7 @@ use svc_agent::{
     AgentId,
 };
 use svc_authz::ClientMap as Authz;
+use svc_nats_client::NatsClient;
 use url::Url;
 use vec1::{vec1, Vec1};
 
@@ -41,6 +43,7 @@ pub struct TestState {
     tq_client: Arc<MockTqClient>,
     authz: Authz,
     turn_host_selector: TurnHostSelector,
+    nats_client: Arc<TestNatsClient>,
 }
 
 fn build_config() -> Config {
@@ -98,7 +101,7 @@ fn build_config() -> Config {
 }
 
 impl TestState {
-    pub async fn new(authz: TestAuthz) -> Self {
+    pub async fn new(db: sqlx::PgPool, authz: TestAuthz) -> Self {
         let config = build_config();
 
         let agent = TestAgent::new(&config.agent_label, config.id.label(), config.id.audience());
@@ -106,7 +109,7 @@ impl TestState {
         let address = agent.address().to_owned();
 
         Self {
-            db_pool: TestDb::new().await,
+            db_pool: TestDb::new(db),
             turn_host_selector: TurnHostSelector::new(&config.turn_hosts),
             config,
             agent,
@@ -115,6 +118,7 @@ impl TestState {
             event_client: Arc::new(MockEventClient::new()),
             tq_client: Arc::new(MockTqClient::new()),
             authz: authz.into(),
+            nats_client: Arc::new(TestNatsClient::new()),
         }
     }
 
@@ -135,6 +139,7 @@ impl TestState {
             tq_client: Arc::new(MockTqClient::new()),
             authz: authz.into(),
             turn_host_selector: TurnHostSelector::new(&vec1!["turn.example.org".into()]),
+            nats_client: Arc::new(TestNatsClient::new()),
         }
     }
 
@@ -151,9 +156,13 @@ impl TestState {
     }
 
     pub fn set_turn_hosts(&mut self, hosts: &[&str]) {
-        let hosts = hosts.into_iter().map(|c| (*c).into()).collect::<Vec<_>>();
+        let hosts = hosts.iter().map(|c| (*c).into()).collect::<Vec<_>>();
         let hosts = Vec1::try_from_vec(hosts).unwrap();
         self.turn_host_selector = TurnHostSelector::new(&hosts);
+    }
+
+    pub fn inspect_nats_client(&self) -> &TestNatsClient {
+        &self.nats_client
     }
 }
 
@@ -228,6 +237,10 @@ impl AppContext for TestState {
 
     fn turn_host_selector(&self) -> &TurnHostSelector {
         &self.turn_host_selector
+    }
+
+    fn nats_client(&self) -> Option<Arc<dyn NatsClient>> {
+        Some(self.nats_client.clone())
     }
 }
 

@@ -29,6 +29,8 @@ pub struct Config {
     pub retry_delay: Duration,
     pub turn_hosts: vec1::Vec1<TurnHost>,
     pub frontend: HashMap<String, FrontendConfig>,
+    pub nats: Option<svc_nats_client::Config>,
+    pub nats_consumer: Option<svc_nats_client::ConsumerConfig>,
 }
 
 #[derive(Clone, Debug, Deserialize)]

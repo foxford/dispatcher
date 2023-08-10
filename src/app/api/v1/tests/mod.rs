@@ -8,9 +8,9 @@ use super::*;
 use crate::app::http;
 use crate::test_helpers::prelude::*;
 
-#[tokio::test]
-async fn test_healthz() {
-    let state = TestState::new(TestAuthz::new()).await;
+#[sqlx::test]
+async fn test_healthz(pool: sqlx::PgPool) {
+    let state = TestState::new(pool, TestAuthz::new()).await;
     let state = Arc::new(state) as Arc<dyn AppContext>;
     let app = http::router(state, HashMap::new());
 
@@ -29,15 +29,15 @@ async fn test_healthz() {
     assert_eq!(&body[..], b"Ok");
 }
 
-#[tokio::test]
-async fn test_api_rollback() {
+#[sqlx::test]
+async fn test_api_rollback(pool: sqlx::PgPool) {
     let agent = TestAgent::new("web", "user123", USR_AUDIENCE);
     let token = agent.token();
     let mut authz = TestAuthz::new();
     authz.set_audience(SVC_AUDIENCE);
     authz.allow(agent.account_id(), vec!["scopes"], "rollback");
 
-    let state = TestState::new(authz).await;
+    let state = TestState::new(pool, authz).await;
     let state = Arc::new(state) as Arc<dyn AppContext>;
     let app = crate::app::http::router(state.clone(), make_authn());
 

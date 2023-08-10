@@ -164,13 +164,13 @@ mod tests {
     use mockall::predicate as pred;
     use uuid::Uuid;
 
-    #[tokio::test]
-    async fn read_property_unauthorized() {
+    #[sqlx::test]
+    async fn read_property_unauthorized(pool: sqlx::PgPool) {
         let agent = TestAgent::new("web", "user1", USR_AUDIENCE);
         let event_room_id = Uuid::new_v4();
         let conference_room_id = Uuid::new_v4();
 
-        let state = TestState::new(TestAuthz::new()).await;
+        let state = TestState::new(pool, TestAuthz::new()).await;
         let webinar = {
             let mut conn = state.get_conn().await.expect("Failed to fetch connection");
 
@@ -204,13 +204,13 @@ mod tests {
         .expect_err("Unexpectedly succeeded");
     }
 
-    #[tokio::test]
-    async fn read_property() {
+    #[sqlx::test]
+    async fn read_property(pool: sqlx::PgPool) {
         let agent = TestAgent::new("web", "user1", USR_AUDIENCE);
         let event_room_id = Uuid::new_v4();
         let conference_room_id = Uuid::new_v4();
 
-        let db_pool = TestDb::new().await;
+        let db_pool = TestDb::new(pool);
         let webinar = {
             let mut conn = db_pool.get_conn().await;
 
@@ -256,13 +256,13 @@ mod tests {
         assert_eq!(property_value, serde_json::json!("test2"));
     }
 
-    #[tokio::test]
-    async fn update_property_unauthorized() {
+    #[sqlx::test]
+    async fn update_property_unauthorized(pool: sqlx::PgPool) {
         let agent = TestAgent::new("web", "user1", USR_AUDIENCE);
         let event_room_id = Uuid::new_v4();
         let conference_room_id = Uuid::new_v4();
 
-        let state = TestState::new(TestAuthz::new()).await;
+        let state = TestState::new(pool, TestAuthz::new()).await;
         let webinar = {
             let mut conn = state.get_conn().await.expect("Failed to fetch connection");
 
@@ -297,13 +297,13 @@ mod tests {
         .expect_err("Unexpectedly succeeded");
     }
 
-    #[tokio::test]
-    async fn update_property() {
+    #[sqlx::test]
+    async fn update_property(pool: sqlx::PgPool) {
         let agent = TestAgent::new("web", "user1", USR_AUDIENCE);
         let event_room_id = Uuid::new_v4();
         let conference_room_id = Uuid::new_v4();
 
-        let db_pool = TestDb::new().await;
+        let db_pool = TestDb::new(pool);
 
         let webinar = {
             let mut conn = db_pool.get_conn().await;

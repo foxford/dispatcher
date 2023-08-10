@@ -781,6 +781,60 @@
     },
     "query": "DELETE FROM recording WHERE class_id = $1 AND rtc_id = $2"
   },
+  "59afd2ec969f3fd188d888784ff22b0f1d810bf75c58f2488cd3b8b263853a27": {
+    "describe": {
+      "columns": [
+        {
+          "name": "user_account: _",
+          "ordinal": 0,
+          "type_info": {
+            "Custom": {
+              "kind": {
+                "Composite": [
+                  [
+                    "label",
+                    "Text"
+                  ],
+                  [
+                    "audience",
+                    "Text"
+                  ]
+                ]
+              },
+              "name": "account_id"
+            }
+          }
+        },
+        {
+          "name": "last_op_id: _",
+          "ordinal": 1,
+          "type_info": "Int8"
+        },
+        {
+          "name": "is_video_streaming_banned",
+          "ordinal": 2,
+          "type_info": "Bool"
+        },
+        {
+          "name": "is_collaboration_banned",
+          "ordinal": 3,
+          "type_info": "Bool"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false,
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Record"
+        ]
+      }
+    },
+    "query": "\n            SELECT\n                user_account AS \"user_account: _\",\n                last_op_id AS \"last_op_id: _\",\n                is_video_streaming_banned,\n                is_collaboration_banned\n            FROM ban_account_op\n            WHERE\n                user_account = $1\n            LIMIT 1;\n            "
+  },
   "6016a361f9fb26d49797872a086033a34a01b4f1038125486a47c0cc8713e209": {
     "describe": {
       "columns": [
@@ -1195,123 +1249,134 @@
     },
     "query": "\n            UPDATE recording\n            SET modified_segments =\n                CASE\n                    WHEN created_by = $3 THEN $2\n                    ELSE segments\n                END,\n                adjusted_at = NOW()\n            WHERE class_id = $1 AND deleted_at IS NULL\n            RETURNING\n                id,\n                class_id,\n                rtc_id,\n                stream_uri,\n                segments AS \"segments!: Option<Segments>\",\n                started_at,\n                modified_segments AS \"modified_segments!: Option<Segments>\",\n                created_at,\n                adjusted_at,\n                transcoded_at,\n                created_by AS \"created_by: AgentId\",\n                deleted_at\n            "
   },
-  "7296ad8d156f41d717c88c4f20c012bc010531d460776813fd70b3141485aabe": {
+  "7027e1415842b3bd10d9c5efb3e691341a7dfd7b51705cbf2dbed9cba3544a03": {
     "describe": {
       "columns": [
         {
-          "name": "id",
+          "name": "user_account: _",
           "ordinal": 0,
-          "type_info": "Uuid"
-        },
-        {
-          "name": "class_id",
-          "ordinal": 1,
-          "type_info": "Uuid"
-        },
-        {
-          "name": "rtc_id",
-          "ordinal": 2,
-          "type_info": "Uuid"
-        },
-        {
-          "name": "stream_uri",
-          "ordinal": 3,
-          "type_info": "Text"
-        },
-        {
-          "name": "segments!: Option<Segments>",
-          "ordinal": 4,
-          "type_info": "Int8RangeArray"
-        },
-        {
-          "name": "modified_segments!: Option<Segments>",
-          "ordinal": 5,
-          "type_info": "Int8RangeArray"
-        },
-        {
-          "name": "started_at",
-          "ordinal": 6,
-          "type_info": "Timestamptz"
-        },
-        {
-          "name": "created_at",
-          "ordinal": 7,
-          "type_info": "Timestamptz"
-        },
-        {
-          "name": "adjusted_at",
-          "ordinal": 8,
-          "type_info": "Timestamptz"
-        },
-        {
-          "name": "transcoded_at",
-          "ordinal": 9,
-          "type_info": "Timestamptz"
-        },
-        {
-          "name": "created_by: AgentId",
-          "ordinal": 10,
           "type_info": {
             "Custom": {
               "kind": {
                 "Composite": [
                   [
-                    "account_id",
-                    {
-                      "Custom": {
-                        "kind": {
-                          "Composite": [
-                            [
-                              "label",
-                              "Text"
-                            ],
-                            [
-                              "audience",
-                              "Text"
-                            ]
-                          ]
-                        },
-                        "name": "account_id"
-                      }
-                    }
+                    "label",
+                    "Text"
                   ],
                   [
-                    "label",
+                    "audience",
                     "Text"
                   ]
                 ]
               },
-              "name": "agent_id"
+              "name": "account_id"
             }
           }
         },
         {
-          "name": "deleted_at",
-          "ordinal": 11,
-          "type_info": "Timestamptz"
+          "name": "last_op_id",
+          "ordinal": 1,
+          "type_info": "Int8"
+        },
+        {
+          "name": "is_video_streaming_banned",
+          "ordinal": 2,
+          "type_info": "Bool"
+        },
+        {
+          "name": "is_collaboration_banned",
+          "ordinal": 3,
+          "type_info": "Bool"
         }
       ],
       "nullable": [
         false,
         false,
         false,
-        true,
-        true,
-        true,
-        true,
-        false,
-        true,
-        true,
-        false,
-        true
+        false
       ],
       "parameters": {
         "Left": [
-          "Uuid"
+          {
+            "Custom": {
+              "kind": {
+                "Composite": [
+                  [
+                    "label",
+                    "Text"
+                  ],
+                  [
+                    "audience",
+                    "Text"
+                  ]
+                ]
+              },
+              "name": "account_id"
+            }
+          },
+          "Int8",
+          "Int8"
         ]
       }
     },
-    "query": "\n            SELECT\n                id,\n                class_id,\n                rtc_id,\n                stream_uri,\n                segments AS \"segments!: Option<Segments>\",\n                modified_segments AS \"modified_segments!: Option<Segments>\",\n                started_at,\n                created_at,\n                adjusted_at,\n                transcoded_at,\n                created_by AS \"created_by: AgentId\",\n                deleted_at\n            FROM recording\n            WHERE class_id = $1 AND deleted_at IS NULL\n            "
+    "query": "\n            INSERT INTO ban_account_op (user_account, last_op_id)\n            VALUES ($1, $2)\n            ON CONFLICT (user_account) DO UPDATE\n            SET\n                -- to reset sub-operation trackers only if op_id has changed\n                is_video_streaming_banned = ($2 = $3 AND ban_account_op.is_video_streaming_banned),\n                is_collaboration_banned   = ($2 = $3 AND ban_account_op.is_collaboration_banned),\n                last_op_id                = EXCLUDED.last_op_id\n            WHERE\n                -- allow to 'complete' operation if there's no change in last_op_id\n                -- or allow to do upsert without real changes so we can process\n                -- the same message twice\n                ban_account_op.last_op_id = EXCLUDED.last_op_id OR\n                -- allow change op id if the previous operation is completed\n                (\n                    ban_account_op.last_op_id                = $3 AND\n                    ban_account_op.is_video_streaming_banned = true AND\n                    ban_account_op.is_collaboration_banned   = true\n                )\n            RETURNING\n                user_account AS \"user_account: _\",\n                last_op_id,\n                is_video_streaming_banned,\n                is_collaboration_banned\n            "
+  },
+  "7174ed47333151e6ef71b45f2f2fe9d15d70ba860e5dc52e1dcff3aea12c4c1d": {
+    "describe": {
+      "columns": [
+        {
+          "name": "user_account: _",
+          "ordinal": 0,
+          "type_info": {
+            "Custom": {
+              "kind": {
+                "Composite": [
+                  [
+                    "label",
+                    "Text"
+                  ],
+                  [
+                    "audience",
+                    "Text"
+                  ]
+                ]
+              },
+              "name": "account_id"
+            }
+          }
+        },
+        {
+          "name": "last_op_id",
+          "ordinal": 1,
+          "type_info": "Int8"
+        },
+        {
+          "name": "is_video_streaming_banned",
+          "ordinal": 2,
+          "type_info": "Bool"
+        },
+        {
+          "name": "is_collaboration_banned",
+          "ordinal": 3,
+          "type_info": "Bool"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false,
+        false
+      ],
+      "parameters": {
+        "Left": [
+          "Record",
+          "Bool",
+          "Bool",
+          "Int8"
+        ]
+      }
+    },
+    "query": "\n            UPDATE ban_account_op\n            SET\n                is_video_streaming_banned = COALESCE($2, ban_account_op.is_video_streaming_banned),\n                is_collaboration_banned   = COALESCE($3, ban_account_op.is_collaboration_banned)\n            WHERE\n                ban_account_op.last_op_id = $4\n            AND ban_account_op.user_account = $1\n            RETURNING\n                user_account AS \"user_account: _\",\n                last_op_id,\n                is_video_streaming_banned,\n                is_collaboration_banned\n            "
   },
   "73a64697ca7ad2d67c7b2a77cc1fd6c0fb7a2b262a30d8386e83f8cbd8be5a54": {
     "describe": {
@@ -1525,6 +1590,24 @@
       }
     },
     "query": "\n                        SELECT\n                            id::text AS \"id!: String\"\n                        FROM class\n                        WHERE conference_room_id = $1\n                    "
+  },
+  "a4fc28b7fa8a6a5f4051750a2447784a10a221632dbea080fe1d4c980de076fd": {
+    "describe": {
+      "columns": [
+        {
+          "name": "value!: i64",
+          "ordinal": 0,
+          "type_info": "Int8"
+        }
+      ],
+      "nullable": [
+        null
+      ],
+      "parameters": {
+        "Left": []
+      }
+    },
+    "query": "SELECT nextval('ban_entity_seq_id') as \"value!: i64\";"
   },
   "ac4ac9431173165543dbc459bb3b2b9b4461f7016aa6d6967cc9f5f832f208bb": {
     "describe": {
@@ -1960,6 +2043,74 @@
       }
     },
     "query": "\n            INSERT INTO recording (\n                class_id, rtc_id, stream_uri, segments, modified_segments, started_at, adjusted_at,\n                transcoded_at, created_by\n            )\n            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)\n            ON CONFLICT (class_id, created_by)\n            WHERE deleted_at IS NULL\n            DO UPDATE\n            SET (rtc_id, stream_uri, segments, modified_segments,\n                    started_at, adjusted_at, transcoded_at, created_by, created_at) =\n                (EXCLUDED.rtc_id, EXCLUDED.stream_uri, EXCLUDED.segments, EXCLUDED.modified_segments, EXCLUDED.started_at, EXCLUDED.adjusted_at,\n                        EXCLUDED.transcoded_at, EXCLUDED.created_by, NOW())\n            RETURNING\n                id,\n                class_id,\n                rtc_id,\n                stream_uri,\n                segments AS \"segments!: Option<Segments>\",\n                started_at,\n                modified_segments AS \"modified_segments!: Option<Segments>\",\n                created_at,\n                adjusted_at,\n                transcoded_at,\n                created_by AS \"created_by: AgentId\",\n                deleted_at\n            "
+  },
+  "cd5e1f8fb8afcf43963183bbe0f1c481e5d65a49f9d4356c9b6bf2dbabc1644c": {
+    "describe": {
+      "columns": [
+        {
+          "name": "target_account: AccountId",
+          "ordinal": 0,
+          "type_info": {
+            "Custom": {
+              "kind": {
+                "Composite": [
+                  [
+                    "label",
+                    "Text"
+                  ],
+                  [
+                    "audience",
+                    "Text"
+                  ]
+                ]
+              },
+              "name": "account_id"
+            }
+          }
+        },
+        {
+          "name": "class_id",
+          "ordinal": 1,
+          "type_info": "Uuid"
+        },
+        {
+          "name": "banned_at",
+          "ordinal": 2,
+          "type_info": "Timestamptz"
+        },
+        {
+          "name": "banned_operation_id",
+          "ordinal": 3,
+          "type_info": "Int8"
+        },
+        {
+          "name": "unbanned_at",
+          "ordinal": 4,
+          "type_info": "Timestamptz"
+        },
+        {
+          "name": "unbanned_operation_id",
+          "ordinal": 5,
+          "type_info": "Int8"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        true,
+        true
+      ],
+      "parameters": {
+        "Left": [
+          "Uuid",
+          "Record",
+          "Int8"
+        ]
+      }
+    },
+    "query": "\n            UPDATE ban_history\n            SET\n                unbanned_at = NOW(),\n                unbanned_operation_id = $3\n            WHERE\n                class_id = $1\n            AND target_account = $2\n            AND unbanned_at IS NULL\n            RETURNING\n                target_account AS \"target_account: AccountId\",\n                class_id,\n                banned_at,\n                banned_operation_id,\n                unbanned_at,\n                unbanned_operation_id\n            "
   },
   "ce3fc3fce308f42126eaba1bde5ba12d340cce38b9f06fad4b6622b02de62cd9": {
     "describe": {
@@ -2478,6 +2629,124 @@
       }
     },
     "query": "\n            UPDATE recording\n            SET deleted_at = NOW()\n            WHERE class_id = $1 AND deleted_at IS NULL\n            "
+  },
+  "d5327cbe86cd24eef0fa68dff1ea943cb4f86d10663bbd9ad453342012a4e978": {
+    "describe": {
+      "columns": [
+        {
+          "name": "id",
+          "ordinal": 0,
+          "type_info": "Uuid"
+        },
+        {
+          "name": "class_id",
+          "ordinal": 1,
+          "type_info": "Uuid"
+        },
+        {
+          "name": "rtc_id",
+          "ordinal": 2,
+          "type_info": "Uuid"
+        },
+        {
+          "name": "stream_uri",
+          "ordinal": 3,
+          "type_info": "Text"
+        },
+        {
+          "name": "segments!: Option<Segments>",
+          "ordinal": 4,
+          "type_info": "Int8RangeArray"
+        },
+        {
+          "name": "modified_segments!: Option<Segments>",
+          "ordinal": 5,
+          "type_info": "Int8RangeArray"
+        },
+        {
+          "name": "started_at",
+          "ordinal": 6,
+          "type_info": "Timestamptz"
+        },
+        {
+          "name": "created_at",
+          "ordinal": 7,
+          "type_info": "Timestamptz"
+        },
+        {
+          "name": "adjusted_at",
+          "ordinal": 8,
+          "type_info": "Timestamptz"
+        },
+        {
+          "name": "transcoded_at",
+          "ordinal": 9,
+          "type_info": "Timestamptz"
+        },
+        {
+          "name": "created_by: AgentId",
+          "ordinal": 10,
+          "type_info": {
+            "Custom": {
+              "kind": {
+                "Composite": [
+                  [
+                    "account_id",
+                    {
+                      "Custom": {
+                        "kind": {
+                          "Composite": [
+                            [
+                              "label",
+                              "Text"
+                            ],
+                            [
+                              "audience",
+                              "Text"
+                            ]
+                          ]
+                        },
+                        "name": "account_id"
+                      }
+                    }
+                  ],
+                  [
+                    "label",
+                    "Text"
+                  ]
+                ]
+              },
+              "name": "agent_id"
+            }
+          }
+        },
+        {
+          "name": "deleted_at",
+          "ordinal": 11,
+          "type_info": "Timestamptz"
+        }
+      ],
+      "nullable": [
+        false,
+        false,
+        false,
+        true,
+        true,
+        true,
+        true,
+        false,
+        true,
+        true,
+        false,
+        true
+      ],
+      "parameters": {
+        "Left": [
+          "Uuid"
+        ]
+      }
+    },
+    "query": "\n            SELECT\n                r.id,\n                r.class_id,\n                r.rtc_id,\n                r.stream_uri,\n                r.segments AS \"segments!: Option<Segments>\",\n                r.modified_segments AS \"modified_segments!: Option<Segments>\",\n                r.started_at,\n                r.created_at,\n                r.adjusted_at,\n                r.transcoded_at,\n                r.created_by AS \"created_by: AgentId\",\n                r.deleted_at\n            FROM recording AS r\n            LEFT JOIN ban_history AS bh\n            ON  r.class_id = bh.class_id\n            AND bh.target_account = (r.created_by).account_id\n            WHERE\n                r.class_id = $1\n            AND r.deleted_at IS NULL\n            AND bh.banned_operation_id IS NULL\n            "
   },
   "d7263981e0de43bae99ecbd69405e87e614ff3aa84a1379a01a25be6f13f6687": {
     "describe": {
@@ -3102,6 +3371,90 @@
       }
     },
     "query": "\n            INSERT INTO class (\n                scope, audience, time, tags, preserve_history, kind,\n                conference_room_id, event_room_id, properties\n            )\n            VALUES ($1, $2, $3, $4, $5, $6::class_type, $7, $8, $9)\n            RETURNING\n                id,\n                scope,\n                kind AS \"kind!: ClassType\",\n                audience,\n                time AS \"time!: Time\",\n                tags,\n                properties AS \"properties: _\",\n                preserve_history,\n                created_at,\n                event_room_id AS \"event_room_id!: Uuid\",\n                conference_room_id AS \"conference_room_id!: Uuid\",\n                original_event_room_id,\n                modified_event_room_id,\n                reserve,\n                room_events_uri,\n                host AS \"host: AgentId\",\n                timed_out,\n                original_class_id,\n                content_id\n            "
+  },
+  "f9aeac4c3a1e1747314db755f8e0790b01a0d2d603f20cdd069b7b57268ccdbe": {
+    "describe": {
+      "columns": [
+        {
+          "name": "target_account!: AccountId",
+          "ordinal": 0,
+          "type_info": {
+            "Custom": {
+              "kind": {
+                "Composite": [
+                  [
+                    "label",
+                    "Text"
+                  ],
+                  [
+                    "audience",
+                    "Text"
+                  ]
+                ]
+              },
+              "name": "account_id"
+            }
+          }
+        },
+        {
+          "name": "class_id!: _",
+          "ordinal": 1,
+          "type_info": "Uuid"
+        },
+        {
+          "name": "banned_at!: _",
+          "ordinal": 2,
+          "type_info": "Timestamptz"
+        },
+        {
+          "name": "banned_operation_id!: _",
+          "ordinal": 3,
+          "type_info": "Int8"
+        },
+        {
+          "name": "unbanned_at",
+          "ordinal": 4,
+          "type_info": "Timestamptz"
+        },
+        {
+          "name": "unbanned_operation_id",
+          "ordinal": 5,
+          "type_info": "Int8"
+        }
+      ],
+      "nullable": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "parameters": {
+        "Left": [
+          "Uuid",
+          {
+            "Custom": {
+              "kind": {
+                "Composite": [
+                  [
+                    "label",
+                    "Text"
+                  ],
+                  [
+                    "audience",
+                    "Text"
+                  ]
+                ]
+              },
+              "name": "account_id"
+            }
+          },
+          "Int8"
+        ]
+      }
+    },
+    "query": "\n            WITH i AS (\n                INSERT INTO ban_history (class_id, target_account, banned_operation_id)\n                VALUES ($1, $2, $3)\n                -- this allows us to run this query many times idempotently\n                ON CONFLICT (banned_operation_id) DO NOTHING\n                RETURNING *\n            )\n            -- gets row if there was no conflict\n            SELECT\n                target_account AS \"target_account!: AccountId\",\n                class_id AS \"class_id!: _\",\n                banned_at AS \"banned_at!: _\",\n                banned_operation_id AS \"banned_operation_id!: _\",\n                unbanned_at,\n                unbanned_operation_id\n            FROM i\n            -- or selects original row if there was a conflict\n            UNION\n                SELECT\n                    target_account AS \"target_account: AccountId\",\n                    class_id,\n                    banned_at,\n                    banned_operation_id,\n                    unbanned_at,\n                    unbanned_operation_id\n                FROM ban_history\n                WHERE\n                    banned_operation_id = $3\n            "
   },
   "fe7779aca18f7e0fe8dcee465db39f3669a6b1c80064bab63e82f8f5aa99d7d1": {
     "describe": {

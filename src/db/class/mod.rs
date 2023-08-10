@@ -47,7 +47,7 @@ impl std::ops::DerefMut for KeyValueProperties {
 impl sqlx::Encode<'_, sqlx::Postgres> for KeyValueProperties {
     fn encode_by_ref(
         &self,
-        buf: &mut <sqlx::Postgres as sqlx::database::HasArguments>::ArgumentBuffer,
+        buf: &mut <sqlx::Postgres as sqlx::database::HasArguments<'_>>::ArgumentBuffer,
     ) -> sqlx::encode::IsNull {
         self.clone().into_json().encode_by_ref(buf)
     }

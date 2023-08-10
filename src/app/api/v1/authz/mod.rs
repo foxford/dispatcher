@@ -489,12 +489,12 @@ fn test_extract_rtc_id() {
     assert_eq!(r, "14aa9730-26e1-487c-9153-bc8cb28d8eb0");
 }
 
-#[tokio::test]
-async fn test_transform_tq_authz_request() {
+#[sqlx::test]
+async fn test_transform_tq_authz_request(pool: sqlx::PgPool) {
     use crate::test_helpers::prelude::TestAuthz;
     use crate::test_helpers::state::TestState;
 
-    let test_state = TestState::new(TestAuthz::new()).await;
+    let test_state = TestState::new(pool, TestAuthz::new()).await;
     // ["classrooms", CLASSROOM_ID, "priorities", priority]::*
     // becomes ["classrooms", CLASSROOM_ID]::*
     let mut authz_req: AuthzRequest = serde_json::from_str(
@@ -617,12 +617,12 @@ fn test_transform_nats_gatekeeper_authz_request() {
     );
 }
 
-#[tokio::test]
-async fn test_transform_storage_v1_authz_request() {
+#[sqlx::test]
+async fn test_transform_storage_v1_authz_request(pool: sqlx::PgPool) {
     use crate::test_helpers::prelude::TestAuthz;
     use crate::test_helpers::state::TestState;
 
-    let test_state = TestState::new(TestAuthz::new()).await;
+    let test_state = TestState::new(pool, TestAuthz::new()).await;
 
     let mut authz_req: AuthzRequest = serde_json::from_str(
         r#"

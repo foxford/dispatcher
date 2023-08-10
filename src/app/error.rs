@@ -16,7 +16,7 @@ struct ErrorKindProperties {
     is_notify_sentry: bool,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ErrorKind {
     AccessDenied,
     AuthorizationFailed,
@@ -40,6 +40,11 @@ pub enum ErrorKind {
     InternalFailure,
     CreationWhiteboardFailed,
     ClassAlreadyEstablished,
+    OperationIdObsolete,
+    OperationInProgress,
+    OperationFailed,
+    NatsPublishFailed,
+    NatsClientNotFound,
     MissingTenant,
 }
 
@@ -192,6 +197,36 @@ impl From<ErrorKind> for ErrorKindProperties {
                 title: "Class already established",
                 is_notify_sentry: false,
             },
+            ErrorKind::OperationIdObsolete => ErrorKindProperties {
+                status: ResponseStatus::CONFLICT,
+                kind: "operation_id_obsolete",
+                title: "Operation id obsolete, should fetch latest state",
+                is_notify_sentry: false,
+            },
+            ErrorKind::OperationInProgress => ErrorKindProperties {
+                status: ResponseStatus::CONFLICT,
+                kind: "operation_in_progress",
+                title: "Operation is not completed yet, retry later",
+                is_notify_sentry: false,
+            },
+            ErrorKind::OperationFailed => ErrorKindProperties {
+                status: ResponseStatus::INTERNAL_SERVER_ERROR,
+                kind: "operation_failed",
+                title: "Operation failed really bad",
+                is_notify_sentry: true,
+            },
+            ErrorKind::NatsPublishFailed => ErrorKindProperties {
+                status: ResponseStatus::UNPROCESSABLE_ENTITY,
+                kind: "nats_publish_failed",
+                title: "Nats publish failed",
+                is_notify_sentry: true,
+            },
+            ErrorKind::NatsClientNotFound => ErrorKindProperties {
+                status: ResponseStatus::FAILED_DEPENDENCY,
+                kind: "nats_client_not_found",
+                title: "Nats client not found",
+                is_notify_sentry: true,
+            },
             ErrorKind::MissingTenant => ErrorKindProperties {
                 status: ResponseStatus::BAD_REQUEST,
                 kind: "missing_tenant",
@@ -240,6 +275,11 @@ impl Error {
                 tracing::error!("Failed to send error to sentry, reason = {:?}", e);
             }
         }
+    }
+
+    #[cfg(test)]
+    pub fn kind(&self) -> ErrorKind {
+        self.kind
     }
 }
 

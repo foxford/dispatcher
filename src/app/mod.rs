@@ -1,5 +1,5 @@
-use std::sync::Arc;
 use std::time::Duration;
+use std::{future, sync::Arc};
 
 use anyhow::{Context, Result};
 use futures::StreamExt;
@@ -67,7 +67,38 @@ pub async fn run(db: PgPool, authz_cache: Option<Box<dyn AuthzCache>>) -> Result
         agent.clone(),
         authz,
     );
+
+    let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(());
+
+    let nats_client = match &config.nats {
+        Some(cfg) => {
+            let nats_client = svc_nats_client::Client::new(cfg.clone())
+                .await
+                .context("nats client")?;
+            info!("Connected to nats");
+
+            Some(nats_client)
+        }
+        None => None,
+    };
+
+    let state = match nats_client.clone() {
+        Some(nats_client) => state.add_nats_client(nats_client),
+        None => state,
+    };
+
     let state = Arc::new(state) as Arc<dyn AppContext>;
+    let state_ = state.clone();
+
+    let nats_consumer = match (nats_client, &config.nats_consumer) {
+        (Some(nats_client), Some(cfg)) => {
+            svc_nats_client::consumer::run(nats_client, cfg.clone(), shutdown_rx, move |msg| {
+                crate::app::stage::route_message(state_.clone(), msg)
+            })
+        }
+        _ => tokio::spawn(future::ready(Ok(()))),
+    };
+
     let state_ = state.clone();
 
     let message_handler = Arc::new(MessageHandler::new(state_, dispatcher));
@@ -134,6 +165,11 @@ pub async fn run(db: PgPool, authz_cache: Option<Box<dyn AuthzCache>>) -> Result
     let signals = signals_stream.next();
 
     futures::future::select(app_future, signals).await;
+    shutdown_tx.send(()).ok();
+
+    if let Err(err) = nats_consumer.await {
+        tracing::error!(%err, "nats consumer failed");
+    }
 
     metrics_server.shutdown().await;
 
@@ -240,11 +276,12 @@ fn build_tq_client(config: &Config, token: &str) -> Arc<dyn TqClient> {
 
 mod api;
 mod authz;
-mod error;
+pub mod error;
 mod http;
 mod info;
 mod metrics;
 mod postprocessing_strategy;
 pub mod services;
+mod stage;
 mod tide_state;
 pub mod turn_host;

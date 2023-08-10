@@ -10,7 +10,7 @@ use serde_derive::{Deserialize, Serialize};
 ////////////////////////////////////////////////////////////////////////////////
 
 #[allow(dead_code)]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Object {
     id: Uuid,
     class_id: Uuid,
@@ -123,20 +123,26 @@ impl RecordingListQuery {
             Object,
             r#"
             SELECT
-                id,
-                class_id,
-                rtc_id,
-                stream_uri,
-                segments AS "segments!: Option<Segments>",
-                modified_segments AS "modified_segments!: Option<Segments>",
-                started_at,
-                created_at,
-                adjusted_at,
-                transcoded_at,
-                created_by AS "created_by: AgentId",
-                deleted_at
-            FROM recording
-            WHERE class_id = $1 AND deleted_at IS NULL
+                r.id,
+                r.class_id,
+                r.rtc_id,
+                r.stream_uri,
+                r.segments AS "segments!: Option<Segments>",
+                r.modified_segments AS "modified_segments!: Option<Segments>",
+                r.started_at,
+                r.created_at,
+                r.adjusted_at,
+                r.transcoded_at,
+                r.created_by AS "created_by: AgentId",
+                r.deleted_at
+            FROM recording AS r
+            LEFT JOIN ban_history AS bh
+            ON  r.class_id = bh.class_id
+            AND bh.target_account = (r.created_by).account_id
+            WHERE
+                r.class_id = $1
+            AND r.deleted_at IS NULL
+            AND bh.banned_operation_id IS NULL
             "#,
             self.class_id
         )
@@ -567,11 +573,11 @@ pub mod tests {
     use crate::app::AppContext;
     use crate::test_helpers::prelude::*;
 
-    #[tokio::test]
-    async fn test_minigroup_adjust_not_using_deleted_recordings() {
+    #[sqlx::test]
+    async fn test_minigroup_adjust_not_using_deleted_recordings(pool: sqlx::PgPool) {
         let agent = TestAgent::new("web", "user1", USR_AUDIENCE);
 
-        let state = TestState::new(TestAuthz::new()).await;
+        let state = TestState::new(pool, TestAuthz::new()).await;
         let mut conn = state.get_conn().await.expect("Failed to fetch connection");
         let minigroup = factory::Minigroup::new(
             random_string(),
@@ -606,6 +612,49 @@ pub mod tests {
 
         assert_eq!(recordings.len(), 1);
         assert_eq!(recordings[0].rtc_id(), recording.rtc_id());
+    }
+
+    #[sqlx::test]
+    async fn list_recording_skips_records_from_banned_users(pool: sqlx::PgPool) {
+        let agent1 = TestAgent::new("web", "user1", USR_AUDIENCE);
+        let agent2 = TestAgent::new("web", "user2", USR_AUDIENCE);
+
+        let state = TestState::new(pool, TestAuthz::new()).await;
+        let mut conn = state.get_conn().await.expect("Failed to fetch connection");
+        let minigroup = factory::Minigroup::new(
+            random_string(),
+            USR_AUDIENCE.to_string(),
+            (Bound::Unbounded, Bound::Unbounded).into(),
+            Uuid::new_v4(),
+            Uuid::new_v4(),
+        )
+        .insert(&mut conn)
+        .await;
+
+        // Recording of banned agent
+        let _rec1 =
+            factory::Recording::new(minigroup.id(), Uuid::new_v4(), agent1.agent_id().to_owned())
+                .insert(&mut conn)
+                .await;
+
+        crate::db::ban_history::InsertQuery::new(minigroup.id(), agent1.account_id(), 0)
+            .execute(&mut conn)
+            .await
+            .expect("failed to insert ban history entry");
+
+        // Recording of good agent
+        let rec2 =
+            factory::Recording::new(minigroup.id(), Uuid::new_v4(), agent2.agent_id().to_owned())
+                .insert(&mut conn)
+                .await;
+
+        let recs = RecordingListQuery::new(minigroup.id())
+            .execute(&mut conn)
+            .await
+            .expect("failed to run list query");
+
+        assert_eq!(recs.len(), 1);
+        assert_eq!(recs[0], rec2);
     }
 
     pub struct RecordingInsertQuery {

@@ -46,17 +46,19 @@ sqlx = { version = "0.6", features = [
     "bigdecimal",
     "runtime-tokio-native-tls",
 ] }
-svc-agent = { version = "0.20", features = ["sqlx"] }
+svc-agent = { version = "0.21", features = ["sqlx"] }
 svc-authn = { version = "0.8", features = ["jose", "sqlx"] }
 svc-authz = "0.12"
-svc-error = { version = "0.5", features = [
+svc-error = { version = "0.6", features = [
     "svc-agent",
     "svc-authn",
     "svc-authz",
     "sentry-extension",
     "sqlx",
 ] }
-svc-utils = { version = "0.7", features = ["log-middleware", "metrics-middleware", "cors-middleware", "authn-extractor"] }
+svc-events = "0.11"
+svc-nats-client = "0.8"
+svc-utils = { version = "0.8", features = ["log-middleware", "metrics-middleware", "cors-middleware", "authn-extractor"] }
 tokio = { version = "1.28", features = ["full"] }
 tower = { version = "0.4", features = [ "timeout" ] }
 tracing = "0.1"

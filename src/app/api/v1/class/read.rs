@@ -219,11 +219,10 @@ mod tests {
     };
     use serde_json::Value;
 
-    #[tokio::test]
-    async fn read_webinar_unauthorized() {
+    #[sqlx::test]
+    async fn read_webinar_unauthorized(pool: sqlx::PgPool) {
         let agent = TestAgent::new("web", "user1", USR_AUDIENCE);
-
-        let state = TestState::new(TestAuthz::new()).await;
+        let state = TestState::new(pool, TestAuthz::new()).await;
 
         let state = Arc::new(state);
 
@@ -237,14 +236,15 @@ mod tests {
         .expect_err("Unexpectedly succeeded");
     }
 
-    #[tokio::test]
-    async fn read_webinar() {
+    #[sqlx::test]
+    async fn read_webinar(pool: sqlx::PgPool) {
         let agent = TestAgent::new("web", "user1", USR_AUDIENCE);
-        let db_pool = TestDb::new().await;
+        let db_pool = TestDb::new(pool);
 
         let webinar = {
             let mut conn = db_pool.get_conn().await;
-            let webinar = factory::Webinar::new(
+
+            factory::Webinar::new(
                 random_string(),
                 USR_AUDIENCE.to_string(),
                 (Bound::Unbounded, Bound::Unbounded).into(),
@@ -252,9 +252,7 @@ mod tests {
                 Uuid::new_v4(),
             )
             .insert(&mut conn)
-            .await;
-
-            webinar
+            .await
         };
 
         let mut authz = TestAuthz::new();
@@ -282,23 +280,22 @@ mod tests {
         assert_eq!(v.get("turn_host").unwrap().as_str(), Some("turn0"));
     }
 
-    #[tokio::test]
-    async fn read_p2p() {
+    #[sqlx::test]
+    async fn read_p2p(pool: sqlx::PgPool) {
         let agent = TestAgent::new("web", "user1", USR_AUDIENCE);
-        let db_pool = TestDb::new().await;
+        let db_pool = TestDb::new(pool);
 
         let p2p = {
             let mut conn = db_pool.get_conn().await;
-            let p2p = factory::P2P::new(
+
+            factory::P2P::new(
                 random_string(),
                 USR_AUDIENCE.to_string(),
                 Uuid::new_v4(),
                 Uuid::new_v4(),
             )
             .insert(&mut conn)
-            .await;
-
-            p2p
+            .await
         };
 
         let mut authz = TestAuthz::new();
@@ -331,17 +328,18 @@ mod tests {
         assert_eq!(turns.into_iter().collect::<HashSet<_>>().len(), 1);
     }
 
-    #[tokio::test]
-    async fn read_class_properties() {
+    #[sqlx::test]
+    async fn read_class_properties(pool: sqlx::PgPool) {
         let agent = TestAgent::new("web", "user1", USR_AUDIENCE);
-        let db_pool = TestDb::new().await;
+        let db_pool = TestDb::new(pool);
 
         let mut properties = KeyValueProperties::new();
         properties.insert("test".to_owned(), serde_json::json!("test"));
 
         let webinar = {
             let mut conn = db_pool.get_conn().await;
-            let webinar = factory::Webinar::new(
+
+            factory::Webinar::new(
                 random_string(),
                 USR_AUDIENCE.to_string(),
                 (Bound::Unbounded, Bound::Unbounded).into(),
@@ -350,9 +348,7 @@ mod tests {
             )
             .properties(properties)
             .insert(&mut conn)
-            .await;
-
-            webinar
+            .await
         };
 
         let mut authz = TestAuthz::new();
@@ -413,10 +409,10 @@ mod tests {
         )
     }
 
-    #[tokio::test]
-    async fn read_account_properties() {
+    #[sqlx::test]
+    async fn read_account_properties(pool: sqlx::PgPool) {
         let agent = TestAgent::new("web", "user1", USR_AUDIENCE);
-        let db_pool = TestDb::new().await;
+        let db_pool = TestDb::new(pool);
 
         let mut properties = KeyValueProperties::new();
         properties.insert("test".to_owned(), serde_json::json!("test"));

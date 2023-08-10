@@ -171,10 +171,10 @@ mod tests {
     use mockall::predicate as pred;
     use uuid::Uuid;
 
-    #[tokio::test]
-    async fn create_replica_unauthorized() {
+    #[sqlx::test]
+    async fn create_replica_unauthorized(pool: sqlx::PgPool) {
         let agent = TestAgent::new("web", "user1", USR_AUDIENCE);
-        let state = TestState::new(TestAuthz::new()).await;
+        let state = TestState::new(pool, TestAuthz::new()).await;
         let scope = random_string();
         let class_id = Uuid::new_v4();
 
@@ -189,14 +189,14 @@ mod tests {
             .expect_err("Unexpectedly succeeded");
     }
 
-    #[tokio::test]
-    async fn create_replica_original_webinar_not_found() {
+    #[sqlx::test]
+    async fn create_replica_original_webinar_not_found(pool: sqlx::PgPool) {
         let agent = TestAgent::new("web", "user1", USR_AUDIENCE);
 
         let mut authz = TestAuthz::new();
         authz.allow(agent.account_id(), vec!["classrooms"], "create");
 
-        let mut state = TestState::new(authz).await;
+        let mut state = TestState::new(pool, authz).await;
         let event_room_id = Uuid::new_v4();
         let conference_room_id = Uuid::new_v4();
         let class_id = Uuid::new_v4();
@@ -216,14 +216,14 @@ mod tests {
             .expect_err("Unexpectedly succeeded");
     }
 
-    #[tokio::test]
-    async fn create_replica_from_original_webinar() {
+    #[sqlx::test]
+    async fn create_replica_from_original_webinar(pool: sqlx::PgPool) {
         let agent = TestAgent::new("web", "user1", USR_AUDIENCE);
 
         let mut authz = TestAuthz::new();
         authz.allow(agent.account_id(), vec!["classrooms"], "create");
 
-        let mut state = TestState::new(authz).await;
+        let mut state = TestState::new(pool, authz).await;
         let event_room_id = Uuid::new_v4();
         let conference_room_id = Uuid::new_v4();
 
